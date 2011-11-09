@@ -6,7 +6,7 @@ CXXFLAGS= \
     -Wall -W -Werror -Wsign-promo
 LDFLAGS = `pkg-config --libs --static libmordor` -lpthread -lrt
 
-TARGETS = test_simple test_pinger test_forwarder
+TARGETS = test_simple test_pinger test_forwarder test_load_json test_multicast_receiver test_multicast_pinger test_multicast_ponger
 
 TMPS += $(addsuffix .o, $(TARGETS))
 TMPS += $(addsuffix .s, $(TARGETS))

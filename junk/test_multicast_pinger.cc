@@ -8,24 +8,29 @@
 
 using namespace std;
 using namespace Mordor;
+using boost::lexical_cast;
 
-struct Ping {
+struct PingPacket {
+    uint64_t sequence;
     uint64_t senderNow;
-};
+} __attribute__((packed));
 
 void doRecv(Socket::ptr socket) {
     Address::ptr sourceAddress = socket->emptyAddress();
-    Ping currentPing;
+    PingPacket currentPing;
+
     while(true) {
         socket->receiveFrom((void*) &currentPing, sizeof(currentPing), *sourceAddress);
         uint64_t now = TimerManager::now();
-        cout << "Pong from " << *sourceAddress << ": rtt " << now - currentPing.senderNow << " us" << endl;
+        uint64_t rtt = now - currentPing.senderNow;
+        cout << currentPing.sequence << '\t' << *sourceAddress << '\t' << rtt << endl;
     }
 }
 
 void doPing(Socket::ptr socket, const Address::ptr& address) {
-    uint64_t now = TimerManager::now();
-    socket->sendTo((const void*)&now, sizeof(now), 0, address);
+    static uint64_t sequence = 0;
+    PingPacket p = { sequence++, TimerManager::now() };
+    socket->sendTo((const void*)&p, sizeof(p), 0, address);
 }
 
 Socket::ptr bindSocket(IOManager& ioManager) {
@@ -50,6 +55,6 @@ int main(int argc, char** argv) {
     Address::ptr targetAddress = Address::lookup(argv[1]).front();
 
     ioManager.schedule(boost::bind(doRecv, s));
-    ioManager.registerTimer(1000000, boost::bind(doPing, s, targetAddress), true);
+    ioManager.registerTimer(200000, boost::bind(doPing, s, targetAddress), true);
     ioManager.dispatch();
 }

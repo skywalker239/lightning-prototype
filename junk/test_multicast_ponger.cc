@@ -11,6 +11,7 @@ using namespace std;
 using namespace Mordor;
 
 struct PingPacket {
+    uint64_t sequence;
     uint64_t senderNow;
 } __attribute__((packed));
 

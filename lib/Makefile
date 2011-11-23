@@ -7,15 +7,15 @@ CXXFLAGS= \
 LDFLAGS = `pkg-config --libs --static libmordor` -lpthread -lrt
 
 TARGETS = libightning.a
-OBJS = ping_stats.o
+OBJS = ping_stats.o pinger.o ponger.o pong_receiver.o
 
 
 all: $(TARGETS)
 
 $(TARGETS): %: $(OBJS)
-	ar crs $(@) $(<)
+	ar crs $(@) $(^)
 
 
 %.o: %.cc; $(CXX) -c $(CXXFLAGS) $(<) -o $(@)
 
-clean:; @rm -f $(TARGETS) $(TMPS)
+clean:; @rm -f $(TARGETS) $(OBJS)

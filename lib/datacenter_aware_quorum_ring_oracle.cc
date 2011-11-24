@@ -166,7 +166,7 @@ bool DatacenterAwareQuorumRingOracle::fillToQuorum(
 }
 
 uint32_t DatacenterAwareQuorumRingOracle::quorumSize() const {
-    return (acceptorToDatacenterId_.size() + 1) / 2;
+    return (acceptorToDatacenterId_.size() / 2) + 1;
 }
 
 }  // namespace lightning

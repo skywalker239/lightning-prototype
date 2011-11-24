@@ -12,8 +12,6 @@ public:
 
     void run();
 private:
-    void setupSocket();
-
     Mordor::IOManager* ioManager_;
     Mordor::Socket::ptr socket_;
     Mordor::Address::ptr multicastGroup_;

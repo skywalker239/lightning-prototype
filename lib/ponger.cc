@@ -1,4 +1,5 @@
 #include "ponger.h"
+#include "multicast_util.h"
 #include "ping_packet.h"
 #include <mordor/log.h>
 #include <netinet/in.h>
@@ -22,7 +23,7 @@ Ponger::Ponger(IOManager* ioManager,
 {}
 
 void Ponger::run() {
-    setupSocket();
+    joinMulticastGroup(socket_, multicastGroup_);
     MORDOR_LOG_TRACE(g_log) << this << " listening @" <<
                                *socket_->localAddress() <<
                                " for multicasts @" << *multicastGroup_;
@@ -42,14 +43,4 @@ void Ponger::run() {
     }
 }
 
-void Ponger::setupSocket() {
-    struct ip_mreq mreq;
-    // Ah, the royal ugliness.
-    mreq.imr_multiaddr =
-        ((struct sockaddr_in*)(multicastGroup_->name()))->sin_addr;
-    mreq.imr_interface.s_addr = htonl(INADDR_ANY);
-    socket_->setOption(IPPROTO_IP, IP_ADD_MEMBERSHIP, mreq);
-}
-
-
-}
+}  // namespace lightning

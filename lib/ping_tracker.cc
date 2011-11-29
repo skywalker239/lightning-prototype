@@ -54,14 +54,13 @@ void PingTracker::registerPing(uint64_t id, uint64_t sendTime) {
 
 void PingTracker::registerPong(Address::ptr address,
                                uint64_t id,
-                               uint64_t sendTime,
                                uint64_t recvTime)
 {
     FiberMutex::ScopedLock lk(mutex_);
 
     MORDOR_LOG_TRACE(g_log) << this << " got pong from " <<
                                *address << " (" << id << ", " <<
-                               ", " << sendTime << ", " << recvTime << ")";
+                               ", " << recvTime << ")";
     auto i = perHostPingStats_.find(address);
     if(i == perHostPingStats_.end()) {
         MORDOR_LOG_WARNING(g_log) << this << " pong from unknown host " <<

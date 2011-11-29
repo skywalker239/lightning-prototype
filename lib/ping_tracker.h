@@ -10,8 +10,10 @@
 namespace lightning {
 
 /** Tracks multicast ping statistics for a static group of hosts.
+  * This class is fiber-safe, but it achieves this using a single
+  * global lock.
   */
-class PingTracker {
+class PingTracker : boost::noncopyable {
 public:
     struct AddressCompare {
         bool operator()(const Mordor::Address::ptr& lhs,
@@ -22,20 +24,22 @@ public:
     };
 
     typedef std::map<Mordor::Address::ptr, PingStats, AddressCompare> PingStatsMap;
+
+    typedef boost::shared_ptr<PingTracker> ptr;
 public:
     //! Latency statistics are tracked over a sliding window of given size.
     //  
     //  A single ping is considered lost if it has not returned within
     //  singlePingTimeoutUs microseconds.
     //
-    //  If the last pong received from a host corresponds to a ping
-    //  sent more than noHeartbeatTimeoutUs microseconds ago, then
+    //  If the maximal send time of all received pongs is
+    //  older than noHeartbeatTimeoutUs microseconds ago, then
     //  the host is considered to be down.
     //
     //  noHeartbeatTimeoutUs MUST be greater than singlePingTimeoutUs.
     //
     //  hostDownEvent is signaled in timeoutPing if one or more hosts
-    //  go down.
+    //  go down. PingTracker does not assume ownership over it.
     PingTracker(const std::vector<Mordor::Address::ptr>& hosts,
                 uint64_t pingWindowSize,
                 uint64_t singlePingTimeoutUs,
@@ -55,7 +59,6 @@ public:
     //! Register a received unicast pong.
     void registerPong(Mordor::Address::ptr address,
                       uint64_t id,
-                      uint64_t sendTime,
                       uint64_t recvTime);
     
     //! Returns a snapshot of current ping stats.

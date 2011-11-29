@@ -26,12 +26,12 @@ using std::memcpy;
 static Logger::ptr g_log = Log::lookup("lightning:ring_manager");
 
 RingManager::RingManager(IOManager* ioManager,
-                         FiberEvent* hostDownEvent,
+                         boost::shared_ptr<FiberEvent> hostDownEvent,
                          Socket::ptr socket,
                          Address::ptr multicastGroup,
                          const vector<Address::ptr>& acceptors,
-                         PingTracker* acceptorPingTracker,
-                         RingOracle* ringOracle,
+                         PingTracker::ptr acceptorPingTracker,
+                         RingOracle::ptr ringOracle,
                          uint64_t lookupRingRetryUs,
                          uint64_t setRingTimeoutUs)
     : ioManager_(ioManager),
@@ -178,6 +178,7 @@ bool RingManager::trySetRing() {
 }
 
 void RingManager::receiveSetRingAcks() {
+    MORDOR_LOG_TRACE(g_log) << this << " started receiveSetRingAcks";
     Address::ptr remoteAddress = socket_->emptyAddress();
     while(true) {
         RingAckPacket ringAckPacket;

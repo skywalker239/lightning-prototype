@@ -15,12 +15,12 @@ class PingTracker;
 class RingManager {
 public:
     RingManager(Mordor::IOManager* ioManager,
-                Mordor::FiberEvent* hostDownEvent,
+                boost::shared_ptr<Mordor::FiberEvent> hostDownEvent,
                 Mordor::Socket::ptr socket,
                 Mordor::Address::ptr multicastGroup,
                 const std::vector<Mordor::Address::ptr>& acceptors,
-                PingTracker* acceptorPingTracker,
-                RingOracle* ringOracle,
+                PingTracker::ptr acceptorPingTracker,
+                RingOracle::ptr ringOracle,
                 uint64_t lookupRingRetryUs,
                 uint64_t setRingTimeoutUs);
 
@@ -75,12 +75,12 @@ private:
     } __attribute__((packed));
 
     Mordor::IOManager* ioManager_;
-    Mordor::FiberEvent* hostDownEvent_;
+    boost::shared_ptr<Mordor::FiberEvent> hostDownEvent_;
     Mordor::Socket::ptr socket_;
     Mordor::Address::ptr multicastGroup_;
     std::vector<Mordor::Address::ptr> acceptors_;
-    PingTracker* acceptorPingTracker_;
-    RingOracle* ringOracle_;
+    PingTracker::ptr acceptorPingTracker_;
+    RingOracle::ptr ringOracle_;
     const uint64_t lookupRingRetryUs_;
     const uint64_t setRingTimeoutUs_;
 

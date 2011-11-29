@@ -21,7 +21,7 @@ PingTracker::PingTracker(const vector<Address::ptr>& hosts,
                          uint64_t pingWindowSize,
                          uint64_t singlePingTimeoutUs,
                          uint64_t noHeartbeatTimeoutUs,
-                         FiberEvent* hostDownEvent)
+                         boost::shared_ptr<FiberEvent> hostDownEvent)
     : noHeartbeatTimeoutUs_(noHeartbeatTimeoutUs),
       hostDownEvent_(hostDownEvent)
 {
@@ -84,7 +84,8 @@ void PingTracker::timeoutPing(uint64_t id) {
         i->second.timeoutPing(id);
         if(i->second.maxReceivedPongSendTime() + noHeartbeatTimeoutUs_ < now)
         {
-            MORDOR_LOG_WARNING(g_log) << this << *i->first << " is down";
+            MORDOR_LOG_WARNING(g_log) << this << " " << *i->first <<
+                                         " is down";
             hostDownEvent_->set();
         }
     }

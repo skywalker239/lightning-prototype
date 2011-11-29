@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <sstream>
 
 namespace lightning {
 
@@ -15,6 +16,7 @@ using Mordor::FiberCondition;
 using Mordor::Socket;
 using Mordor::TimerManager;
 using Mordor::Address;
+using Mordor::IPv4Address;
 using Mordor::Logger;
 using Mordor::Log;
 using boost::shared_ptr;
@@ -22,8 +24,20 @@ using std::vector;
 using std::string;
 using std::map;
 using std::memcpy;
+using std::ostringstream;
 
 static Logger::ptr g_log = Log::lookup("lightning:ring_manager");
+
+namespace {
+
+//! XXX HACK
+Address::ptr mangleAddress(Address::ptr addr, uint16_t port) {
+    Address::ptr newAddr = addr->clone();
+    dynamic_cast<IPv4Address*>(newAddr.get())->port(port);
+    return newAddr;
+}
+
+}  // anonymous namespace
 
 RingManager::RingManager(IOManager* ioManager,
                          boost::shared_ptr<FiberEvent> hostDownEvent,
@@ -66,6 +80,7 @@ bool RingManager::currentRing(uint64_t* ringId,
 }
 
 void RingManager::run() {
+    setupSocket();
     MORDOR_LOG_TRACE(g_log) << this << " running @" <<
                                *socket_->localAddress() << " ctrl address " <<
                                multicastGroup_;
@@ -111,6 +126,15 @@ void RingManager::lookupRing() {
             FiberMutex::ScopedLock lk(mutex_);
             nextRingId_ = generateRingId();
             nextRing_.swap(nextRing);
+            //! XXX HACK!
+            const uint16_t ringPort = dynamic_cast<IPv4Address*>(acceptors_.front().get())->port();
+            for(size_t i = 0; i < nextRing_.size(); ++i) {
+                nextRing_[i] = mangleAddress(nextRing_[i], ringPort);
+            }
+            //! end of HACK
+            for(size_t i = 0; i < nextRing_.size(); ++i) {
+                MORDOR_LOG_TRACE(g_log) << this << " #" << i << ": " << *nextRing_[i];
+            }
             nextRingNotYetAcked_ =
                 std::set<Address::ptr, AddressCompare>
                     (nextRing_.begin(), nextRing_.end());
@@ -240,6 +264,19 @@ uint64_t RingManager::generateRingId() const {
     return currentRandom;
 }
 
+string RingManager::generateRingString(
+    const vector<Address::ptr>& ring) const
+{
+    ostringstream ss;
+    for(size_t i = 0; i < ring.size(); ++i) {
+        ss << *ring[i];
+        if(i + 1 < ring.size()) {
+            ss << " ";
+        }
+    }
+    return ss.str();
+}
+
 void RingManager::waitForRingToBreak() {
     MORDOR_LOG_TRACE(g_log) << this << " waiting for ring " <<
                                currentRingId_ << " to break";
@@ -254,7 +291,11 @@ void RingManager::waitForRingToBreak() {
         const uint64_t now = TimerManager::now();
 
         for(size_t i = 0; i < currentRing_.size(); ++i) {
-            auto pingStatsIter = pingStatsMap.find(currentRing_[i]);
+            //! XXX HACK
+            const uint16_t port = dynamic_cast<IPv4Address*>(pingStatsMap.begin()->first.get())->port();
+            Address::ptr mangledAddr = mangleAddress(currentRing_[i], port);
+
+            auto pingStatsIter = pingStatsMap.find(mangledAddr);
             if(pingStatsIter != pingStatsMap.end()) {
                 const Address::ptr& address = pingStatsIter->first;
                 const PingStats& pingStats = pingStatsIter->second;
@@ -273,6 +314,11 @@ void RingManager::waitForRingToBreak() {
         }
         hostDownEvent_->reset();
     }
+}
+
+void RingManager::setupSocket() {
+    const int kMaxMulticastTtl = 255;
+    socket_->setOption(IPPROTO_IP, IP_MULTICAST_TTL, kMaxMulticastTtl);
 }
 
 }  // namespace lightning

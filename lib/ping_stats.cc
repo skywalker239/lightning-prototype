@@ -56,7 +56,7 @@ void PingStats::closePing(uint64_t id, uint64_t recvTime) {
         return;
     }
     if(ping.recvTime != Ping::kPendingPacketRecvTime) {
-        MORDOR_LOG_WARNING(g_log) << this << " closePing id=" << id <<
+        MORDOR_LOG_TRACE(g_log) << this << " closePing id=" << id <<
                                      " is not pending";
         return;
     }
@@ -90,7 +90,7 @@ void PingStats::timeoutPing(uint64_t id) {
         return;
     }
     if(ping.recvTime != Ping::kPendingPacketRecvTime) {
-        MORDOR_LOG_WARNING(g_log) << this << " timeoutPing id=" << id <<
+        MORDOR_LOG_TRACE(g_log) << this << " timeoutPing id=" << id <<
                                      " is not pending";
         return;                      
     }

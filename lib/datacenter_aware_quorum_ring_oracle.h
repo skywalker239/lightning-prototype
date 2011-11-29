@@ -13,7 +13,7 @@ namespace lightning {
 //  and goes through every datacenter (and is a majority quorum).
 //
 //  This class is not (thread|fiber)-safe.
-class DatacenterAwareQuorumRingOracle {
+class DatacenterAwareQuorumRingOracle : public RingOracle {
 public:
     //! If okToMissDatacenter is false then it will fail to build a ring
     //  in case of any datacenters going down.
@@ -29,6 +29,8 @@ public:
 
     virtual bool chooseRing(const PingTracker::PingStatsMap& pingStatsMap,
                             std::vector<Mordor::Address::ptr>* ring) const;
+
+    typedef boost::shared_ptr<DatacenterAwareQuorumRingOracle> ptr;
 private:
     struct AddressCompare {
         bool operator()(const Mordor::Address::ptr& lhs,

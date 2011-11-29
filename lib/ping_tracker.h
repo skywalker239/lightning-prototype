@@ -44,7 +44,7 @@ public:
                 uint64_t pingWindowSize,
                 uint64_t singlePingTimeoutUs,
                 uint64_t noHeartbeatTimeoutUs,
-                Mordor::FiberEvent* hostDownEvent);
+                boost::shared_ptr<Mordor::FiberEvent> hostDownEvent);
 
     //! Register an outgoing multicast ping.
     void registerPing(uint64_t id, uint64_t sendTime);
@@ -70,7 +70,7 @@ private:
     PingStatsMap perHostPingStats_;
     const uint64_t noHeartbeatTimeoutUs_;
 
-    Mordor::FiberEvent* hostDownEvent_;
+    boost::shared_ptr<Mordor::FiberEvent> hostDownEvent_;
     mutable Mordor::FiberMutex mutex_;
 };
 

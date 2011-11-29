@@ -21,7 +21,6 @@ PongReceiver::PongReceiver(IOManager* ioManager,
                            function<
                                void (Mordor::Address::ptr,
                                      uint64_t,
-                                     uint64_t,
                                      uint64_t)
                                > pongReceivedCallback)
     : ioManager_(ioManager),
@@ -43,7 +42,6 @@ void PongReceiver::run() {
         uint64_t now = TimerManager::now();
         pongReceivedCallback_(remoteAddress,
                               currentPacket.id,
-                              currentPacket.senderNow,
                               now);
         MORDOR_LOG_TRACE(g_log) << this << " got (" << currentPacket.id <<
                                    ", " << currentPacket.senderNow <<

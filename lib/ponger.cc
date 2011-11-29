@@ -15,25 +15,28 @@ using Mordor::Log;
 static Logger::ptr g_log = Log::lookup("lightning:ponger");
 
 Ponger::Ponger(IOManager* ioManager,
-               Socket::ptr socket,
+               Socket::ptr pingSocket,
+               Socket::ptr pongSocket,
                Address::ptr multicastGroup)
     : ioManager_(ioManager),
-      socket_(socket),
+      pingSocket_(pingSocket),
+      pongSocket_(pongSocket),
       multicastGroup_(multicastGroup)
 {}
 
 void Ponger::run() {
-    joinMulticastGroup(socket_, multicastGroup_);
+    joinMulticastGroup(pingSocket_, multicastGroup_);
     MORDOR_LOG_TRACE(g_log) << this << " listening @" <<
-                               *socket_->localAddress() <<
-                               " for multicasts @" << *multicastGroup_;
-    Address::ptr remoteAddress = socket_->emptyAddress();
+                               *pingSocket_->localAddress() <<
+                               " for multicasts @" << *multicastGroup_ <<
+                               ", replying @" << *pongSocket_->localAddress();
+    Address::ptr remoteAddress = pingSocket_->emptyAddress();
     while(true) {
         PingPacket currentPacket(0, 0);
-        ssize_t bytes = socket_->receiveFrom((void*)&currentPacket,
+        ssize_t bytes = pingSocket_->receiveFrom((void*)&currentPacket,
                                              sizeof(currentPacket),
                                              *remoteAddress);
-        socket_->sendTo((const void*)&currentPacket,
+        pongSocket_->sendTo((const void*)&currentPacket,
                         bytes,
                         0,
                         remoteAddress);

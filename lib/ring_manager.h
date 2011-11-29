@@ -4,6 +4,7 @@
 #include <mordor/fibersynchronization.h>
 #include <mordor/iomanager.h>
 #include <mordor/socket.h>
+#include <boost/noncopyable.hpp>
 #include <map>
 #include <set>
 #include <vector>
@@ -12,8 +13,10 @@ namespace lightning {
 
 class PingTracker;
 
-class RingManager {
+class RingManager : boost::noncopyable {
 public:
+    typedef boost::shared_ptr<RingManager> ptr;
+
     RingManager(Mordor::IOManager* ioManager,
                 boost::shared_ptr<Mordor::FiberEvent> hostDownEvent,
                 Mordor::Socket::ptr socket,
@@ -27,8 +30,10 @@ public:
     //! False if no current ring.
     bool currentRing(uint64_t* ringId,
                      std::vector<Mordor::Address::ptr>* acceptors);
-private:
+
     void run();
+private:
+    void setupSocket();
 
     void lookupRing();
 

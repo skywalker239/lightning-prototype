@@ -4,12 +4,15 @@
 #include <mordor/socket.h>
 #include <mordor/scheduler.h>
 #include <boost/bind.hpp>
+#include <boost/noncopyable.hpp>
 #include <map>
 
 namespace lightning {
 
-class Pinger {
+class Pinger : boost::noncopyable {
 public:
+    typedef boost::shared_ptr<Pinger> ptr;
+
     Pinger(Mordor::IOManager* ioManager,
            Mordor::Socket::ptr socket,
            Mordor::Address::ptr destinationAddress,

@@ -96,4 +96,8 @@ void PingTracker::snapshot(PingStatsMap* pingStatsMap) const {
     *pingStatsMap = perHostPingStats_; 
 }
 
+uint64_t PingTracker::noHeartbeatTimeoutUs() const {
+    return noHeartbeatTimeoutUs_;
+}
+
 }  // namespace lightning

@@ -63,6 +63,9 @@ public:
     
     //! Returns a snapshot of current ping stats.
     void snapshot(PingStatsMap* pingStatsMap) const;
+
+    //! 'host down' timeout.
+    uint64_t noHeartbeatTimeoutUs() const;
 private:
     PingStatsMap perHostPingStats_;
     const uint64_t noHeartbeatTimeoutUs_;

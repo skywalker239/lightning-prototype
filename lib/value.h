@@ -11,7 +11,6 @@ namespace paxos {
 struct Value {
     static const uint32_t kMaxValueSize = 8000;
 
-    ValueId valueId;
     uint32_t size;
     char data[kMaxValueSize];
 } __attribute__((packed));

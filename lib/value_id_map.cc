@@ -32,7 +32,7 @@ void ValueIdMap::addMapping(const ValueId& valueId,
     }
 
     const uint32_t insertIndex = arrayIndex(bufferEndIndex_);
-    valueRingBuffer_[insertIndex] = value;
+    valueRingBuffer_[insertIndex] = make_pair(valueId, value);
     auto inserted = valueIndexMap_.insert(make_pair(valueId, bufferEndIndex_));
     //! We require ValueId's to be unique.
     MORDOR_ASSERT(inserted.second);
@@ -58,7 +58,8 @@ bool ValueIdMap::fetch(const ValueId& valueId,
         const uint32_t index = valueIdIter->second;
         MORDOR_ASSERT(bufferBeginIndex_ <= index &&
                       index < bufferEndIndex_);
-        *value = valueRingBuffer_[arrayIndex(index)];
+        MORDOR_ASSERT(valueId == valueRingBuffer_[arrayIndex(index)].first);
+        *value = valueRingBuffer_[arrayIndex(index)].second;
         return true;
     }
 }
@@ -80,7 +81,7 @@ bool ValueIdMap::ringBufferFull() const {
 
 void ValueIdMap::evictFirstElement() {
     const uint32_t index = arrayIndex(bufferBeginIndex_);
-    const ValueId& valueId = valueRingBuffer_[index].valueId;
+    const ValueId& valueId = valueRingBuffer_[index].first;
     MORDOR_LOG_TRACE(g_log) << this << " evicting value id " << valueId;
 
     ++bufferBeginIndex_;
@@ -93,7 +94,6 @@ void ValueIdMap::evictFirstElement() {
 inline uint32_t ValueIdMap::arrayIndex(const uint32_t index) const {
     return index % valueRingBufferSize_;
 }
-
 
 }  // namespace paxos
 }  // namespace lightning

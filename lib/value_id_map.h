@@ -4,6 +4,7 @@
 #include "value.h"
 #include <mordor/fibersynchronization.h>
 #include <boost/noncopyable.hpp>
+#include <utility>
 #include <vector>
 #include <ext/hash_map>
 
@@ -56,7 +57,7 @@ private:
 
     uint32_t arrayIndex(const uint32_t index) const;
     
-    std::vector<Value> valueRingBuffer_;
+    std::vector<std::pair<ValueId, Value> > valueRingBuffer_;
     const uint32_t valueRingBufferSize_;
     uint32_t bufferBeginIndex_;
     uint32_t bufferEndIndex_;

@@ -1,4 +1,4 @@
-#include "paxos_instance.h"
+#include "acceptor_instance.h"
 #include <mordor/test/test.h>
 
 using namespace Mordor;

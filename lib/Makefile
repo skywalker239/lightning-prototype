@@ -3,16 +3,23 @@ OPT ?= 3
 
 CXXFLAGS= \
     -g -O$(OPT) `pkg-config --cflags libmordor` \
-    -Wall -W -Werror -Wsign-promo -Wno-deprecated
+    -Wall -W -Wsign-promo -Wno-deprecated
 LDFLAGS = `pkg-config --libs --static libmordor` -lpthread -lrt
 
+PROTO_SRCS = \
+    proto/set_ring.proto
+
+PROTO_GENSRCS = $(PROTO_SRCS:.proto=.pb.cc)
+PROTO_GENHDRS = $(PROTO_SRCS:.proto=.pb.h)
+
 LIB_TARGETS = libightning.a
-LIB_OBJS = ping_stats.o pinger.o ponger.o pong_receiver.o multicast_util.o ping_tracker.o datacenter_aware_quorum_ring_oracle.o ring_manager.o value_id_map.o paxos_instance.o
+LIB_OBJS = ping_stats.o pinger.o ponger.o pong_receiver.o multicast_util.o ping_tracker.o datacenter_aware_quorum_ring_oracle.o ring_manager.o value_id_map.o proposer_instance.o acceptor_instance.o sync_group_requester.o ring_setter.o
+LIB_OBJS += $(PROTO_GENSRCS:.cc=.o)
 
 TEST_TARGETS = test_ring_master test_ring_responder
 TEST_OBJS = $(addsuffix .o, $(TEST_TARGETS))
 
-UT_LIB_OBJS = paxos_instance_ut.o value_id_map_ut.o
+UT_LIB_OBJS = acceptor_instance_ut.o proposer_instance_ut.o value_id_map_ut.o
 UT_TARGETS = run_tests
 UT_OBJS = $(addsuffix .o, $(UT_TARGETS))
 
@@ -27,6 +34,7 @@ $(TEST_TARGETS): %: %.o $(LIB_TARGETS)
 $(UT_TARGETS): %: %.o $(LIB_TARGETS) $(UT_LIB_OBJS)
 	$(CXX) $(<) $(UT_LIB_OBJS) $(LIB_TARGETS) -static -o $(@) $(LDFLAGS) `pkg-config --libs --static libmordortest`
 
+%.pb.cc: %.proto; protoc --cpp_out=proto -I proto $(<)
 %.o: %.cc; $(CXX) -c $(CXXFLAGS) $(<) -o $(@)
 
-clean:; @rm -f $(TEST_TARGETS) $(TEST_OBJS) $(LIB_TARGETS) $(LIB_OBJS) $(UT_LIB_OBJS) $(UT_TARGETS) $(UT_OBJS)
+clean:; @rm -f $(TEST_TARGETS) $(TEST_OBJS) $(LIB_TARGETS) $(LIB_OBJS) $(UT_LIB_OBJS) $(UT_TARGETS) $(UT_OBJS) $(PROTO_GENSRCS) $(PROTO_GENHDRS)

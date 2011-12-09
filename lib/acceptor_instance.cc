@@ -1,4 +1,4 @@
-#include "paxos_instance.h"
+#include "acceptor_instance.h"
 #include <mordor/assert.h>
 #include <mordor/log.h>
 
@@ -8,7 +8,7 @@ namespace paxos {
 using Mordor::Logger;
 using Mordor::Log;
 
-static Logger::ptr g_log = Log::lookup("lightning:paxos_instance");
+static Logger::ptr g_log = Log::lookup("lightning:acceptor_instance");
 
 AcceptorInstance::AcceptorInstance() {
     reset();

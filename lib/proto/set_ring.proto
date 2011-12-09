@@ -1,0 +1,10 @@
+package lightning;
+
+message SetRingData {
+    required uint64 ring_id = 1;
+    repeated string ring_hosts = 2;
+}
+
+message SetRingAckData {
+    required uint64 ring_id = 1;
+}

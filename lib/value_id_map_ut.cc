@@ -27,13 +27,11 @@ MORDOR_UNITTEST(ValueIdMapTest, LookupAndFetch) {
 
     ValueId vid(1, 239);
     Value dummy;
-    dummy.valueId = vid;
     testMap.addMapping(vid, dummy);
     MORDOR_TEST_ASSERT_EQUAL(testMap.size(), size_t(1));
     MORDOR_TEST_ASSERT_EQUAL(testMap.lookup(vid), true);
     Value fetched;
     MORDOR_TEST_ASSERT_EQUAL(testMap.fetch(vid, &fetched), true);
-    MORDOR_TEST_ASSERT_EQUAL(dummy.valueId, fetched.valueId);
 }
 
 MORDOR_UNITTEST(ValueIdMapTest, Eviction) {

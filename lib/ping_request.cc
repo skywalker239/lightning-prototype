@@ -52,7 +52,12 @@ void PingRequest::onReply(Address::ptr sourceAddress,
                           const string& reply)
 {
     PingData pingData;
-    pingData.ParseFromString(reply);
+    if(!pingData.ParseFromString(reply)) {
+        MORDOR_LOG_WARNING(g_log) << this << " malformed reply from " <<
+                                     *sourceAddress;
+        return;
+    }
+
     const uint64_t now = TimerManager::now();
     MORDOR_LOG_TRACE(g_log) << this << " pong (" << pingData.id() << ", " <<
                                pingData.sender_now() << ") from " <<

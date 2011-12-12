@@ -1,5 +1,6 @@
 #pragma once
 
+#include "sync_group_requester.h"
 #include "ring_oracle.h"
 #include <mordor/fibersynchronization.h>
 #include <mordor/iomanager.h>
@@ -19,13 +20,11 @@ public:
 
     RingManager(Mordor::IOManager* ioManager,
                 boost::shared_ptr<Mordor::FiberEvent> hostDownEvent,
-                Mordor::Socket::ptr socket,
-                Mordor::Address::ptr multicastGroup,
+                SyncGroupRequester::ptr setRingRequester,
                 const std::vector<Mordor::Address::ptr>& acceptors,
                 PingTracker::ptr acceptorPingTracker,
                 RingOracle::ptr ringOracle,
-                uint64_t lookupRingRetryUs,
-                uint64_t setRingTimeoutUs);
+                uint64_t lookupRingRetryUs);
 
     //! False if no current ring.
     bool currentRing(uint64_t* ringId,
@@ -33,26 +32,13 @@ public:
 
     void run();
 private:
-    void setupSocket();
-
     void lookupRing();
 
     bool trySetRing();
 
     void waitForRingToBreak();
 
-    void receiveSetRingAcks();
-
-    //! The weak pointer is a hack to monitor that the receiveSetRingAcks
-    //  that launched this instance of timeoutSetRing
-    //  is still running.
-    void timeoutSetRing(uint64_t id,
-                        boost::weak_ptr<int> alivePtr);
-
     uint64_t generateRingId() const;
-
-    std::string generateRingString(
-        const std::vector<Mordor::Address::ptr>& ring) const;
 
     //! Should redo this with ragel if it ever gets more states.
     enum State {
@@ -61,33 +47,13 @@ private:
         OK
     };
 
-    struct AddressCompare {
-        bool operator()(const Mordor::Address::ptr& lhs,
-                        const Mordor::Address::ptr& rhs)
-        {
-            return *lhs < *rhs;
-        }
-    };
-
-    struct SetRingPacket {
-        uint64_t ringId;
-        uint64_t ringStringLength;
-        char ringString[0];
-    } __attribute__((packed));
-
-    struct RingAckPacket {
-        uint64_t ringId;
-    } __attribute__((packed));
-
     Mordor::IOManager* ioManager_;
     boost::shared_ptr<Mordor::FiberEvent> hostDownEvent_;
-    Mordor::Socket::ptr socket_;
-    Mordor::Address::ptr multicastGroup_;
+    SyncGroupRequester::ptr setRingRequester_;
     std::vector<Mordor::Address::ptr> acceptors_;
     PingTracker::ptr acceptorPingTracker_;
     RingOracle::ptr ringOracle_;
     const uint64_t lookupRingRetryUs_;
-    const uint64_t setRingTimeoutUs_;
 
     static const uint64_t kInvalidRingId = 0;
     uint64_t currentRingId_;
@@ -95,12 +61,9 @@ private:
 
     State currentState_;
     Mordor::FiberMutex mutex_;
-    Mordor::FiberCondition setRingAckCondition_;
 
     uint64_t nextRingId_;
     std::vector<Mordor::Address::ptr> nextRing_;
-    std::set<Mordor::Address::ptr, AddressCompare> nextRingNotYetAcked_;
-    bool nextRingTimedOut_;
 };
 
 }  // namespace lightning

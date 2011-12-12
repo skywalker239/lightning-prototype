@@ -1,0 +1,6 @@
+package lightning;
+
+message PingData {
+    required uint64 id = 1;
+    required uint64 sender_now = 2;
+}

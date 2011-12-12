@@ -1,40 +1,42 @@
 #pragma once
 
-#include "ping_stats.h"
+#include "ping_tracker.h"
 #include <mordor/socket.h>
 #include <mordor/scheduler.h>
-#include <boost/bind.hpp>
+#include <boost/enable_shared_from_this.hpp>
 #include <boost/noncopyable.hpp>
-#include <map>
+#include <vector>
 
 namespace lightning {
 
-class Pinger : boost::noncopyable {
+class Pinger : boost::noncopyable,
+               public boost::enable_shared_from_this<Pinger>
+{
 public:
     typedef boost::shared_ptr<Pinger> ptr;
 
+    //! Sends multicast pings to pingAddress once in pingIntervalUs us,
+    //  collects replies from the given hosts using the supplied PingTracker.
     Pinger(Mordor::IOManager* ioManager,
            Mordor::Socket::ptr socket,
-           Mordor::Address::ptr destinationAddress,
+           Mordor::Address::ptr pingAddress,
+           const std::vector<Mordor::Address::ptr>& hosts,
            uint64_t pingIntervalUs,
            uint64_t pingTimeoutUs,
-           boost::function<void (uint64_t, uint64_t)> pingRegisterCallback,
-           boost::function<void (uint64_t)> pingTimeoutCallback);
+           PingTracker::ptr pingTracker);
     
     void run();
 
 private:
-    void setupSocket();
-
-    void waitAndTimeoutPing(uint64_t id);
+    static void doSinglePing(Pinger::ptr pinger, uint64_t id);
 
     Mordor::IOManager* ioManager_;
     Mordor::Socket::ptr socket_;
-    Mordor::Address::ptr destinationAddress_;
+    Mordor::Address::ptr pingAddress_;
+    const std::vector<Mordor::Address::ptr> hosts_;
     const uint64_t pingIntervalUs_;
     const uint64_t pingTimeoutUs_;
-    boost::function<void (uint64_t, uint64_t)> pingRegisterCallback_;
-    boost::function<void (uint64_t)> pingTimeoutCallback_;
+    PingTracker::ptr pingTracker_;
     uint64_t currentId_;
 };
 

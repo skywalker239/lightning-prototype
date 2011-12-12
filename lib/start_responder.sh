@@ -1,5 +1,5 @@
 #!/bin/bash
-HOSTNAME=`hostname`
+HOSTNAME="mcast.`hostname`"
 PING_REQ_PORT=23339
 RING_REQ_PORT=23338
 PING_REP_PORT=23337

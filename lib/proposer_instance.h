@@ -91,7 +91,7 @@ public:
     void phase1Open(BallotId ballotId);
 
     //! EMPTY -> P1_PENDING or P2_PENDING -> P1_PENDING
-    //  We really only know the ballot id with which to retry, so we
+    //  We really only know the ballot id with which to (re)try, so we
     //  set it here.
     void phase1Pending(BallotId ballotId);
 

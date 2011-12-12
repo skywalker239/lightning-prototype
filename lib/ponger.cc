@@ -32,17 +32,16 @@ void Ponger::run() {
                                ", replying @" << *pongSocket_->localAddress();
     Address::ptr remoteAddress = pingSocket_->emptyAddress();
     while(true) {
-        PingPacket currentPacket(0, 0);
-        ssize_t bytes = pingSocket_->receiveFrom((void*)&currentPacket,
-                                             sizeof(currentPacket),
+        char buffer[8001];
+        ssize_t bytes = pingSocket_->receiveFrom((void*)buffer,
+                                             sizeof(buffer),
                                              *remoteAddress);
-        pongSocket_->sendTo((const void*)&currentPacket,
+        pongSocket_->sendTo((const void*)buffer,
                         bytes,
                         0,
                         remoteAddress);
-        MORDOR_LOG_TRACE(g_log) << this << " got (" << currentPacket.id <<
-                                   ", " << currentPacket.senderNow <<
-                                   ") from " << *remoteAddress;
+        MORDOR_LOG_TRACE(g_log) << this << " got " << bytes <<
+                                   " bytes from " << *remoteAddress;
     }
 }
 

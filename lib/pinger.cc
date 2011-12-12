@@ -1,5 +1,5 @@
 #include "pinger.h"
-#include "ping_requester.h"
+#include "ping_request.h"
 #include <mordor/iomanager.h>
 #include <mordor/log.h>
 #include <mordor/timer.h>
@@ -19,27 +19,21 @@ using std::vector;
 static Logger::ptr g_log = Log::lookup("lightning:pinger");
 
 Pinger::Pinger(IOManager* ioManager,
-               Socket::ptr socket,
-               Address::ptr pingAddress,
+               SyncGroupRequester::ptr requester,
                const vector<Address::ptr>& hosts,
                uint64_t pingIntervalUs,
-               uint64_t pingTimeoutUs,
                PingTracker::ptr pingTracker)
     : ioManager_(ioManager),
-      socket_(socket),
-      pingAddress_(pingAddress),
+      requester_(requester),
       hosts_(hosts),
       pingIntervalUs_(pingIntervalUs),
-      pingTimeoutUs_(pingTimeoutUs),
       pingTracker_(pingTracker),
       currentId_(0)
 {}
 
 void Pinger::run() {
-    MORDOR_LOG_TRACE(g_log) << this << " run @" << *socket_->localAddress() <<
-                               " pinging " << *pingAddress_ <<
-                               " interval " << pingIntervalUs_ <<
-                               " timeout " << pingTimeoutUs_;
+    MORDOR_LOG_TRACE(g_log) << this << " requester=" << requester_ <<
+                               " interval=" << pingIntervalUs_;
 
     while(true) {
         ioManager_->schedule(boost::bind(&Pinger::doSinglePing,
@@ -53,14 +47,13 @@ void Pinger::run() {
 }
 
 void Pinger::doSinglePing(Pinger::ptr pinger, uint64_t id) {
-    PingRequester requester(pinger->socket_,
-                            pinger->pingAddress_,
-                            pinger->hosts_,
-                            pinger->pingTimeoutUs_,
-                            pinger->pingTracker_);
-    bool success = requester.ping(id);
+    SyncGroupRequest::ptr request(
+        new PingRequest(pinger->hosts_,
+                        id,
+                        pinger->pingTracker_));
+    SyncGroupRequest::Status status = pinger->requester_->request(request);
     MORDOR_LOG_TRACE(g_log) << pinger.get() << " doSinglePing(" << id <<
-                               ") = " << success;
+                               ") = " << status;
 }
 
 }  // namespace lightning

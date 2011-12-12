@@ -1,0 +1,6 @@
+package lightning;
+
+message SyncGroupRequestData {
+    required uint64 id = 1;
+    optional bytes data = 2;
+}

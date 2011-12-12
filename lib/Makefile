@@ -8,13 +8,14 @@ LDFLAGS = `pkg-config --libs --static libmordor` -lpthread -lrt -lprotobuf
 
 PROTO_SRCS = \
     proto/set_ring.proto \
-    proto/ping.proto
+    proto/ping.proto \
+    proto/sync_group_request.proto
 
 PROTO_GENSRCS = $(PROTO_SRCS:.proto=.pb.cc)
 PROTO_GENHDRS = $(PROTO_SRCS:.proto=.pb.h)
 
 LIB_TARGETS = libightning.a
-LIB_OBJS = ping_stats.o pinger.o ponger.o pong_receiver.o multicast_util.o ping_tracker.o datacenter_aware_quorum_ring_oracle.o ring_manager.o value_id_map.o proposer_instance.o acceptor_instance.o sync_group_requester.o ring_setter.o ping_requester.o
+LIB_OBJS = ping_stats.o pinger.o ponger.o pong_receiver.o multicast_util.o ping_tracker.o datacenter_aware_quorum_ring_oracle.o ring_manager.o value_id_map.o proposer_instance.o acceptor_instance.o sync_group_requester.o ping_request.o
 LIB_OBJS += $(PROTO_GENSRCS:.cc=.o)
 
 TEST_TARGETS = test_ring_master test_ring_responder test_multicast_pinger test_ponger

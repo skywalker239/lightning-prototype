@@ -83,6 +83,10 @@ InstanceId ProposerInstance::instanceId() const {
     return instanceId_;
 }
 
+bool ProposerInstance::operator<(const ProposerInstance& rhs) const {
+    return instanceId_ < rhs.instanceId_;
+}
+
 BallotId ProposerInstance::ballotId() const {
     return currentBallotId_;
 }

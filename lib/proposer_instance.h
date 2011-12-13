@@ -73,6 +73,8 @@ namespace paxos {
 //  This class is not (thread|fiber) safe.
 class ProposerInstance {
 public:
+    typedef boost::shared_ptr<ProposerInstance> ptr;
+
     enum State {
         EMPTY,
         P1_PENDING,
@@ -124,6 +126,9 @@ public:
 
     //! CLOSED -> EMPTY
     void reset(InstanceId newInstanceId);
+
+    //! Instances are totally ordered by their ids.
+    bool operator<(const ProposerInstance& rhs) const;
 private:
     State state_;
     InstanceId instanceId_;

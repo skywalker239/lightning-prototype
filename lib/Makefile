@@ -16,7 +16,7 @@ PROTO_GENHDRS = $(PROTO_SRCS:.proto=.pb.h)
 
 LIB_TARGETS = libightning.a
 LIB_OBJS = $(PROTO_GENSRCS:.cc=.o)
-LIB_OBJS += ping_stats.o pinger.o ponger.o pong_receiver.o multicast_util.o ping_tracker.o datacenter_aware_quorum_ring_oracle.o ring_manager.o value_id_map.o proposer_instance.o acceptor_instance.o sync_group_requester.o ping_request.o set_ring_request.o
+LIB_OBJS += ping_stats.o pinger.o ponger.o pong_receiver.o multicast_util.o ping_tracker.o datacenter_aware_quorum_ring_oracle.o ring_manager.o value_id_map.o proposer_instance.o acceptor_instance.o sync_group_requester.o ping_request.o set_ring_request.o instance_pool.o
 
 TEST_TARGETS = test_ring_responder test_multicast_pinger test_ponger
 # TEST_TARGETS += test_ring_master

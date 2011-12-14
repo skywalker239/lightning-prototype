@@ -1,0 +1,24 @@
+package lightning;
+
+message BatchPhase1RequestData {
+    required uint64 ring_id = 1;
+    required uint32 ballot_id = 2;
+    required uint64 instance_range_start = 3;
+    required uint64 instance_range_end = 4;
+}
+
+message BatchPhase1ResponseData {
+    enum Status {
+        OK = 0;
+        START_IID_TOO_LOW = 1;
+        NOT_ALL_OPEN = 2;
+    }
+    required Status status = 1;
+    optional uint64 ring_id = 2;
+    optional uint32 ballot_id = 3;
+    optional uint64 instance_range_start = 4;
+    optional uint64 instance_range_end = 5;
+    repeated uint64 reserved_instances = 6;
+    repeated uint32 reserved_instance_ballots = 7;
+    optional uint64 retry_start_instance_id = 8;
+}

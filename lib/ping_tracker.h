@@ -4,8 +4,9 @@
 #include <mordor/fibersynchronization.h>
 #include <mordor/socket.h>
 #include <stdint.h>
-#include <vector>
 #include <map>
+#include <string>
+#include <vector>
 
 namespace lightning {
 
@@ -17,13 +18,19 @@ class PingTracker : boost::noncopyable {
 public:
     struct AddressCompare {
         bool operator()(const Mordor::Address::ptr& lhs,
-                        const Mordor::Address::ptr& rhs)
+                        const Mordor::Address::ptr& rhs) const
         {
             return *lhs < *rhs;
         }
     };
 
-    typedef std::map<Mordor::Address::ptr, PingStats, AddressCompare> PingStatsMap;
+    //! FQDN sans port -> ping stats.
+    //  TODO(skywalker): currently requires a unique FQDN for each host.
+    typedef std::map<std::string, PingStats>
+        PingStatsMap;
+    //! Maps reply socket addresses to FQDNs sans port.
+    typedef std::map<Mordor::Address::ptr, std::string, AddressCompare>
+        HostnameMap;
 
     typedef boost::shared_ptr<PingTracker> ptr;
 public:
@@ -40,7 +47,7 @@ public:
     //
     //  hostDownEvent is signaled in timeoutPing if one or more hosts
     //  go down. PingTracker does not assume ownership over it.
-    PingTracker(const std::vector<Mordor::Address::ptr>& hosts,
+    PingTracker(const HostnameMap& hostnameMap,
                 uint64_t pingWindowSize,
                 uint64_t singlePingTimeoutUs,
                 uint64_t noHeartbeatTimeoutUs,
@@ -67,7 +74,9 @@ public:
     //! 'host down' timeout.
     uint64_t noHeartbeatTimeoutUs() const;
 private:
-    PingStatsMap perHostPingStats_;
+    HostnameMap hostnameMap_;
+    std::map<Mordor::Address::ptr, PingStats, AddressCompare>
+        perHostPingStats_;
     const uint64_t noHeartbeatTimeoutUs_;
 
     boost::shared_ptr<Mordor::FiberEvent> hostDownEvent_;

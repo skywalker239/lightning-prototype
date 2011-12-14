@@ -11,29 +11,35 @@ using Mordor::Address;
 using Mordor::Logger;
 using Mordor::Log;
 using Mordor::TimerManager;
-using std::map;
-using std::vector;
 using std::make_pair;
+using std::map;
+using std::string;
+using std::vector;
 
 static Logger::ptr g_log = Log::lookup("lightning:ping_tracker");
 
-PingTracker::PingTracker(const vector<Address::ptr>& hosts,
+PingTracker::PingTracker(const HostnameMap& hostnameMap,
                          uint64_t pingWindowSize,
                          uint64_t singlePingTimeoutUs,
                          uint64_t noHeartbeatTimeoutUs,
                          boost::shared_ptr<FiberEvent> hostDownEvent)
-    : noHeartbeatTimeoutUs_(noHeartbeatTimeoutUs),
+    : hostnameMap_(hostnameMap),
+      noHeartbeatTimeoutUs_(noHeartbeatTimeoutUs),
       hostDownEvent_(hostDownEvent)
 {
     MORDOR_LOG_TRACE(g_log) << this << " creating tracker for " <<
-                               hosts.size() << " hosts, ping window=" <<
+                               hostnameMap_.size() <<
+                               " hosts, ping window=" <<
                                pingWindowSize << ", single ping timeout=" <<
                                singlePingTimeoutUs << ", heartbeat timeout=" <<
                                noHeartbeatTimeoutUs;
-    for(size_t i = 0; i < hosts.size(); ++i) {
-        MORDOR_LOG_TRACE(g_log) << this << " host " << i << ": " <<
-                                   *hosts[i];
-        perHostPingStats_.insert(make_pair(hosts[i],
+    for(auto i = hostnameMap_.begin();
+        i != hostnameMap_.end();
+        ++i)
+    {
+        MORDOR_LOG_TRACE(g_log) << this << " host " << i->second << " -> " <<
+                                   *(i->first);
+        perHostPingStats_.insert(make_pair(i->first,
                                            PingStats(pingWindowSize,
                                                      singlePingTimeoutUs)));
     }
@@ -59,7 +65,7 @@ void PingTracker::registerPong(Address::ptr address,
     FiberMutex::ScopedLock lk(mutex_);
 
     MORDOR_LOG_TRACE(g_log) << this << " got pong from " <<
-                               *address << " (" << id << ", " <<
+                               *address << " (" << id <<
                                ", " << recvTime << ")";
     auto i = perHostPingStats_.find(address);
     if(i == perHostPingStats_.end()) {
@@ -93,8 +99,16 @@ void PingTracker::timeoutPing(uint64_t id) {
 
 void PingTracker::snapshot(PingStatsMap* pingStatsMap) const {
     FiberMutex::ScopedLock lk(mutex_);
-
-    *pingStatsMap = perHostPingStats_; 
+    pingStatsMap->clear();
+    for(auto i = perHostPingStats_.begin();
+        i != perHostPingStats_.end();
+        ++i)
+    {
+        auto hostnameIter = hostnameMap_.find(i->first);
+        MORDOR_ASSERT(hostnameIter != hostnameMap_.end());
+        pingStatsMap->insert(make_pair(hostnameIter->second,
+                                       i->second));
+    }
 }
 
 uint64_t PingTracker::noHeartbeatTimeoutUs() const {

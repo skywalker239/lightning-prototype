@@ -6,7 +6,6 @@
 
 namespace lightning {
 
-using Mordor::Address;
 using Mordor::Logger;
 using Mordor::Log;
 using Mordor::TimerManager;
@@ -41,17 +40,17 @@ void DatacenterAwareQuorumRingOracle::addDatacenter(const string& name) {
     datacenterNameToId_[name] = nextDatacenterId_++;
 }
 
-bool DatacenterAwareQuorumRingOracle::addAcceptor(Address::ptr address,
+bool DatacenterAwareQuorumRingOracle::addAcceptor(const string& address,
                                                   const string& datacenter)
 {
     auto dcIter = datacenterNameToId_.find(datacenter);
     if(dcIter == datacenterNameToId_.end()) {
-        MORDOR_LOG_WARNING(g_log) << this << " add " << *address <<
+        MORDOR_LOG_WARNING(g_log) << this << " add " << address <<
                                      ": dc " << datacenter << " not found";
         return false;
     }
     const uint32_t datacenterId = dcIter->second;
-    MORDOR_LOG_TRACE(g_log) << this << " add " << *address <<
+    MORDOR_LOG_TRACE(g_log) << this << " add " << address <<
                                " dc " << datacenterId << " (" <<
                                datacenter << ")";
     acceptorToDatacenterId_[address] = datacenterId;
@@ -60,11 +59,10 @@ bool DatacenterAwareQuorumRingOracle::addAcceptor(Address::ptr address,
 
 bool DatacenterAwareQuorumRingOracle::chooseRing(
     const PingTracker::PingStatsMap& pingStatsMap,
-    vector<Address::ptr>* ring) const
+    vector<string>* ring) const
 {
     // XXX probably we should also inject 'now'.
     const uint64_t now = TimerManager::now();
-    typedef pair<pair<double, double>, Address::ptr> TaggedAddress;
 
     vector<TaggedAddress> liveAddresses;
     gatherLiveAddresses(pingStatsMap, now, &liveAddresses);
@@ -88,9 +86,9 @@ bool DatacenterAwareQuorumRingOracle::chooseRing(
         sort(newRing.begin(), newRing.end());
         ring->clear();
         for(size_t i = 0; i < newRing.size(); ++i) {
-            const Address::ptr& address = newRing[i].second;
+            const string& address = newRing[i].second;
             MORDOR_LOG_TRACE(g_log) << this << " new ring (" << i <<
-                                       ", " << *address << ")";
+                                       ", " << address << ")";
             ring->push_back(address);
         }
         return true;
@@ -105,18 +103,18 @@ void DatacenterAwareQuorumRingOracle::gatherLiveAddresses(
     for(auto i = pingStatsMap.begin(); i != pingStatsMap.end(); ++i) {
         auto dcIter = acceptorToDatacenterId_.find(i->first);
         if(dcIter == acceptorToDatacenterId_.end()) {
-            MORDOR_LOG_WARNING(g_log) << this << " acceptor " << *i->first <<
+            MORDOR_LOG_WARNING(g_log) << this << " acceptor " << i->first <<
                                          " not found";
             continue;
         }
-        Address::ptr address = i->first;
+        const string& address = i->first;
         const PingStats& pingStats = i->second;
         bool isLive = (now - pingStats.maxReceivedPongSendTime() <
                           noHeartbeatTimeoutUs_);
         if(isLive) {
             double latency = pingStats.meanLatency();
             double loss    = pingStats.packetLoss();
-            MORDOR_LOG_TRACE(g_log) << this << " adding live " << *address <<
+            MORDOR_LOG_TRACE(g_log) << this << " adding live " << address <<
                                        " latency=" << latency <<
                                        " loss=" << loss;
             liveAddresses->push_back(make_pair(
@@ -134,12 +132,12 @@ bool DatacenterAwareQuorumRingOracle::tryToCoverDatacenters(
     set<uint32_t> reachedDatacenters;
 
     for(size_t i = 0; i < sortedLiveAddresses.size(); ++i) {
-        const Address::ptr& address = sortedLiveAddresses[i].second;
+        const string& address = sortedLiveAddresses[i].second;
         auto dcIdIter = acceptorToDatacenterId_.find(address);
         MORDOR_ASSERT(dcIdIter != acceptorToDatacenterId_.end());
         const uint32_t datacenterId = dcIdIter->second;
         if(reachedDatacenters.find(datacenterId) == reachedDatacenters.end()) {
-            MORDOR_LOG_TRACE(g_log) << this << " adding " << *address <<
+            MORDOR_LOG_TRACE(g_log) << this << " adding " << address <<
                                        " in new dc " << datacenterId;
             newRing->push_back(sortedLiveAddresses[i]);
         } else {

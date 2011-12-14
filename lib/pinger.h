@@ -27,7 +27,7 @@ public:
     void run();
 
 private:
-    static void doSinglePing(Pinger::ptr pinger, uint64_t id);
+    void doSinglePing(uint64_t id);
 
     Mordor::IOManager* ioManager_;
     SyncGroupRequester::ptr requester_;

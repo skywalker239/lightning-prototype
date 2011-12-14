@@ -1,5 +1,5 @@
 CXX = g++ --std=gnu++0x
-OPT ?= 3
+OPT ?= 0
 
 CXXFLAGS= \
     -g -O$(OPT) `pkg-config --cflags libmordor` \
@@ -9,17 +9,36 @@ LDFLAGS = `pkg-config --libs --static libmordor` -lpthread -lrt -lprotobuf
 PROTO_SRCS = \
     proto/set_ring.proto \
     proto/ping.proto \
-    proto/sync_group_request.proto
+    proto/sync_group_request.proto \
+    proto/batch_phase1.proto
 
 PROTO_GENSRCS = $(PROTO_SRCS:.proto=.pb.cc)
 PROTO_GENHDRS = $(PROTO_SRCS:.proto=.pb.h)
 
 LIB_TARGETS = libightning.a
 LIB_OBJS = $(PROTO_GENSRCS:.cc=.o)
-LIB_OBJS += ping_stats.o pinger.o ponger.o pong_receiver.o multicast_util.o ping_tracker.o datacenter_aware_quorum_ring_oracle.o ring_manager.o value_id_map.o proposer_instance.o acceptor_instance.o sync_group_requester.o ping_request.o set_ring_request.o instance_pool.o
+LIB_OBJS += \
+    ping_stats.o \
+    pinger.o \
+    ponger.o \
+    multicast_util.o \
+    ping_tracker.o \
+    datacenter_aware_quorum_ring_oracle.o \
+    ring_manager.o \
+    value_id_map.o \
+    proposer_instance.o \
+    acceptor_instance.o \
+    sync_group_requester.o \
+    ping_request.o \
+    set_ring_request.o \
+    instance_pool.o \
+    ring_holder.o \
+    ring_change_notifier.o \
+    sync_group_responder.o \
+#   batch_phase1_request.o
+    
 
-TEST_TARGETS = test_ring_responder test_multicast_pinger test_ponger
-# TEST_TARGETS += test_ring_master
+TEST_TARGETS = test_ring_master test_ring_responder
 TEST_OBJS = $(addsuffix .o, $(TEST_TARGETS))
 
 UT_LIB_OBJS = acceptor_instance_ut.o proposer_instance_ut.o value_id_map_ut.o

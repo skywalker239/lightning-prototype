@@ -61,11 +61,14 @@ void SyncGroupRequester::run() {
         {
             FiberMutex::ScopedLock lk(mutex_);
             auto requestIter = pendingRequests_.find(id);
-            request = requestIter->second;
+            if(requestIter != pendingRequests_.end()) {
+                request = requestIter->second;
+            }
         }
         if(!request) {
             MORDOR_LOG_WARNING(g_log) << this << " stale reply: request " <<
                                          id << " not pending";
+            continue;
         }
         MORDOR_LOG_TRACE(g_log) << this << " got reply for request " <<
                                    id << " from " << *currentSourceAddress;

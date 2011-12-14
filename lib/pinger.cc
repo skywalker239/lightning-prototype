@@ -46,13 +46,13 @@ void Pinger::run() {
     }
 }
 
-void Pinger::doSinglePing(Pinger::ptr pinger, uint64_t id) {
+void Pinger::doSinglePing(uint64_t id) {
     SyncGroupRequest::ptr request(
-        new PingRequest(pinger->hosts_,
+        new PingRequest(hosts_,
                         id,
-                        pinger->pingTracker_));
-    SyncGroupRequest::Status status = pinger->requester_->request(request);
-    MORDOR_LOG_TRACE(g_log) << pinger.get() << " doSinglePing(" << id <<
+                        pingTracker_));
+    SyncGroupRequest::Status status = requester_->request(request);
+    MORDOR_LOG_TRACE(g_log) << this << " doSinglePing(" << id <<
                                ") = " << status;
 }
 

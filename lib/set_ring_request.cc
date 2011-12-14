@@ -17,11 +17,12 @@ using std::vector;
 
 static Logger::ptr g_log = Log::lookup("lightning:set_ring_request");
 
-SetRingRequest::SetRingRequest(const vector<Address::ptr>& ringHosts,
+SetRingRequest::SetRingRequest(const vector<Address::ptr>& ringAddresses,
+                               const vector<string>& ringHosts,
                                uint64_t ringId)
     : ringHosts_(ringHosts),
       ringId_(ringId),
-      notAcked_(ringHosts.begin(), ringHosts.end()),
+      notAcked_(ringAddresses.begin(), ringAddresses.end()),
       status_(IN_PROGRESS),
       event_(true)
 {}
@@ -32,7 +33,7 @@ const string SetRingRequest::requestString() const {
     MORDOR_LOG_TRACE(g_log) << this << " ring_id=" << ringId_;
     data.set_ring_id(ringId_);
     for(size_t i = 0; i < ringHosts_.size(); ++i) {
-        const string host = lexical_cast<string>(*ringHosts_[i]);
+        const string& host = ringHosts_[i];
         MORDOR_LOG_TRACE(g_log) << this << " [" << ringId_ << ":" << i <<
                                    "] " << host;
         data.add_ring_hosts(host);
@@ -40,6 +41,8 @@ const string SetRingRequest::requestString() const {
 
     string s;
     data.SerializeToString(&s);
+    MORDOR_LOG_TRACE(g_log) << this << " serialized to " << s.length() <<
+                               " bytes";
     return s;
 }
 

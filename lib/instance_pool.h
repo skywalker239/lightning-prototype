@@ -33,6 +33,8 @@ namespace paxos {
 //
 class InstancePool : boost::noncopyable {
 public:
+    typedef boost::shared_ptr<InstancePool> ptr;
+
     InstancePool(uint32_t maxOpenInstancesNumber,
                  uint32_t maxReservedInstancesNumber,
                  boost::shared_ptr<Mordor::FiberEvent>

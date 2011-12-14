@@ -4,6 +4,7 @@
 #include <mordor/fibersynchronization.h>
 #include <mordor/socket.h>
 #include <set>
+#include <string>
 #include <vector>
 
 namespace lightning {
@@ -11,7 +12,8 @@ namespace lightning {
 //! Attempts to establish a new ring.
 class SetRingRequest : public SyncGroupRequest {
 public:
-    SetRingRequest(const std::vector<Mordor::Address::ptr>& ringHosts,
+    SetRingRequest(const std::vector<Mordor::Address::ptr>& ringAddresses,
+                   const std::vector<std::string>& ringHosts,
                    uint64_t ringId);
 
 private:
@@ -34,7 +36,7 @@ private:
         }
     };
 
-    const std::vector<Mordor::Address::ptr> ringHosts_;
+    const std::vector<std::string> ringHosts_;
     const uint64_t ringId_;
     std::set<Mordor::Address::ptr, AddressCompare> notAcked_;
     Status status_;

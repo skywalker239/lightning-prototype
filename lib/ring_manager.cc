@@ -1,5 +1,6 @@
 #include "ring_manager.h"
 #include "set_ring_request.h"
+#include <boost/lexical_cast.hpp>
 #include <mordor/log.h>
 #include <mordor/sleep.h>
 #include <mordor/timer.h>
@@ -10,6 +11,7 @@
 
 namespace lightning {
 
+using boost::lexical_cast;
 using Mordor::IOManager;
 using Mordor::FiberEvent;
 using Mordor::FiberMutex;
@@ -28,50 +30,27 @@ using std::ostringstream;
 
 static Logger::ptr g_log = Log::lookup("lightning:ring_manager");
 
-namespace {
-
-//! XXX HACK
-Address::ptr mangleAddress(Address::ptr addr, uint16_t port) {
-    Address::ptr newAddr = addr->clone();
-    dynamic_cast<IPv4Address*>(newAddr.get())->port(port);
-    return newAddr;
-}
-
-}  // anonymous namespace
-
 RingManager::RingManager(IOManager* ioManager,
                          boost::shared_ptr<FiberEvent> hostDownEvent,
                          SyncGroupRequester::ptr setRingRequester,
-                         const vector<Address::ptr>& acceptors,
                          PingTracker::ptr acceptorPingTracker,
                          RingOracle::ptr ringOracle,
+                         RingChangeNotifier::ptr ringChangeNotifier,
+                         uint16_t ringReplyPort,
                          uint64_t lookupRingRetryUs)
     : ioManager_(ioManager),
       hostDownEvent_(hostDownEvent),
       setRingRequester_(setRingRequester),
-      acceptors_(acceptors),
       acceptorPingTracker_(acceptorPingTracker),
       ringOracle_(ringOracle),
+      ringChangeNotifier_(ringChangeNotifier),
+      ringReplyPort_(ringReplyPort),
       lookupRingRetryUs_(lookupRingRetryUs),
       currentRingId_(kInvalidRingId),
       currentState_(LOOKING),
       mutex_(),
       nextRingId_(kInvalidRingId)
 {}
-
-bool RingManager::currentRing(uint64_t* ringId,
-                              vector<Address::ptr>* acceptors)
-{
-    FiberMutex::ScopedLock lk(mutex_);
-
-    if(currentRingId_ == kInvalidRingId) {
-        return false;
-    } else {
-        *ringId = currentRingId_;
-        acceptors->assign(currentRing_.begin(), currentRing_.end());
-        return true;
-    }
-}
 
 void RingManager::run() {
     MORDOR_LOG_TRACE(g_log) << this << " RingManager::run() requester=" <<
@@ -110,20 +89,14 @@ void RingManager::lookupRing() {
     while(true) {
         MORDOR_LOG_TRACE(g_log) << this << " looking up ring";
         PingTracker::PingStatsMap pingStatsMap;
-        vector<Address::ptr> nextRing;
+        vector<string> nextRing;
         acceptorPingTracker_->snapshot(&pingStatsMap);
         if(ringOracle_->chooseRing(pingStatsMap, &nextRing)) {
             FiberMutex::ScopedLock lk(mutex_);
             nextRingId_ = generateRingId();
             nextRing_.swap(nextRing);
-            //! XXX HACK!
-            const uint16_t ringPort = dynamic_cast<IPv4Address*>(acceptors_.front().get())->port();
             for(size_t i = 0; i < nextRing_.size(); ++i) {
-                nextRing_[i] = mangleAddress(nextRing_[i], ringPort);
-            }
-            //! end of HACK
-            for(size_t i = 0; i < nextRing_.size(); ++i) {
-                MORDOR_LOG_TRACE(g_log) << this << " #" << i << ": " << *nextRing_[i];
+                MORDOR_LOG_TRACE(g_log) << this << " #" << i << ": " << nextRing_[i];
             }
             MORDOR_LOG_TRACE(g_log) << this << " found next ring " <<
                                        nextRingId_;
@@ -139,7 +112,10 @@ void RingManager::lookupRing() {
 bool RingManager::trySetRing() {
     MORDOR_ASSERT(nextRingId_ != kInvalidRingId);
 
-    SyncGroupRequest::ptr request(new SetRingRequest(nextRing_, nextRingId_));
+    vector<Address::ptr> nextRingAddresses;
+    generateReplyAddresses(nextRing_, &nextRingAddresses);
+    SyncGroupRequest::ptr request(
+        new SetRingRequest(nextRingAddresses, nextRing_, nextRingId_));
     MORDOR_LOG_TRACE(g_log) << this << " try set ring id=" << nextRingId_;
     if(setRingRequester_->request(request) != SyncGroupRequest::OK) {
         MORDOR_LOG_TRACE(g_log) << this << " set ring id=" << nextRingId_ <<
@@ -149,6 +125,7 @@ bool RingManager::trySetRing() {
         FiberMutex::ScopedLock lk(mutex_);
         currentRingId_ = nextRingId_;
         currentRing_.swap(nextRing_);
+        ringChangeNotifier_->onRingChange(currentRing_, currentRingId_);
         MORDOR_LOG_TRACE(g_log) << this << " set ring id=" << nextRingId_ <<
                                    " ok";
         return true;
@@ -165,6 +142,17 @@ uint64_t RingManager::generateRingId() const {
     return currentRandom;
 }
 
+void RingManager::generateReplyAddresses(
+    const vector<string>& hosts,
+    vector<Address::ptr>* addresses) const
+{
+    addresses->clear();
+    const string portString = ":" + lexical_cast<string>(ringReplyPort_);
+    for(size_t i = 0; i < hosts.size(); ++i) {
+        addresses->push_back(Address::lookup(hosts[i] + portString).front());
+    }
+}
+
 void RingManager::waitForRingToBreak() {
     MORDOR_LOG_TRACE(g_log) << this << " waiting for ring " <<
                                currentRingId_ << " to break";
@@ -179,25 +167,22 @@ void RingManager::waitForRingToBreak() {
         const uint64_t now = TimerManager::now();
 
         for(size_t i = 0; i < currentRing_.size(); ++i) {
-            //! XXX HACK
-            const uint16_t port = dynamic_cast<IPv4Address*>(pingStatsMap.begin()->first.get())->port();
-            Address::ptr mangledAddr = mangleAddress(currentRing_[i], port);
-
-            auto pingStatsIter = pingStatsMap.find(mangledAddr);
+            auto pingStatsIter = pingStatsMap.find(currentRing_[i]);
             if(pingStatsIter != pingStatsMap.end()) {
-                const Address::ptr& address = pingStatsIter->first;
+                const string& address = pingStatsIter->first;
                 const PingStats& pingStats = pingStatsIter->second;
                 if(pingStats.maxReceivedPongSendTime() +
                        noHeartbeatTimeoutUs < now)
                 {
                     MORDOR_LOG_WARNING(g_log) << this << " ring member " <<
-                                                 *address << " is down";
+                                                 address << " is down";
+                    ringChangeNotifier_->onRingDown();
                     return;
                 }
             } else {
                 MORDOR_LOG_ERROR(g_log) << this << " no ping stats for " <<
                                            "ring member " <<
-                                           *currentRing_[i];
+                                           currentRing_[i];
             }
         }
         hostDownEvent_->reset();

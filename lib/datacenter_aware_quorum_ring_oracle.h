@@ -24,26 +24,18 @@ public:
                                     uint64_t noHeartbeatTimeoutUs);
 
     void addDatacenter(const std::string& name);
-    bool addAcceptor(Mordor::Address::ptr address,
+    bool addAcceptor(const std::string& address,
                      const std::string& datacenter);
 
     virtual bool chooseRing(const PingTracker::PingStatsMap& pingStatsMap,
-                            std::vector<Mordor::Address::ptr>* ring) const;
+                            std::vector<std::string>* ring) const;
 
     typedef boost::shared_ptr<DatacenterAwareQuorumRingOracle> ptr;
 private:
-    struct AddressCompare {
-        bool operator()(const Mordor::Address::ptr& lhs,
-                        const Mordor::Address::ptr& rhs)
-        {
-            return *lhs < *rhs;
-        }
-    };
-
     uint32_t quorumSize() const;
 
     //! ((loss, latency), address). for sorting.
-    typedef std::pair<std::pair<double, double>, Mordor::Address::ptr>
+    typedef std::pair<std::pair<double, double>, std::string>
         TaggedAddress;
 
     void gatherLiveAddresses(const PingTracker::PingStatsMap& pingStatsMap,
@@ -61,7 +53,7 @@ private:
     const bool okToMissDatacenter_;
     const uint64_t noHeartbeatTimeoutUs_;
 
-    std::map<Mordor::Address::ptr, uint32_t> acceptorToDatacenterId_;
+    std::map<std::string, uint32_t> acceptorToDatacenterId_;
 };
                             
 }  // namespace lightning

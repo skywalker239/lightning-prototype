@@ -1,5 +1,8 @@
 #include "multicast_util.h"
 #include "ponger.h"
+#include "sync_group_responder.h"
+#include "proto/set_ring.pb.h"
+#include "proto/sync_group_request.pb.h"
 #include <iostream>
 #include <netinet/in.h>
 #include <boost/bind.hpp>
@@ -14,28 +17,27 @@ using namespace Mordor;
 using namespace lightning;
 using boost::lexical_cast;
 
-    struct SetRingPacket {
-        uint64_t ringId;
-        uint64_t ringStringLength;
-        char ringString[0];
-    } __attribute__((packed));
+class SetRingResponder : public SyncGroupResponder {
+public:
+    SetRingResponder(Socket::ptr listen,
+                     Address::ptr mcast,
+                     Socket::ptr reply)
+        : SyncGroupResponder(listen, mcast, reply)
+    {}
 
-    struct RingAckPacket {
-        uint64_t ringId;
-    } __attribute__((packed));
-
-void ackSetRings(Socket::ptr inSocket, Socket::ptr outSocket) {
-    Address::ptr remoteAddress = inSocket->emptyAddress();
-    while(true) {
-        char buffer[8000];
-        inSocket->receiveFrom((void*)buffer, 8000, *remoteAddress);
-        RingAckPacket ringAck;
-        SetRingPacket* setPacket = (SetRingPacket*) buffer;
-        ringAck.ringId = setPacket->ringId;
-        outSocket->sendTo((const void*)&ringAck, sizeof(ringAck), 0, *remoteAddress);
-        cout << "Got set ring id=" << setPacket->ringId << " ring='" << setPacket->ringString << "'" << endl;
+    bool onRequest(Address::ptr from, const string& request, string* reply) {
+        SetRingData data;
+        data.ParseFromString(request);
+        cout << "Got set ring id=" << data.ring_id() << " from " << *from << endl;
+        for(int i = 0; i < data.ring_hosts_size(); ++i) {
+            cout << "Ring host " << i << ": " << data.ring_hosts(i) << endl;
+        }
+        SetRingAckData ack;
+        ack.set_ring_id(data.ring_id());
+        ack.SerializeToString(reply);
+        return true;
     }
-}
+};
 
 Socket::ptr makeSocket(IOManager& ioManager, const string& addr, uint16_t port) {
     string fullAddress = addr + ":" + lexical_cast<string>(port);
@@ -59,10 +61,10 @@ int main(int argc, char** argv) {
     Socket::ptr ringInSocket  = makeSocket(ioManager, "0.0.0.0", lexical_cast<uint16_t>(argv[5]));
 
     Address::ptr mcastAddress = Address::lookup(argv[2], AF_INET).front();
-    joinMulticastGroup(ringInSocket, mcastAddress);
 
-    Ponger task(&ioManager, pingInSocket, pingOutSocket, mcastAddress);
+    Ponger task(pingInSocket, mcastAddress, pingOutSocket);
+    SetRingResponder task2(ringInSocket, mcastAddress, ringOutSocket);
     ioManager.schedule(boost::bind(&Ponger::run, &task));
-    ioManager.schedule(boost::bind(&ackSetRings, ringInSocket, ringOutSocket));
+    ioManager.schedule(boost::bind(&SetRingResponder::run, &task2));
     ioManager.dispatch();
 }

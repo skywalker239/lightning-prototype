@@ -1,22 +1,20 @@
 #pragma once
 
+#include "sync_group_responder.h"
 #include <mordor/socket.h>
 
 namespace lightning {
 
-class Ponger {
+class Ponger : public SyncGroupResponder {
 public:
-    Ponger(Mordor::IOManager* ioManager,
-           Mordor::Socket::ptr pingSocket,
-           Mordor::Socket::ptr pongSocket,
-           Mordor::Address::ptr multicastGroup);
+    Ponger(Mordor::Socket::ptr listenSocket,
+           Mordor::Address::ptr multicastGroup,
+           Mordor::Socket::ptr replySocket);
 
-    void run();
 private:
-    Mordor::IOManager* ioManager_;
-    Mordor::Socket::ptr pingSocket_;
-    Mordor::Socket::ptr pongSocket_;
-    Mordor::Address::ptr multicastGroup_;
+    virtual bool onRequest(Mordor::Address::ptr sourceAddress,
+                           const std::string& request,
+                           std::string* reply);
 };
 
 }  // namespace lightning

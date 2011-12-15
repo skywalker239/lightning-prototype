@@ -19,9 +19,9 @@ public:
     virtual ~RingHolder()
     {}
 
-    void resetRingConfiguration(RingConfiguration::ptr ringConfiguration);
+    void resetRingConfiguration(RingConfiguration::const_ptr ringConfiguration);
 protected:
-    RingConfiguration::ptr acquireRingConfiguration() const;
+    RingConfiguration::const_ptr acquireRingConfiguration() const;
 
 private:
     //! For debug logging, called under lock.
@@ -29,7 +29,7 @@ private:
 
     mutable Mordor::FiberMutex mutex_;
     mutable Mordor::FiberEvent ringEvent_;
-    RingConfiguration::ptr ringConfiguration_;
+    RingConfiguration::const_ptr ringConfiguration_;
 };
 
 }  // namespace lightning

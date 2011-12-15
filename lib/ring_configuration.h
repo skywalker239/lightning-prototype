@@ -10,6 +10,7 @@ namespace lightning {
 class RingConfiguration {
 public:
     typedef boost::shared_ptr<RingConfiguration> ptr;
+    typedef boost::shared_ptr<const RingConfiguration> const_ptr;
 
     //! The addresses in ringAddresses must be complete with both the host and
     //  port parts. These are the addresses that the corresponding

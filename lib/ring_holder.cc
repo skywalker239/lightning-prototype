@@ -19,7 +19,7 @@ RingHolder::RingHolder()
 {}
 
 void RingHolder::resetRingConfiguration(
-    RingConfiguration::ptr ringConfiguration)
+    RingConfiguration::const_ptr ringConfiguration)
 {
     FiberMutex::ScopedLock lk(mutex_);
     ringConfiguration_ = ringConfiguration;
@@ -32,7 +32,7 @@ void RingHolder::resetRingConfiguration(
     }
 }
 
-RingConfiguration::ptr RingHolder::acquireRingConfiguration() const {
+RingConfiguration::const_ptr RingHolder::acquireRingConfiguration() const {
     while(true) {
         ringEvent_.wait();
         FiberMutex::ScopedLock lk(mutex_);

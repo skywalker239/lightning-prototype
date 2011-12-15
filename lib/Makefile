@@ -35,7 +35,8 @@ LIB_OBJS += \
     ring_holder.o \
     ring_change_notifier.o \
     sync_group_responder.o \
-#   batch_phase1_request.o
+    batch_phase1_request.o \
+    phase1_batcher.o \
     
 
 TEST_TARGETS = test_ring_master test_ring_responder

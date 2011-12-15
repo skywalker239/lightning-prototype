@@ -101,7 +101,7 @@ MORDOR_UNITTEST(ProposerInstanceTest, P1PendingRetryBad) {
     MORDOR_TEST_ASSERT_ASSERTED(instance.phase1Retry(kLesserBallotId));
 }
 
-MORDOR_UNITTEST(ProposerInstanceTest, P1OpenP2Pending) {
+MORDOR_UNITTEST(ProposerInstanceTest, P1OpenP2PendingClientValue) {
     const InstanceId kInstanceId = 239;
     ProposerInstance instance(kInstanceId);
 
@@ -110,10 +110,30 @@ MORDOR_UNITTEST(ProposerInstanceTest, P1OpenP2Pending) {
     instance.phase1Open(kBallotId);
 
     shared_ptr<Value> value(new Value);
-    instance.phase2Pending(value);
-    MORDOR_TEST_ASSERT_EQUAL(instance.state(), ProposerInstance::P2_PENDING);
+    instance.phase2PendingWithClientValue(value);
+    MORDOR_TEST_ASSERT_EQUAL(instance.state(), ProposerInstance::P2_PENDING_CLIENT_VALUE);
     MORDOR_TEST_ASSERT_EQUAL(instance.ballotId(), kBallotId);
     MORDOR_TEST_ASSERT_ASSERTED(instance.value());
+    MORDOR_TEST_ASSERT_EQUAL(instance.clientValue().get(), value.get());
+}
+
+MORDOR_UNITTEST(ProposerInstanceTest, P2PendingClientValueP1Pending) {
+    const InstanceId kInstanceId = 239;
+    ProposerInstance instance(kInstanceId);
+
+    const BallotId kBallotId = 13;
+
+    instance.phase1Open(kBallotId);
+    
+    shared_ptr<Value> value(new Value);
+    instance.phase2PendingWithClientValue(value);
+
+    const BallotId kNextBallotId = kBallotId + 1;
+    instance.phase1Pending(kNextBallotId);
+    MORDOR_TEST_ASSERT_EQUAL(instance.state(), ProposerInstance::P1_PENDING);
+    MORDOR_TEST_ASSERT_EQUAL(instance.ballotId(), kNextBallotId);
+    MORDOR_TEST_ASSERT_ASSERTED(instance.value());
+    MORDOR_TEST_ASSERT_EQUAL(value.use_count(), 1);
 }
 
 MORDOR_UNITTEST(ProposerInstanceTest, P2PendingP1Pending) {
@@ -122,8 +142,8 @@ MORDOR_UNITTEST(ProposerInstanceTest, P2PendingP1Pending) {
 
     const BallotId kBallotId = 13;
 
-    instance.phase1Open(kBallotId);
-    
+    instance.phase1Pending(kBallotId);
+
     shared_ptr<Value> value(new Value);
     instance.phase2Pending(value);
 
@@ -141,7 +161,7 @@ MORDOR_UNITTEST(ProposerInstanceTest, P2PendingP1PendingBad) {
 
     const BallotId kBallotId = 13;
 
-    instance.phase1Open(kBallotId);
+    instance.phase1Pending(kBallotId);
 
     shared_ptr<Value> value(new Value);
     instance.phase2Pending(value);
@@ -150,7 +170,7 @@ MORDOR_UNITTEST(ProposerInstanceTest, P2PendingP1PendingBad) {
     MORDOR_TEST_ASSERT_ASSERTED(instance.phase1Pending(kLesserBallotId));
 }
 
-MORDOR_UNITTEST(ProposerInstanceTest, P2PendingClosed) {
+MORDOR_UNITTEST(ProposerInstanceTest, P2PendingClientValueP1PendingBad) {
     const InstanceId kInstanceId = 239;
     ProposerInstance instance(kInstanceId);
 
@@ -159,7 +179,37 @@ MORDOR_UNITTEST(ProposerInstanceTest, P2PendingClosed) {
     instance.phase1Open(kBallotId);
 
     shared_ptr<Value> value(new Value);
+    instance.phase2PendingWithClientValue(value);
+
+    const BallotId kLesserBallotId = kBallotId - 1;
+    MORDOR_TEST_ASSERT_ASSERTED(instance.phase1Pending(kLesserBallotId));
+}
+
+MORDOR_UNITTEST(ProposerInstanceTest, P2PendingWithClientValueClosed) {
+    const InstanceId kInstanceId = 239;
+    ProposerInstance instance(kInstanceId);
+
+    const BallotId kBallotId = 13;
+
+    instance.phase1Open(kBallotId);
+
+    shared_ptr<Value> value(new Value);
+    instance.phase2PendingWithClientValue(value);
+    instance.close();
+    MORDOR_TEST_ASSERT_EQUAL(instance.state(), ProposerInstance::CLOSED);
+    MORDOR_TEST_ASSERT_EQUAL(instance.ballotId(), kBallotId);
+    MORDOR_TEST_ASSERT_EQUAL(instance.value().get(), value.get());
+}
+
+MORDOR_UNITTEST(ProposerInstanceTest, P2PendingClosed) {
+    const InstanceId kInstanceId = 239;
+    ProposerInstance instance(kInstanceId);
+
+    const BallotId kBallotId = 13;
+    instance.phase1Pending(kBallotId);
+    shared_ptr<Value> value(new Value);
     instance.phase2Pending(value);
+
     instance.close();
     MORDOR_TEST_ASSERT_EQUAL(instance.state(), ProposerInstance::CLOSED);
     MORDOR_TEST_ASSERT_EQUAL(instance.ballotId(), kBallotId);
@@ -181,8 +231,12 @@ void makeInstance(ProposerInstance::State state, ProposerInstance* instance, Ins
         case ProposerInstance::P1_PENDING:
             instance->phase1Pending(kBallotId);
             break;
-        case ProposerInstance::P2_PENDING:
+        case ProposerInstance::P2_PENDING_CLIENT_VALUE:
             makeInstance(ProposerInstance::P1_OPEN, instance, iid);
+            instance->phase2PendingWithClientValue(value);
+            break;
+        case ProposerInstance::P2_PENDING:
+            makeInstance(ProposerInstance::P1_PENDING, instance, iid);
             instance->phase2Pending(value);
             break;
         case ProposerInstance::CLOSED:
@@ -218,6 +272,10 @@ MORDOR_UNITTEST(ProposerInstanceTest, InvalidTransitions) {
     makeInstance(ProposerInstance::P1_OPEN, &instance, kInstanceId);
     MORDOR_TEST_ASSERT_ASSERTED(instance.phase1Pending(kBallotId));
 
+    //! P1_OPEN P2_PENDING
+    makeInstance(ProposerInstance::P1_OPEN, &instance, kInstanceId);
+    MORDOR_TEST_ASSERT_ASSERTED(instance.phase2Pending(value));
+
     //! P1_OPEN P1Retry
     makeInstance(ProposerInstance::P1_OPEN, &instance, kInstanceId);
     MORDOR_TEST_ASSERT_ASSERTED(instance.phase1Retry(kBallotId));
@@ -237,6 +295,10 @@ MORDOR_UNITTEST(ProposerInstanceTest, InvalidTransitions) {
     //! P1_PENDING CLOSED
     makeInstance(ProposerInstance::P1_PENDING, &instance, kInstanceId);
     MORDOR_TEST_ASSERT_ASSERTED(instance.close());
+
+    //! P1_PENDING P2_PENDING_CLIENT_VALUE
+    makeInstance(ProposerInstance::P1_PENDING, &instance, kInstanceId);
+    MORDOR_TEST_ASSERT_ASSERTED(instance.phase2PendingWithClientValue(value));
 
     //! P2_PENDING P2_PENDING
     makeInstance(ProposerInstance::P2_PENDING, &instance, kInstanceId);

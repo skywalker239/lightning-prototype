@@ -33,7 +33,9 @@ void ProposerInstance::phase1Open(BallotId ballotId) {
 
 void ProposerInstance::phase1Pending(BallotId ballotId) {
     MORDOR_ASSERT(state_ == EMPTY ||
-                  (state_ == P2_PENDING && ballotId > currentBallotId_));
+                  ((state_ == P2_PENDING ||
+                    state_ == P2_PENDING_CLIENT_VALUE) &&
+                        ballotId > currentBallotId_));
     auto stateString = (state_ == EMPTY) ? "EMPTY" : "P2_PENDING";
 
     MORDOR_LOG_TRACE(g_log) << this << " iid = " << instanceId_ << " " <<
@@ -55,21 +57,33 @@ void ProposerInstance::phase1Retry(BallotId nextBallotId) {
 }
 
 void ProposerInstance::phase2Pending(shared_ptr<Value> value) {
-    MORDOR_ASSERT(state_ == P1_PENDING || state_ == P1_OPEN);
+    MORDOR_ASSERT(state_ == P1_PENDING);
     MORDOR_ASSERT(value.get());
-    auto stateString = (state_ == P1_PENDING) ? "P1_PENDING" : "P1_OPEN";
 
     MORDOR_LOG_TRACE(g_log) << this << " iid = " << instanceId_ << " " <<
-                               stateString << " -> P2_PENDING, ballotId = " <<
+                               "P1_PENDING -> P2_PENDING, ballotId = " <<
                                currentBallotId_;
     state_ = P2_PENDING;
     value_ = value;
 }
 
+void ProposerInstance::phase2PendingWithClientValue(shared_ptr<Value> value) {
+    MORDOR_ASSERT(state_ == P1_OPEN);
+    MORDOR_ASSERT(value.get());
+
+    MORDOR_LOG_TRACE(g_log) << this << " iid = " << instanceId_ << " " <<
+                               "P1_OPEN -> P2_PENDING_CLIENT_VALUE, " <<
+                               "ballotId = " <<
+                               currentBallotId_;
+    state_ = P2_PENDING_CLIENT_VALUE;
+    value_ = value;
+}
+
 void ProposerInstance::close() {
-    MORDOR_ASSERT(state_ == P2_PENDING);
+    MORDOR_ASSERT(state_ == P2_PENDING || state_ == P2_PENDING_CLIENT_VALUE);
     MORDOR_LOG_TRACE(g_log) << this << " iid = " << instanceId_ <<
-                               "P2_PENDING -> CLOSED, ballotId = " <<
+                               "P2_PENDING(" << state_ << 
+                                ") -> CLOSED, ballotId = " <<
                                currentBallotId_;
     MORDOR_ASSERT(value_.get());
     state_ = CLOSED;
@@ -93,15 +107,19 @@ BallotId ProposerInstance::ballotId() const {
 
 shared_ptr<Value> ProposerInstance::value() const {
     MORDOR_ASSERT(state_ == CLOSED);
+    MORDOR_ASSERT(value_.get())
+    return value_;
+}
+
+shared_ptr<Value> ProposerInstance::clientValue() const {
+    MORDOR_ASSERT(state_ == P2_PENDING_CLIENT_VALUE);
+    MORDOR_ASSERT(value_.get());
     return value_;
 }
 
 void ProposerInstance::reset(InstanceId newInstanceId) {
-//    MORDOR_ASSERT(state_ == EMPTY || state_ == CLOSED);
-    auto stateString = (state_ == EMPTY) ? "EMPTY" : "CLOSED";
     MORDOR_LOG_TRACE(g_log) << this << " iid = " << instanceId_ << " " <<
-                               stateString << " -> EMPTY (reset), " <<
-                               "new iid = " << newInstanceId;
+                               " reset to iid = " << newInstanceId;
     state_ = EMPTY;
     instanceId_ = newInstanceId;
     currentBallotId_ = kInvalidBallotId;

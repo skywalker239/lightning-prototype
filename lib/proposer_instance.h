@@ -15,8 +15,14 @@ namespace paxos {
 //      Paxos is being executed.
 //    * P1_OPEN -- phase 1 completed successfully, but there
 //      is no value to bind to this instance yet.
-//    * P2_PENDING -- Paxos has selected a value to be bound
-//      to this instance and phase 2 is pending.
+//    * P2_PENDING -- Phase 2 is pending with a value that
+//      has been recovered during phase 1.
+//    * P2_PENDING_CLIENT_VALUE -- Phase 2 is pending with
+//      a fresh value from the client.
+//      The difference between this and P2_PENDING is that
+//      upon failure in this state we must store the client
+//      value somewhere (return it to the client value queue)
+//      because if we don't, it could be lost.
 //    * CLOSED -- a value has been bound to this instance.
 //
 //   All possible state transitions are [TODO a pretty graph]:
@@ -50,12 +56,15 @@ namespace paxos {
 //   * P1_PENDING -> P2_PENDING
 //     Instances for which phase 1 has discovered a reserved value go this way.
 //
-//   * P1_OPEN -> P2_PENDING
+//   * P1_OPEN -> P2_PENDING_CLIENT_VALUE
 //     Happens when we try to bind a fresh client value to an open instance.
 //
 //   * P2_PENDING -> P1_PENDING
 //     When phase 2 timeouts, we have to rerun phase 1 individually and from
 //     scratch.
+//
+//   * P2_PENDING_CLIENT_VALUE -> P1_PENDING
+//     Same as above + we need to stash the client value somewhere.
 //
 //   * P2_PENDING -> CLOSED
 //     The instance becomes closed.
@@ -79,6 +88,7 @@ public:
         EMPTY,
         P1_PENDING,
         P1_OPEN,
+        P2_PENDING_CLIENT_VALUE,
         P2_PENDING,
         CLOSED
     };
@@ -93,6 +103,7 @@ public:
     void phase1Open(BallotId ballotId);
 
     //! EMPTY -> P1_PENDING or P2_PENDING -> P1_PENDING
+    //  or P2_PENDING_CLIENT_VALUE -> P1_PENDING_CLIENT_VALUE
     //  We really only know the ballot id with which to (re)try, so we
     //  set it here.
     void phase1Pending(BallotId ballotId);
@@ -104,9 +115,12 @@ public:
     //  It MUST be greater than the current ballot id.
     void phase1Retry(BallotId nextBallotId);
 
-    //! P1_PENDING -> P2_PENDING or P1_OPEN -> P2_PENDING
-    //  Proceed to phase 2 with a known value.
+    //! P1_PENDING -> P2_PENDING
+    //  Proceed to phase 2 with a known reserved value.
     void phase2Pending(boost::shared_ptr<Value> value);
+
+    //! P1_OPEN -> P2_PENDING_CLIENT_VALUE
+    void phase2PendingWithClientValue(boost::shared_ptr<Value> value);
 
     //! P2_PENDING -> CLOSED
     void close();
@@ -123,6 +137,10 @@ public:
     //! The value bound to this instance.
     //  May be only called when state() == CLOSED.
     boost::shared_ptr<Value> value() const;
+
+    //! The client value we are trying to bind.
+    //  Only call when state() == P2_PENDING_CLIENT_VALUE.
+    boost::shared_ptr<Value> clientValue() const;
 
     //! CLOSED -> EMPTY
     void reset(InstanceId newInstanceId);

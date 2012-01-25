@@ -15,8 +15,7 @@ bool Ponger::handleRequest(Address::ptr sourceAddress,
                        const RpcMessageData& request,
                        RpcMessageData* reply)
 {
-    reply->set_type(RpcMessageData::PING);
-    reply->mutable_ping()->MergeFrom(request.ping());
+    reply->MergeFrom(request);
 
     MORDOR_LOG_TRACE(g_log) << this << " got ping(" <<
                                request.ping().id() << ", " <<

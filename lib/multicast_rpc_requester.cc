@@ -56,7 +56,7 @@ void MulticastRpcRequester::run() {
             continue;
         }
 
-        Guid replyGuid = Guid::parse(reply.uuid().c_str());
+        Guid replyGuid = Guid::parse(reply.uuid());
         MulticastRpcRequest::ptr request;
         {
             FiberMutex::ScopedLock lk(mutex_);

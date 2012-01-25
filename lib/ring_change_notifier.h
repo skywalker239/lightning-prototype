@@ -14,16 +14,13 @@ public:
 
     //! For each ring holder stores the reply port for the corresponding
     //  requester.
-    RingChangeNotifier(
-        const std::vector<std::pair<RingHolder::ptr, uint16_t> >&
-            ringHolders);
+    RingChangeNotifier(const std::vector<RingHolder::ptr>& ringHolders);
 
-    void onRingChange(const std::vector<std::string>& newRing,
-                      uint64_t newRingId) const;
+    void onRingChange(RingConfiguration::const_ptr newRing) const;
 
     void onRingDown() const;
 private:
-    const std::vector<std::pair<RingHolder::ptr, uint16_t> > ringHolders_;
+    const std::vector<RingHolder::ptr> ringHolders_;
 };
 
 }  // namespace lightning

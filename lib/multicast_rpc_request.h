@@ -1,5 +1,6 @@
 #pragma once
 
+#include "proto/rpc_messages.pb.h"
 #include <mordor/socket.h>
 #include <boost/shared_ptr.hpp>
 #include <string>
@@ -7,31 +8,30 @@
 namespace lightning {
 
 //! An abstract command to be executed synchronously on several hosts.
-//  See SyncGroupRequester for the description of its semantics.
+//  See MulticastRpcRequester for the description of its semantics.
 //  An implementation must be fiber-safe since onReply and
 //  onTimeout may in principle be called concurrently (and will be
 //  certainly called concurrently with wait()).
-class SyncGroupRequest {
+class MulticastRpcRequest {
 public:
-    typedef boost::shared_ptr<SyncGroupRequest> ptr;
+    typedef boost::shared_ptr<MulticastRpcRequest> ptr;
 
     enum Status {
         IN_PROGRESS,
-        NACKED,
-        TIMED_OUT,
-        OK
+        COMPLETED,
+        TIMED_OUT
     };
 
-    virtual ~SyncGroupRequest() {}
+    virtual ~MulticastRpcRequest() {}
 
     //! The serialized request to transmit over the network.
-    virtual const std::string requestString() const = 0;
+    virtual const RpcMessageData& request() const = 0;
 
     //! Registers a reply from a certain address.
-    //  If it's the last needed ack or a NACK, releases
-    //  the wait()'ers.
+    //  Releases the wait()'er if this reply is enough for the
+    //  request to be considered completed.
     virtual void onReply(Mordor::Address::ptr sourceAddress,
-                         const std::string& reply) = 0;
+                         const RpcMessageData& reply) = 0;
 
     //! Registers that a timeout occurred.
     //  The implementation should allow this to be called

@@ -7,10 +7,7 @@ CXXFLAGS= \
 LDFLAGS = `pkg-config --libs --static libmordor` -lpthread -lrt -lprotobuf
 
 PROTO_SRCS = \
-    proto/set_ring.proto \
-    proto/ping.proto \
-    proto/sync_group_request.proto \
-    proto/batch_phase1.proto
+    proto/rpc_messages.proto
 
 PROTO_GENSRCS = $(PROTO_SRCS:.proto=.pb.cc)
 PROTO_GENHDRS = $(PROTO_SRCS:.proto=.pb.h)
@@ -18,6 +15,12 @@ PROTO_GENHDRS = $(PROTO_SRCS:.proto=.pb.h)
 LIB_TARGETS = libightning.a
 LIB_OBJS = $(PROTO_GENSRCS:.cc=.o)
 LIB_OBJS += \
+    host_configuration.o \
+    MurmurHash3.o \
+    guid.o \
+    multicast_rpc_requester.o \
+    multicast_rpc_responder.o \
+    set_ring_handler.o \
     ping_stats.o \
     pinger.o \
     ponger.o \
@@ -28,18 +31,16 @@ LIB_OBJS += \
     value_id_map.o \
     proposer_instance.o \
     acceptor_instance.o \
-    sync_group_requester.o \
     ping_request.o \
     set_ring_request.o \
     instance_pool.o \
     ring_holder.o \
     ring_change_notifier.o \
-    sync_group_responder.o \
-    batch_phase1_request.o \
-    phase1_batcher.o \
+#    batch_phase1_request.o \
+#    phase1_batcher.o \
     
 
-TEST_TARGETS = test_ring_master test_ring_responder
+TEST_TARGETS = test_ring_master test_ring_responder test_guid
 TEST_OBJS = $(addsuffix .o, $(TEST_TARGETS))
 
 UT_LIB_OBJS = acceptor_instance_ut.o proposer_instance_ut.o value_id_map_ut.o

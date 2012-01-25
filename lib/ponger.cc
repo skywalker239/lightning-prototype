@@ -1,5 +1,4 @@
 #include "ponger.h"
-#include "proto/ping.pb.h"
 #include <mordor/log.h>
 
 namespace lightning {
@@ -12,27 +11,17 @@ using std::string;
 
 static Logger::ptr g_log = Log::lookup("lightning:ponger");
 
-Ponger::Ponger(Socket::ptr listenSocket,
-               Address::ptr multicastGroup,
-               Socket::ptr replySocket)
-    : SyncGroupResponder(listenSocket, multicastGroup, replySocket)
-{}
-
-bool Ponger::onRequest(Address::ptr sourceAddress,
-                       const string& request,
-                       string* reply)
+bool Ponger::handleRequest(Address::ptr sourceAddress,
+                       const RpcMessageData& request,
+                       RpcMessageData* reply)
 {
-    PingData pingData;
-    if(!pingData.ParseFromString(request)) {
-        MORDOR_LOG_WARNING(g_log) << this << " malformed ping";
-        return false;
-    }
+    reply->set_type(RpcMessageData::PING);
+    reply->mutable_ping()->MergeFrom(request.ping());
 
     MORDOR_LOG_TRACE(g_log) << this << " got ping(" <<
-                               pingData.id() << ", " <<
-                               pingData.sender_now() << ")" <<
+                               request.ping().id() << ", " <<
+                               request.ping().sender_now() << ")" <<
                                " from " << *sourceAddress;
-    *reply = request;
     return true;
 }
 

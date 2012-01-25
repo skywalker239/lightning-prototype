@@ -19,21 +19,33 @@ using std::vector;
 static Logger::ptr g_log = Log::lookup("lightning:pinger");
 
 Pinger::Pinger(IOManager* ioManager,
-               SyncGroupRequester::ptr requester,
-               const vector<Address::ptr>& hosts,
+               MulticastRpcRequester::ptr requester,
+               const GroupConfiguration& groupConfiguration,
                uint64_t pingIntervalUs,
+               uint64_t pingTimeoutUs,
                PingTracker::ptr pingTracker)
     : ioManager_(ioManager),
       requester_(requester),
-      hosts_(hosts),
       pingIntervalUs_(pingIntervalUs),
+      pingTimeoutUs_(pingTimeoutUs),
       pingTracker_(pingTracker),
       currentId_(0)
-{}
+{
+    const vector<HostConfiguration>& hosts = groupConfiguration.hosts();
+    for(size_t i = 0; i < hosts.size(); ++i) {
+        if(i != groupConfiguration.thisHostId()) {
+            MORDOR_LOG_TRACE(g_log) << this << " adding host " << i <<
+                                       " at " <<
+                                       *hosts[i].multicastReplyAddress;
+            hosts_.push_back(hosts[i].multicastReplyAddress);
+        }
+    }
+}
 
 void Pinger::run() {
     MORDOR_LOG_TRACE(g_log) << this << " requester=" << requester_ <<
-                               " interval=" << pingIntervalUs_;
+                               " interval=" << pingIntervalUs_ <<
+                               " timeout=" << pingTimeoutUs_;
 
     while(true) {
         ioManager_->schedule(boost::bind(&Pinger::doSinglePing,
@@ -47,13 +59,14 @@ void Pinger::run() {
 }
 
 void Pinger::doSinglePing(uint64_t id) {
-    SyncGroupRequest::ptr request(
+    MulticastRpcRequest::ptr request(
         new PingRequest(hosts_,
                         id,
                         pingTracker_));
-    SyncGroupRequest::Status status = requester_->request(request);
+    MulticastRpcRequest::Status status =
+        requester_->request(request, pingTimeoutUs_);
     MORDOR_LOG_TRACE(g_log) << this << " doSinglePing(" << id <<
-                               ") = " << status;
+                               ") = " << uint32_t(status);
 }
 
 }  // namespace lightning

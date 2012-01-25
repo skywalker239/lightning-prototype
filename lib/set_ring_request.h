@@ -1,6 +1,7 @@
 #pragma once
 
-#include "sync_group_request.h"
+#include "guid.h"
+#include "multicast_rpc_request.h"
 #include <mordor/fibersynchronization.h>
 #include <mordor/socket.h>
 #include <set>
@@ -10,17 +11,18 @@
 namespace lightning {
 
 //! Attempts to establish a new ring.
-class SetRingRequest : public SyncGroupRequest {
+class SetRingRequest : public MulticastRpcRequest {
 public:
-    SetRingRequest(const std::vector<Mordor::Address::ptr>& ringAddresses,
-                   const std::vector<std::string>& ringHosts,
-                   uint64_t ringId);
+    SetRingRequest(const Guid& hostGroupGuid,
+                   const std::vector<Mordor::Address::ptr>& ringAddresses,
+                   const std::vector<uint32_t>& ringHostIds,
+                   uint32_t ringId);
 
 private:
-    const std::string requestString() const;
+    const RpcMessageData& request() const;
 
     void onReply(Mordor::Address::ptr source,
-                 const std::string& reply);
+                 const RpcMessageData& reply);
 
     void onTimeout();
 
@@ -36,8 +38,7 @@ private:
         }
     };
 
-    const std::vector<std::string> ringHosts_;
-    const uint64_t ringId_;
+    RpcMessageData rpcMessageData_;
     std::set<Mordor::Address::ptr, AddressCompare> notAcked_;
     Status status_;
 

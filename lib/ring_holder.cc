@@ -50,12 +50,12 @@ string RingHolder::configurationToString() const {
     if(!ringConfiguration_) {
         ss << " (null) ";
     } else {
-        const vector<Mordor::Address::ptr>& addresses =
-            ringConfiguration_->ringAddresses();
+        const vector<uint32_t>& ringHostIds =
+            ringConfiguration_->ringHostIds();
         ss << "(" << ringConfiguration_->ringId() << ", [";
-        for(size_t i = 0; i < addresses.size(); ++i) {
-            ss << *addresses[i];
-            if(i + 1 < addresses.size()) {
+        for(size_t i = 0; i < ringHostIds.size(); ++i) {
+            ss << ringHostIds[i];
+            if(i + 1 < ringHostIds.size()) {
                 ss << ", ";
             }
         }

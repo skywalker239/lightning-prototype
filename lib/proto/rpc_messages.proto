@@ -1,0 +1,91 @@
+package lightning;
+
+message PingData {
+    required uint64 id = 1;
+    required uint64 sender_now = 2;
+}
+
+message SetRingData {
+    // Group_guid is a hash of group config to guard against different
+    // static host configs on hosts.
+    required bytes group_guid = 1;
+    required uint32 ring_id = 2;
+    repeated uint32 ring_host_ids = 3;
+}
+
+message PaxosPhase1BatchRequestData {
+    required bytes epoch = 1;
+    required uint32 ring_id = 2;
+    required uint32 ballot_id = 3;
+    required uint64 start_instance_id = 4;
+    required uint64 end_instance_id = 5;
+}
+
+message PaxosPhase1BatchReplyData {
+    enum Type {
+        OK = 0;
+        IID_TOO_LOW = 1;
+    }
+    required Type type = 1;
+    repeated uint64 reserved_instances = 2;
+    optional uint64 retry_iid = 3;
+}
+
+message PaxosPhase1RequestData {
+    required bytes epoch = 1;
+    required uint32 ring_id = 2;
+    required uint64 instance = 3;
+    required uint32 ballot = 4;
+}
+
+message PaxosPhase1ReplyData {
+    enum Type {
+        OK = 1;
+        BALLOT_TOO_LOW = 2;
+    }
+    required Type type = 1;
+    optional uint32 last_ballot_id = 2;
+    optional bytes last_voted_value = 3;
+}
+
+message CommitData {
+    required uint64 instance = 1;
+    required bytes value_id = 2;
+}
+
+message PaxosPhase2RequestData {
+    required bytes epoch = 1;
+    required uint32 ring_id = 2;
+    optional uint64 instance = 3;
+    optional uint32 ballot = 4;
+    optional bytes value_id = 5;
+    optional bytes  value = 6;
+    repeated CommitData commits = 7;
+}
+
+message VoteData {
+    required bytes epoch = 1;
+    required uint32 ring_id = 2;
+    required uint64 instance = 3;
+    required bytes value_id = 4;
+}
+
+message RpcMessageData {
+    enum Type {
+        PING = 0;
+        SET_RING = 1;
+        PAXOS_BATCH_PHASE1 = 2;
+        PAXOS_PHASE1 = 3;
+        PAXOS_PHASE2 = 4;
+    }
+    required Type type = 1;
+    required bytes uuid = 2;
+    optional PingData ping = 3;
+    optional SetRingData set_ring = 4;
+    optional PaxosPhase1BatchRequestData phase1_batch_request = 5;
+    optional PaxosPhase1BatchReplyData phase1_batch_reply = 6;
+    optional PaxosPhase1RequestData phase1_request = 7;
+    optional PaxosPhase1ReplyData phase1_reply = 8;
+    optional PaxosPhase2RequestData phase2_request = 9;
+    optional VoteData vote = 10;
+}

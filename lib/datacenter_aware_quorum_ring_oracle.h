@@ -1,5 +1,6 @@
 #pragma once
 
+#include "host_configuration.h"
 #include "ring_oracle.h"
 #include <mordor/socket.h>
 #include <string>
@@ -20,40 +21,44 @@ public:
     //  In any case, if it succeeds, then the ring is an m-quorum.
     //
     //  noHeartbeatTimeout is used to detect dead hosts' ping stats.
-    DatacenterAwareQuorumRingOracle(bool okToMissDatacenter,
+    DatacenterAwareQuorumRingOracle(const GroupConfiguration& groupConfiguration,
+                                    bool okToMissDatacenter,
                                     uint64_t noHeartbeatTimeoutUs);
 
-    void addDatacenter(const std::string& name);
-    bool addAcceptor(const std::string& address,
-                     const std::string& datacenter);
-
+    //! XXX For now the first element of the ring is 0, as host 0 is the
+    //  designated master.
     virtual bool chooseRing(const PingTracker::PingStatsMap& pingStatsMap,
-                            std::vector<std::string>* ring) const;
+                            std::vector<uint32_t>* ring) const;
 
     typedef boost::shared_ptr<DatacenterAwareQuorumRingOracle> ptr;
 private:
+    //! XXX this returns floor(n/2) instead of floor(n/2) + 1
+    //  because the ring is completed by the master itself.
     uint32_t quorumSize() const;
 
     //! ((loss, latency), address). for sorting.
-    typedef std::pair<std::pair<double, double>, std::string>
-        TaggedAddress;
+    typedef std::pair<std::pair<double, double>, uint32_t>
+        TaggedHostId;
 
-    void gatherLiveAddresses(const PingTracker::PingStatsMap& pingStatsMap,
-                             uint64_t now,
-                             std::vector<TaggedAddress>* destination) const;
-    bool tryToCoverDatacenters(const std::vector<TaggedAddress>& sortedAddresses,
-                               std::vector<TaggedAddress>* newRing,
-                               std::vector<TaggedAddress>* stash) const;
-    bool fillToQuorum(const std::vector<TaggedAddress>& stash,
-                      std::vector<TaggedAddress>* newRing) const;
+    void gatherLiveHosts(const PingTracker::PingStatsMap& pingStatsMap,
+                         uint64_t now,
+                         std::vector<TaggedHostId>* destination) const;
+    bool tryToCoverDatacenters(const std::vector<TaggedHostId>& sortedLiveHosts,
+                               std::vector<TaggedHostId>* newRing,
+                               std::vector<TaggedHostId>* stash) const;
+    bool fillToQuorum(const std::vector<TaggedHostId>& stash,
+                      std::vector<TaggedHostId>* newRing) const;
                       
 
-    std::map<std::string, uint32_t> datacenterNameToId_;
-    uint32_t nextDatacenterId_;
+    uint32_t datacenterId(const std::string& name);
+
     const bool okToMissDatacenter_;
     const uint64_t noHeartbeatTimeoutUs_;
 
-    std::map<std::string, uint32_t> acceptorToDatacenterId_;
+    std::map<std::string, uint32_t> datacenterNameToId_;
+    uint32_t nextDatacenterId_;
+    std::map<uint32_t, uint32_t> acceptorToDatacenterId_;
+    uint32_t thisHostDatacenterId_;
 };
                             
 }  // namespace lightning

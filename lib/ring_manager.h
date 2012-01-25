@@ -1,6 +1,7 @@
 #pragma once
 
-#include "sync_group_requester.h"
+#include "guid.h"
+#include "multicast_rpc_requester.h"
 #include "ring_change_notifier.h"
 #include "ring_oracle.h"
 #include <mordor/fibersynchronization.h>
@@ -15,17 +16,20 @@ namespace lightning {
 
 class PingTracker;
 
+//! This manages the ring configuration on master.
 class RingManager : boost::noncopyable {
 public:
     typedef boost::shared_ptr<RingManager> ptr;
 
-    RingManager(Mordor::IOManager* ioManager,
+    RingManager(const GroupConfiguration& groupConfiguration,
+                const Guid& hostGroupGuid,
+                Mordor::IOManager* ioManager,
                 boost::shared_ptr<Mordor::FiberEvent> hostDownEvent,
-                SyncGroupRequester::ptr setRingRequester,
+                MulticastRpcRequester::ptr requester,
                 PingTracker::ptr acceptorPingTracker,
                 RingOracle::ptr ringOracle,
                 RingChangeNotifier::ptr ringChangeNotifier,
-                uint16_t ringReplyPort,
+                uint64_t setRingTimeoutUs,
                 uint64_t lookupRingRetryUs);
 
     void run();
@@ -36,9 +40,9 @@ private:
 
     void waitForRingToBreak();
 
-    uint64_t generateRingId() const;
+    uint32_t generateRingId(const std::vector<uint32_t>& ring) const;
 
-    void generateReplyAddresses(const std::vector<std::string>& hosts,
+    void generateReplyAddresses(const std::vector<uint32_t>& hostIds,
                                 std::vector<Mordor::Address::ptr>* ring) const;
 
     //! Should redo this with ragel if it ever gets more states.
@@ -48,25 +52,25 @@ private:
         OK
     };
 
+    const GroupConfiguration groupConfiguration_;
+    const Guid hostGroupGuid_;
+    const uint64_t setRingTimeoutUs_;
+    const uint64_t lookupRingRetryUs_;
+
     Mordor::IOManager* ioManager_;
     boost::shared_ptr<Mordor::FiberEvent> hostDownEvent_;
-    SyncGroupRequester::ptr setRingRequester_;
+    MulticastRpcRequester::ptr requester_;
     PingTracker::ptr acceptorPingTracker_;
     RingOracle::ptr ringOracle_;
     RingChangeNotifier::ptr ringChangeNotifier_;
 
-    const uint16_t ringReplyPort_;
-    const uint64_t lookupRingRetryUs_;
-
-    static const uint64_t kInvalidRingId = 0;
-    uint64_t currentRingId_;
-    std::vector<std::string> currentRing_;
+    RingConfiguration::ptr currentRing_;
+    RingConfiguration::ptr nextRing_;
 
     State currentState_;
     Mordor::FiberMutex mutex_;
 
-    uint64_t nextRingId_;
-    std::vector<std::string> nextRing_;
+    static const uint32_t kHashSeed = 239;
 };
 
 }  // namespace lightning

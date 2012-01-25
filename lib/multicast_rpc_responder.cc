@@ -1,6 +1,6 @@
-#include "sync_group_responder.h"
+#include "multicast_rpc_responder.h"
+#include "guid.h"
 #include "multicast_util.h"
-#include "proto/sync_group_request.pb.h"
 #include <mordor/log.h>
 
 namespace lightning {
@@ -10,18 +10,19 @@ using Mordor::Log;
 using Mordor::Logger;
 using Mordor::Socket;
 using std::string;
+using std::map;
 
-static Logger::ptr g_log = Log::lookup("lightning:sync_group_responder");
+static Logger::ptr g_log = Log::lookup("lightning:multicast_rpc_responder");
 
-SyncGroupResponder::SyncGroupResponder(Socket::ptr listenSocket,
-                                       Address::ptr multicastGroup,
-                                       Socket::ptr replySocket)
+MulticastRpcResponder::MulticastRpcResponder(Socket::ptr listenSocket,
+                                             Address::ptr multicastGroup,
+                                             Socket::ptr replySocket)
     : listenSocket_(listenSocket),
       multicastGroup_(multicastGroup),
       replySocket_(replySocket)
 {}
 
-void SyncGroupResponder::run() {
+void MulticastRpcResponder::run() {
     joinMulticastGroup(listenSocket_, multicastGroup_);
     MORDOR_LOG_TRACE(g_log) << this << " listening @" <<
                                *listenSocket_->localAddress() <<
@@ -34,24 +35,36 @@ void SyncGroupResponder::run() {
         ssize_t bytes = listenSocket_->receiveFrom((void*)buffer,
                                                    sizeof(buffer),
                                                    *remoteAddress);
-        SyncGroupRequestData requestData;
+        RpcMessageData requestData;
         if(!requestData.ParseFromArray(buffer, bytes)) {
             MORDOR_LOG_WARNING(g_log) << this << " malformed " << bytes <<
                                          " bytes from " << *remoteAddress;
             continue;
         }
+        Guid requestGuid = Guid::parse(requestData.uuid());
         MORDOR_LOG_TRACE(g_log) << this << " request id=" <<
-                                   requestData.id() << " from " <<
+                                   requestGuid << " from " <<
                                    *remoteAddress;
-        string reply;
-        if(onRequest(remoteAddress, requestData.data(), &reply)) {
-            SyncGroupRequestData replyData;
-            replyData.set_id(requestData.id());
-            replyData.set_data(reply);
+
+        auto handlerIter = handlers_.find(requestData.type());
+        if(handlerIter == handlers_.end()) {
+            MORDOR_LOG_WARNING(g_log) << this << " handler for type " <<
+                                         uint32_t(requestData.type()) <<
+                                         " at " <<  requestGuid <<
+                                         " not found";
+            continue;
+        }
+
+        RpcMessageData replyData;
+        if(handlerIter->second->handleRequest(remoteAddress,
+                                              requestData,
+                                              &replyData))
+        {
+            requestGuid.serialize(replyData.mutable_uuid());
             if(!replyData.SerializeToArray(buffer, sizeof(buffer))) {
                 MORDOR_LOG_WARNING(g_log) << this <<
                                              " failed to serialize reply " <<
-                                              " id=" << requestData.id();
+                                             " id=" << requestGuid;
                 continue;
             }
             replySocket_->sendTo((const void*) buffer,
@@ -60,9 +73,15 @@ void SyncGroupResponder::run() {
                                  remoteAddress);
         } else {
             MORDOR_LOG_WARNING(g_log) << this << " request id=" <<
-                                         requestData.id() << " ignored";
+                                         requestGuid << " ignored";
         }
     }
+}
+
+void MulticastRpcResponder::addHandler(RpcMessageData::Type type,
+                                       RpcHandler::ptr handler)
+{
+    handlers_[type] = handler;
 }
 
 }  // namespace lightning

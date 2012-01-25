@@ -1,5 +1,4 @@
 #include "ping_request.h"
-#include "proto/ping.pb.h"
 #include <mordor/log.h>
 #include <mordor/timer.h>
 #include <string>
@@ -23,64 +22,58 @@ PingRequest::PingRequest(
     const vector<Address::ptr>& hosts,
     uint64_t pingId,
     PingTracker::ptr pingTracker)
-    : pingId_(pingId),
-      pingTracker_(pingTracker),
+    : pingTracker_(pingTracker),
       notAcked_(hosts.begin(), hosts.end()),
       status_(IN_PROGRESS),
       event_(true)
-{}
-
-const string PingRequest::requestString() const {
+{
     const uint64_t now = TimerManager::now();
-    PingData pingData;
-    pingData.set_id(pingId_);
-    pingData.set_sender_now(now);
-    MORDOR_LOG_TRACE(g_log) << this << " serialized (" << pingId_ << ", " <<
-                               now << ")";
+    rpcMessageData_.set_type(RpcMessageData::PING);
+    rpcMessageData_.mutable_ping()->set_id(pingId);
+    rpcMessageData_.mutable_ping()->set_sender_now(now);
+    pingTracker_->registerPing(pingId, now);
+}
 
-    {
-        FiberMutex::ScopedLock lk(mutex_);
-        pingTracker_->registerPing(pingId_, now);
-    }
-
-    string s;
-    pingData.SerializeToString(&s);
-    return s;
+const RpcMessageData& PingRequest::request() const {
+    MORDOR_LOG_TRACE(g_log) << this << " ping(" <<
+                               rpcMessageData_.ping().id() << ", " <<
+                               rpcMessageData_.ping().sender_now() << ")";
+    return rpcMessageData_;
 }
 
 void PingRequest::onReply(Address::ptr sourceAddress,
-                          const string& reply)
+                          const RpcMessageData& reply)
 {
-    PingData pingData;
-    if(!pingData.ParseFromString(reply)) {
-        MORDOR_LOG_WARNING(g_log) << this << " malformed reply from " <<
-                                     *sourceAddress;
-        return;
-    }
+    MORDOR_ASSERT(reply.type() == RpcMessageData::PING);
+    MORDOR_ASSERT(reply.has_ping());
 
+    const uint64_t id = reply.ping().id();
+    const uint64_t sender_now = reply.ping().sender_now();
     const uint64_t now = TimerManager::now();
-    MORDOR_LOG_TRACE(g_log) << this << " pong (" << pingData.id() << ", " <<
-                               pingData.sender_now() << ") from " <<
+    MORDOR_LOG_TRACE(g_log) << this << " pong (" << id << ", " <<
+                               sender_now << ") from " <<
                                *sourceAddress << ", now = " << now;
     {
         FiberMutex::ScopedLock lk(mutex_);
         notAcked_.erase(sourceAddress);
-        pingTracker_->registerPong(sourceAddress, pingData.id(), now);
+        pingTracker_->registerPong(sourceAddress, id, now);
         if(notAcked_.empty()) {
-            status_ = OK;
+            status_ = COMPLETED;
             event_.set();
         }
     }
 }
 
 void PingRequest::onTimeout() {
+    const uint32_t pingId = rpcMessageData_.ping().id();
     FiberMutex::ScopedLock lk(mutex_);
     if(notAcked_.empty()) {
-        MORDOR_LOG_TRACE(g_log) << this << " ping " << pingId_ << " timed out, but " <<
+        MORDOR_LOG_TRACE(g_log) << this << "ping " << pingId <<
+                                   " timed out, but " <<
                                    "all acks were received";
-        status_ = OK;
+        status_ = COMPLETED;
     } else {
-        MORDOR_LOG_TRACE(g_log) << this << " ping " << pingId_ << " timed out";
+        MORDOR_LOG_TRACE(g_log) << this << " ping " << pingId << " timed out";
         status_ = TIMED_OUT;
     }
     event_.set();
@@ -91,10 +84,10 @@ void PingRequest::wait() {
     //! A bit hacky, but will be reached before returning from the synchronous
     //  command in any case.
     FiberMutex::ScopedLock lk(mutex_);
-    pingTracker_->timeoutPing(pingId_);
+    pingTracker_->timeoutPing(rpcMessageData_.ping().id());
 }
 
-SyncGroupRequest::Status PingRequest::status() const {
+MulticastRpcRequest::Status PingRequest::status() const {
     FiberMutex::ScopedLock lk(mutex_);
     return status_;
 }

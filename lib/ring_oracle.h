@@ -8,12 +8,12 @@
 namespace lightning {
 
 //! An interface to choose the best ring using ping statistics.
-//  A ring is represented by an ordered list of FQDNs.
+//  A ring is represented by an ordered list of host ids.
 class RingOracle : boost::noncopyable {
 public:
     //! False if no suitable ring can be established.
     virtual bool chooseRing(const PingTracker::PingStatsMap& pingStatsMap,
-                            std::vector<std::string>* ring) const = 0;
+                            std::vector<uint32_t>* ring) const = 0;
 
     typedef boost::shared_ptr<RingOracle> ptr;
 };

@@ -18,30 +18,31 @@ using std::vector;
 
 static Logger::ptr g_log = Log::lookup("lightning:ping_tracker");
 
-PingTracker::PingTracker(const HostnameMap& hostnameMap,
+PingTracker::PingTracker(const GroupConfiguration& groupConfiguration,
                          uint64_t pingWindowSize,
                          uint64_t singlePingTimeoutUs,
                          uint64_t noHeartbeatTimeoutUs,
                          boost::shared_ptr<FiberEvent> hostDownEvent)
-    : hostnameMap_(hostnameMap),
-      noHeartbeatTimeoutUs_(noHeartbeatTimeoutUs),
+    : noHeartbeatTimeoutUs_(noHeartbeatTimeoutUs),
       hostDownEvent_(hostDownEvent)
 {
     MORDOR_LOG_TRACE(g_log) << this << " creating tracker for " <<
-                               hostnameMap_.size() <<
+                               groupConfiguration.hosts().size() - 1<<
                                " hosts, ping window=" <<
                                pingWindowSize << ", single ping timeout=" <<
                                singlePingTimeoutUs << ", heartbeat timeout=" <<
                                noHeartbeatTimeoutUs;
-    for(auto i = hostnameMap_.begin();
-        i != hostnameMap_.end();
-        ++i)
-    {
-        MORDOR_LOG_TRACE(g_log) << this << " host " << i->second << " -> " <<
-                                   *(i->first);
-        perHostPingStats_.insert(make_pair(i->first,
-                                           PingStats(pingWindowSize,
-                                                     singlePingTimeoutUs)));
+    const vector<HostConfiguration>& hosts = groupConfiguration.hosts();
+    for(size_t i = 0; i < hosts.size(); ++i) {
+        if(i != groupConfiguration.thisHostId()) {
+            MORDOR_LOG_TRACE(g_log) << this << " host " << i << " -> " <<
+                                       *hosts[i].multicastReplyAddress;
+            perHostPingStats_.insert(
+                make_pair(
+                    hosts[i].multicastReplyAddress,
+                    PingStats(pingWindowSize, singlePingTimeoutUs)));
+            replyAddressToHostId_[hosts[i].multicastReplyAddress] = i;
+        }
     }
 }
 
@@ -104,9 +105,9 @@ void PingTracker::snapshot(PingStatsMap* pingStatsMap) const {
         i != perHostPingStats_.end();
         ++i)
     {
-        auto hostnameIter = hostnameMap_.find(i->first);
-        MORDOR_ASSERT(hostnameIter != hostnameMap_.end());
-        pingStatsMap->insert(make_pair(hostnameIter->second,
+        auto hostIdIter = replyAddressToHostId_.find(i->first);
+        MORDOR_ASSERT(hostIdIter != replyAddressToHostId_.end());
+        pingStatsMap->insert(make_pair(hostIdIter->second,
                                        i->second));
     }
 }

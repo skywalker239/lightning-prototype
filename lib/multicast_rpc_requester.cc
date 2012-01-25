@@ -1,5 +1,5 @@
-#include "sync_group_requester.h"
-#include "proto/sync_group_request.pb.h"
+#include "multicast_rpc_requester.h"
+#include "proto/rpc_messages.pb.h"
 #include <mordor/assert.h>
 #include <mordor/log.h>
 #include <mordor/timer.h>
@@ -19,65 +19,66 @@ using std::set;
 using std::string;
 using std::vector;
 
-static Logger::ptr g_log = Log::lookup("lightning:sync_group_requester");
+static Logger::ptr g_log = Log::lookup("lightning:multicast_rpc_requester");
 
-SyncGroupRequester::SyncGroupRequester(IOManager* ioManager,
-                                       Socket::ptr socket,
-                                       Address::ptr groupMulticastAddress,
-                                       uint64_t timeoutUs)
+MulticastRpcRequester::MulticastRpcRequester(
+    IOManager* ioManager,
+    GuidGenerator::ptr guidGenerator,
+    Socket::ptr socket,
+    Address::ptr groupMulticastAddress)
     : ioManager_(ioManager),
+      guidGenerator_(guidGenerator),
       socket_(socket),
-      groupMulticastAddress_(groupMulticastAddress),
-      timeoutUs_(timeoutUs),
-      currentRequestId_(0)
+      groupMulticastAddress_(groupMulticastAddress)
 {
     MORDOR_LOG_TRACE(g_log) << this << " init group='" <<
-                            *groupMulticastAddress_ <<  "' timeout=" << timeoutUs_;
+                            *groupMulticastAddress_;
     setupSocket();
 }
 
-void SyncGroupRequester::setupSocket() {
+void MulticastRpcRequester::setupSocket() {
     const int kMaxMulticastTtl = 255;
     socket_->setOption(IPPROTO_IP, IP_MULTICAST_TTL, kMaxMulticastTtl);
 }
 
-void SyncGroupRequester::run() {
-    MORDOR_LOG_TRACE(g_log) << this << " SyncGroupRequester::run()";
+void MulticastRpcRequester::run() {
+    MORDOR_LOG_TRACE(g_log) << this << " MulticastRpcRequester::run()";
     Address::ptr currentSourceAddress = socket_->emptyAddress();
     while(true) {
         char buffer[kMaxCommandSize + 1];
         ssize_t bytes = socket_->receiveFrom((void*) buffer,
                                              kMaxCommandSize,
                                              *currentSourceAddress);
-        SyncGroupRequestData reply;
+        RpcMessageData reply;
         if(!reply.ParseFromArray(buffer, bytes)) {
             MORDOR_LOG_WARNING(g_log) << this << " failed to parse reply " <<
                                          "from " << *currentSourceAddress;
             continue;
         }
 
-        const uint64_t id = reply.id();
-        SyncGroupRequest::ptr request;
+        Guid replyGuid = Guid::parse(reply.uuid().c_str());
+        MulticastRpcRequest::ptr request;
         {
             FiberMutex::ScopedLock lk(mutex_);
-            auto requestIter = pendingRequests_.find(id);
+            auto requestIter = pendingRequests_.find(replyGuid);
             if(requestIter != pendingRequests_.end()) {
                 request = requestIter->second;
             }
         }
         if(!request) {
             MORDOR_LOG_WARNING(g_log) << this << " stale reply: request " <<
-                                         id << " not pending";
+                                         replyGuid << " not pending";
             continue;
         }
         MORDOR_LOG_TRACE(g_log) << this << " got reply for request " <<
-                                   id << " from " << *currentSourceAddress;
-        request->onReply(currentSourceAddress, reply.data());
+                                   replyGuid << " from " <<
+                                   *currentSourceAddress;
+        request->onReply(currentSourceAddress, reply);
     }
 }
 
-void SyncGroupRequester::timeoutRequest(uint64_t requestId) {
-    SyncGroupRequest::ptr request;
+void MulticastRpcRequester::timeoutRequest(const Guid& requestId) {
+    MulticastRpcRequest::ptr request;
     {
         FiberMutex::ScopedLock lk(mutex_);
         auto requestIter = pendingRequests_.find(requestId);
@@ -89,33 +90,35 @@ void SyncGroupRequester::timeoutRequest(uint64_t requestId) {
         request = requestIter->second;
         pendingRequests_.erase(requestIter);
     }
-    MORDOR_LOG_TRACE(g_log) << this << " timing out request " << requestId;
+    MORDOR_LOG_TRACE(g_log) << this << " timed out request " << requestId;
     request->onTimeout();
 }
 
-SyncGroupRequest::Status SyncGroupRequester::request(
-    SyncGroupRequest::ptr requestPtr)
+MulticastRpcRequest::Status MulticastRpcRequester::request(
+    MulticastRpcRequest::ptr requestPtr,
+    uint64_t timeoutUs)
 {
-    uint64_t requestId = ++currentRequestId_;
-    MORDOR_LOG_TRACE(g_log) << this << " new request id=" << requestId <<
+    Guid requestGuid = guidGenerator_->generate();
+    MORDOR_LOG_TRACE(g_log) << this << " new request id=" << requestGuid <<
                                " request=" << requestPtr;
-    SyncGroupRequestData requestData;
-    requestData.set_id(requestId);
-    requestData.set_data(requestPtr->requestString());
+    RpcMessageData requestData;
+    requestData.MergeFrom(requestPtr->request());
+    requestGuid.serialize(requestData.mutable_uuid());
+
 
     char buffer[kMaxCommandSize];
     uint64_t commandSize = requestData.ByteSize();
     MORDOR_ASSERT(commandSize <= kMaxCommandSize);
     if(!requestData.SerializeToArray(buffer, kMaxCommandSize)) {
         MORDOR_LOG_WARNING(g_log) << this << " failed to serialize request " <<
-                                     requestId;
+                                     requestGuid;
         // TODO handle this better.
-        return SyncGroupRequest::NACKED;
+        return MulticastRpcRequest::TIMED_OUT;
     }
 
     {
         FiberMutex::ScopedLock lk(mutex_);
-        pendingRequests_[requestId] = requestPtr;
+        pendingRequests_[requestGuid] = requestPtr;
     }
 
     socket_->sendTo((const void*) buffer,
@@ -123,15 +126,19 @@ SyncGroupRequest::Status SyncGroupRequester::request(
                     0,
                     *groupMulticastAddress_);
     Timer::ptr timeoutTimer =
-        ioManager_->registerTimer(timeoutUs_,
+        ioManager_->registerTimer(timeoutUs,
                                   boost::bind(
-                                      &SyncGroupRequester::timeoutRequest,
+                                      &MulticastRpcRequester::timeoutRequest,
                                       this,
-                                      requestId));
+                                      requestGuid));
     requestPtr->wait();
     timeoutTimer->cancel();
-    SyncGroupRequest::Status status = requestPtr->status();
-    MORDOR_ASSERT(status != SyncGroupRequest::IN_PROGRESS);
+    {
+        FiberMutex::ScopedLock lk(mutex_);
+        pendingRequests_.erase(requestGuid);
+    }
+    MulticastRpcRequest::Status status = requestPtr->status();
+    MORDOR_ASSERT(status != MulticastRpcRequest::IN_PROGRESS);
     return requestPtr->status();
 }
 

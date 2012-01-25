@@ -1,6 +1,6 @@
 #pragma once
 
-#include "sync_group_request.h"
+#include "multicast_rpc_request.h"
 #include "ping_tracker.h"
 #include <mordor/fibersynchronization.h>
 #include <set>
@@ -9,17 +9,17 @@
 namespace lightning {
 
 //! A single multicast ping.
-class PingRequest : public SyncGroupRequest {
+class PingRequest : public MulticastRpcRequest {
 public:
     PingRequest(const std::vector<Mordor::Address::ptr>& hosts,
                 uint64_t pingId,
                 PingTracker::ptr pingTracker);
 
 private:
-    const std::string requestString() const;
+    const RpcMessageData& request() const;
 
     void onReply(Mordor::Address::ptr sourceAddress,
-                 const std::string& reply);
+                 const RpcMessageData& reply);
 
     void onTimeout();
 
@@ -35,7 +35,7 @@ private:
         }
     };
 
-    const uint64_t pingId_;
+    RpcMessageData rpcMessageData_;
     PingTracker::ptr pingTracker_;
     std::set<Mordor::Address::ptr, AddressCompare> notAcked_;
     Status status_;

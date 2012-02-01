@@ -1,12 +1,17 @@
-#include "multicast_util.h"
+#include "guid.h"
+#include "host_configuration.h"
+#include "multicast_rpc_responder.h"
+#include "ring_holder.h"
+#include "ring_change_notifier.h"
+#include "set_ring_handler.h"
 #include "ponger.h"
-#include "sync_group_responder.h"
-#include "proto/set_ring.pb.h"
-#include "proto/sync_group_request.pb.h"
 #include <iostream>
+#include <fstream>
+#include <streambuf>
 #include <netinet/in.h>
 #include <boost/bind.hpp>
 #include <boost/lexical_cast.hpp>
+#include <mordor/json.h>
 #include <mordor/config.h>
 #include <mordor/socket.h>
 #include <mordor/iomanager.h>
@@ -17,27 +22,59 @@ using namespace Mordor;
 using namespace lightning;
 using boost::lexical_cast;
 
-class SetRingResponder : public SyncGroupResponder {
-public:
-    SetRingResponder(Socket::ptr listen,
-                     Address::ptr mcast,
-                     Socket::ptr reply)
-        : SyncGroupResponder(listen, mcast, reply)
-    {}
+void readConfig(const string& filename,
+                Guid* configHash,
+                JSON::Value* config)
+{
+    ifstream f(filename);
+    string fileData;
+    f.seekg(0, ios::end);
+    fileData.reserve(f.tellg());
+    f.seekg(0, ios::beg);
+    fileData.assign(istreambuf_iterator<char>(f), istreambuf_iterator<char>());
 
-    bool onRequest(Address::ptr from, const string& request, string* reply) {
-        SetRingData data;
-        data.ParseFromString(request);
-        cout << "Got set ring id=" << data.ring_id() << " from " << *from << endl;
-        for(int i = 0; i < data.ring_hosts_size(); ++i) {
-            cout << "Ring host " << i << ": " << data.ring_hosts(i) << endl;
-        }
-        SetRingAckData ack;
-        ack.set_ring_id(data.ring_id());
-        ack.SerializeToString(reply);
-        return true;
-    }
-};
+    *configHash = Guid::fromData(fileData.c_str(), fileData.length());
+    *config = JSON::parse(fileData);
+
+    cout << *config << endl;
+    cout << *configHash << endl;
+}
+
+class DummyRingHolder : public RingHolder {};
+
+SetRingHandler::ptr setupHandler(const Guid& configHash, const GroupConfiguration& groupConfiguration) {
+    vector<RingHolder::ptr> holders(1, RingHolder::ptr(new DummyRingHolder));
+    RingChangeNotifier::ptr notifier(new RingChangeNotifier(holders));
+    return SetRingHandler::ptr(new SetRingHandler(configHash, notifier, groupConfiguration));
+}
+
+
+Socket::ptr bindSocket(Address::ptr bindAddress, IOManager* ioManager) {
+    Socket::ptr s = bindAddress->createSocket(*ioManager, SOCK_DGRAM);
+    s->bind(bindAddress);
+    return s;
+}
+
+MulticastRpcResponder::ptr setupResponder(IOManager* ioManager, 
+                                          const Guid& configHash,
+                                          const JSON::Value& config,
+                                          uint32_t ourId)
+{
+    GroupConfiguration groupConfig = parseGroupConfiguration(config["hosts"], ourId);
+    RpcHandler::ptr ponger(new Ponger);
+    RpcHandler::ptr setRingHandler = setupHandler(configHash, groupConfig);
+
+    const HostConfiguration& hostConfig = groupConfig.hosts()[ourId];
+
+    Address::ptr multicastGroup = Address::lookup(config["mcast_group"].get<string>(), AF_INET).front();
+    Socket::ptr listenSocket = bindSocket(hostConfig.multicastListenAddress, ioManager);
+    Socket::ptr replySocket = bindSocket(hostConfig.multicastReplyAddress, ioManager);
+
+    MulticastRpcResponder::ptr responder(new MulticastRpcResponder(listenSocket, multicastGroup, replySocket));
+    responder->addHandler(RpcMessageData::PING, ponger);
+    responder->addHandler(RpcMessageData::SET_RING, setRingHandler);
+    return responder;
+}
 
 Socket::ptr makeSocket(IOManager& ioManager, const string& addr, uint16_t port) {
     string fullAddress = addr + ":" + lexical_cast<string>(port);
@@ -49,22 +86,17 @@ Socket::ptr makeSocket(IOManager& ioManager, const string& addr, uint16_t port) 
 
 int main(int argc, char** argv) {
     Config::loadFromEnvironment();
-    if(argc != 7) {
-        cout << "Usage: mcast_recv bind_addr mcast_addr ping_req_port ping_rep_port ring_req_port ring_rep_port" << endl;
+    if(argc != 3) {
+        cout << "Usage: slave config.json id" << endl;
         return 1;
     }
+    Guid configGuid;
+    JSON::Value config;
+    readConfig(argv[1], &configGuid, &config);
+    const uint32_t id = lexical_cast<uint32_t>(argv[2]);
     IOManager ioManager;
 
-    Socket::ptr pingOutSocket = makeSocket(ioManager, argv[1], lexical_cast<uint16_t>(argv[4]));
-    Socket::ptr ringOutSocket = makeSocket(ioManager, argv[1], lexical_cast<uint16_t>(argv[6]));
-    Socket::ptr pingInSocket  = makeSocket(ioManager, "0.0.0.0", lexical_cast<uint16_t>(argv[3]));
-    Socket::ptr ringInSocket  = makeSocket(ioManager, "0.0.0.0", lexical_cast<uint16_t>(argv[5]));
-
-    Address::ptr mcastAddress = Address::lookup(argv[2], AF_INET).front();
-
-    Ponger task(pingInSocket, mcastAddress, pingOutSocket);
-    SetRingResponder task2(ringInSocket, mcastAddress, ringOutSocket);
-    ioManager.schedule(boost::bind(&Ponger::run, &task));
-    ioManager.schedule(boost::bind(&SetRingResponder::run, &task2));
+    MulticastRpcResponder::ptr responder = setupResponder(&ioManager, configGuid, config, id);
+    ioManager.schedule(boost::bind(&MulticastRpcResponder::run, responder));
     ioManager.dispatch();
 }

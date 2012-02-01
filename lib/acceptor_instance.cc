@@ -18,25 +18,25 @@ void AcceptorInstance::reset() {
     MORDOR_LOG_TRACE(g_log) << this << " reset";
     highestBallotParticipated_ = kInvalidBallotId;
     highestBallotVoted_ = kInvalidBallotId;
-    highestVotedValueId_ = ValueId();
-    valueId_ = ValueId();
+    lastVotedValue_ = Value();
+    committedValueId_ = Guid();
     committed_ = false;
 }
 
-bool AcceptorInstance::nextBallot(BallotId ballotId,
+bool AcceptorInstance::nextBallot(BallotId  ballotId,
                                   BallotId* highestBallotParticipated,
                                   BallotId* highestBallotVoted,
-                                  ValueId*  highestVotedValueId)
+                                  Value*    lastVote)
 {
-    if(ballotId > highestBallotParticipated_) {
+    if(ballotId >= highestBallotParticipated_) {
         MORDOR_LOG_TRACE(g_log) << this << " accepting nextBallot id=" <<
                                    ballotId << ", MaxBallotVoted=" <<
                                    highestBallotVoted_ << ", MaxVotedValue=" <<
-                                   highestVotedValueId_;
+                                   lastVotedValue_.valueId;
         highestBallotParticipated_ = ballotId;
         *highestBallotParticipated = highestBallotParticipated_;
         *highestBallotVoted = highestBallotVoted_;
-        *highestVotedValueId = highestVotedValueId_;
+        *lastVote = lastVotedValue_;
         return true;
     } else {
         MORDOR_LOG_TRACE(g_log) << this << " rejecting nextBallot id=" <<
@@ -48,44 +48,65 @@ bool AcceptorInstance::nextBallot(BallotId ballotId,
 }
 
 bool AcceptorInstance::beginBallot(BallotId ballotId,
-                                   ValueId valueId,
-                                   BallotId* highestBallotPromised)
+                                   const Value& value)
 {
-    //! XXX Can ballotId in beginBallot really be higher than lastBallot?
-    if(ballotId > highestBallotParticipated_) {
-        MORDOR_LOG_ERROR(g_log) << this << 
-                                   " beginBallot with too high ballotId=" <<
-                                   ballotId << ", lastBallot=" <<
-                                   highestBallotParticipated_;
-        MORDOR_ASSERT(1 == 0);
-    } else if(ballotId < highestBallotParticipated_) {
+    if(ballotId < highestBallotParticipated_) {
         MORDOR_LOG_TRACE(g_log) << this << " rejecting beginBallot id=" <<
                                    ballotId << ", lastBallot=" <<
                                    highestBallotParticipated_;
-        *highestBallotPromised = highestBallotParticipated_;
         return false;
     } else {
         MORDOR_LOG_TRACE(g_log) << this << " accepting beginBallot id=" <<
-                                   ballotId << " with value=" << valueId;
+                                   ballotId << " with value=" << value.valueId;
         highestBallotVoted_ = ballotId;
-        highestVotedValueId_ = valueId;
+        lastVotedValue_ = value;
         return true;
     }
 }
 
-void AcceptorInstance::commit(ValueId valueId) {
-    MORDOR_ASSERT(!committed_ || (valueId == valueId_));
-    MORDOR_LOG_TRACE(g_log) << this << " commit value=" << valueId;
-    
-    valueId_ = valueId;
-    committed_ = true;
+bool AcceptorInstance::vote(BallotId ballotId,
+                            const Guid& valueId,
+                            BallotId* highestBallotPromised)
+{
+    if(ballotId < highestBallotParticipated_) {
+        MORDOR_LOG_TRACE(g_log) << this << " not voting in ballot " <<
+                                   ballotId << ", promised " <<
+                                   highestBallotParticipated_;
+        *highestBallotPromised = highestBallotParticipated_;
+        return false;
+    }
+    if(lastVotedValue_.valueId != valueId) {
+        MORDOR_LOG_TRACE(g_log) << this << " not voting in ballot " <<
+                                   ballotId << " for valueId " <<
+                                   valueId << ", value unknown";
+        *highestBallotPromised = kInvalidBallotId;
+        return false;
+    }
+    MORDOR_LOG_TRACE(g_log) << this << " voting in ballot " << ballotId <<
+                            " for" << valueId;
+    return true;
 }
 
-bool AcceptorInstance::value(ValueId* valueId) const {
-    MORDOR_LOG_TRACE(g_log) << this << " get value=" << valueId <<
+bool AcceptorInstance::commit(const Guid& valueId) {
+    if(lastVotedValue_.valueId != valueId) {
+        MORDOR_LOG_TRACE(g_log) << this << " cannot commit " << valueId <<
+                                   ", value unknown";
+        return false;
+    }
+    MORDOR_LOG_TRACE(g_log) << this << " committing " << valueId;
+    MORDOR_ASSERT(committedValueId_.empty() ||
+                  committedValueId_ == valueId);
+    committedValueId_ = lastVotedValue_.valueId;
+    committed_ = true;
+    return true;
+}
+
+bool AcceptorInstance::value(Value* value) const {
+    MORDOR_LOG_TRACE(g_log) << this << " get value=" <<
+                               lastVotedValue_.valueId <<
                                ", committed=" << committed_;
     if(committed_) { 
-        *valueId = valueId_;
+        *value = lastVotedValue_;
         return true;
     } else {
         return false;

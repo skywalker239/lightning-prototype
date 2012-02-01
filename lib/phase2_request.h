@@ -3,25 +3,28 @@
 #include "guid.h"
 #include "multicast_rpc_request.h"
 #include "paxos_defs.h"
+#include "value.h"
 #include <mordor/fibersynchronization.h>
 #include <map>
 #include <set>
 
 namespace lightning {
 
-class BatchPhase1Request : public MulticastRpcRequest {
+class Phase2Request : public MulticastRpcRequest {
 public:
-    BatchPhase1Request(const Guid& epoch,
-                       uint32_t ringId,
-                       paxos::BallotId ballotId,
-                       paxos::InstanceId instanceRangeBegin,
-                       paxos::InstanceId instanceRangeEnd,
-                       const std::vector<Mordor::Address::ptr>&
-                             requestRing);
+    typedef boost::shared_ptr<Phase2Request> ptr;
+    
+    Phase2Request(const Guid& epoch,
+                  uint32_t ringId,
+                  paxos::InstanceId instance,
+                  paxos::BallotId ballot,
+                  paxos::Value::ptr value,
+                  const std::vector<std::pair<paxos::InstanceId, Guid> >&
+                      commits,
+                  Mordor::Address::ptr lastRingHost);
 
     enum Result {
         PENDING,
-        IID_TOO_LOW,
         SUCCESS
     };
 
@@ -29,10 +32,6 @@ public:
 
     Status status() const;
 
-    const std::set<paxos::InstanceId>&
-        reservedInstances() const;
-
-    paxos::InstanceId retryStartInstanceId() const;
 private:
     const RpcMessageData& request() const;
 
@@ -43,6 +42,12 @@ private:
 
     void wait();
 
+    void serializeValue(paxos::Value::ptr value, ValueData* valueData) const;
+
+    void serializeCommits(
+        const std::vector<std::pair<paxos::InstanceId, Guid> >& commits,
+        PaxosPhase2RequestData *request) const;
+
     struct AddressCompare {
         bool operator()(const Mordor::Address::ptr& lhs,
                         const Mordor::Address::ptr& rhs) const
@@ -52,12 +57,10 @@ private:
     }; 
 
     RpcMessageData requestData_;
-    std::set<Mordor::Address::ptr, AddressCompare> notAcked_;
+    const Guid valueId_;
+    Mordor::Address::ptr lastRingHost_;
     Status status_;
     Result result_;
-
-    std::set<paxos::InstanceId> reservedInstances_;
-    paxos::InstanceId retryStartInstanceId_;
 
     Mordor::FiberEvent event_;
     mutable Mordor::FiberMutex mutex_;

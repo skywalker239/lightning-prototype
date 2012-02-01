@@ -110,6 +110,13 @@ ostream& Guid::print(ostream& os) const {
     return os;
 }
 
+bool Guid::empty() const {
+    return parts_[0] == 0 &&
+           parts_[1] == 0 &&
+           parts_[2] == 0 &&
+           parts_[3] == 0;
+}
+
 ostream& operator<<(ostream& os, const Guid& guid) {
     return guid.print(os);
 }

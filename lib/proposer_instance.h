@@ -134,8 +134,7 @@ public:
     //! Current ballot id.
     BallotId ballotId() const;
 
-    //! The value bound to this instance.
-    //  May be only called when state() == CLOSED.
+    //! The value we try to bind to this instance.
     boost::shared_ptr<Value> value() const;
 
     //! The client value we are trying to bind.

@@ -42,10 +42,18 @@ public:
 
     const std::vector<HostConfiguration>& hosts() const { return hosts_; }
 
+    const HostConfiguration& thisHostConfiguration() const {
+        return hosts_[thisHostId()];
+    }
+
+    uint32_t masterId() const { return kMasterId; }
+
     uint32_t thisHostId() const { return thisHostId_; }
 private:
     const std::vector<HostConfiguration> hosts_;
     const uint32_t thisHostId_;
+    //! XXX fixed master for now
+    static const uint32_t kMasterId = 0;
 };
 
 GroupConfiguration parseGroupConfiguration(

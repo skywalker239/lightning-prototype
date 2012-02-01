@@ -38,6 +38,11 @@ message PaxosPhase1RequestData {
     required uint32 ballot = 4;
 }
 
+message ValueData {
+    required bytes id = 1;
+    required bytes data = 2;
+}
+
 message PaxosPhase1ReplyData {
     enum Type {
         OK = 1;
@@ -45,7 +50,7 @@ message PaxosPhase1ReplyData {
     }
     required Type type = 1;
     optional uint32 last_ballot_id = 2;
-    optional bytes last_voted_value = 3;
+    optional ValueData value = 3;
 }
 
 message CommitData {
@@ -58,16 +63,16 @@ message PaxosPhase2RequestData {
     required uint32 ring_id = 2;
     optional uint64 instance = 3;
     optional uint32 ballot = 4;
-    optional bytes value_id = 5;
-    optional bytes  value = 6;
-    repeated CommitData commits = 7;
+    optional ValueData value = 5;
+    repeated CommitData commits = 6;
 }
 
 message VoteData {
     required bytes epoch = 1;
     required uint32 ring_id = 2;
     required uint64 instance = 3;
-    required bytes value_id = 4;
+    required uint32 ballot = 4;
+    required bytes value_id = 5;
 }
 
 message RpcMessageData {

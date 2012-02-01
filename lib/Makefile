@@ -15,6 +15,8 @@ PROTO_GENHDRS = $(PROTO_SRCS:.proto=.pb.h)
 LIB_TARGETS = libightning.a
 LIB_OBJS = $(PROTO_GENSRCS:.cc=.o)
 LIB_OBJS += \
+    acceptor_state.o \
+    ballot_generator.o \
     host_configuration.o \
     MurmurHash3.o \
     guid.o \
@@ -28,7 +30,6 @@ LIB_OBJS += \
     ping_tracker.o \
     datacenter_aware_quorum_ring_oracle.o \
     ring_manager.o \
-    value_id_map.o \
     proposer_instance.o \
     acceptor_instance.o \
     ping_request.o \
@@ -36,14 +37,26 @@ LIB_OBJS += \
     instance_pool.o \
     ring_holder.o \
     ring_change_notifier.o \
-#    batch_phase1_request.o \
+    batch_phase1_handler.o \
+    phase1_handler.o \
+    phase2_handler.o \
+    ring_voter.o \
+    client_value_queue.o \
+    batch_phase1_request.o \
+    phase1_request.o \
+    phase2_request.o \
+    proposer_state.o \
 #    phase1_batcher.o \
     
 
 TEST_TARGETS = test_ring_master test_ring_responder test_guid
 TEST_OBJS = $(addsuffix .o, $(TEST_TARGETS))
 
-UT_LIB_OBJS = acceptor_instance_ut.o proposer_instance_ut.o value_id_map_ut.o
+UT_LIB_OBJS = \
+# acceptor_instance_ut.o \
+#    proposer_instance_ut.o \
+#    value_id_map_ut.o
+
 UT_TARGETS = run_tests
 UT_OBJS = $(addsuffix .o, $(UT_TARGETS))
 

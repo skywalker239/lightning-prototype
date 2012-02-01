@@ -18,7 +18,9 @@ SetRingHandler::SetRingHandler(const Guid& hostGroupGuid,
       ringChangeNotifier_(ringChangeNotifier)
 {
     // XXX fixed master
-    masterAddress_ = groupConfiguration.hosts()[0].multicastSourceAddress;
+    const uint32_t masterId = groupConfiguration.masterId();
+    masterAddress_ =
+        groupConfiguration.hosts()[masterId].multicastSourceAddress;
 }
 
 bool SetRingHandler::handleRequest(Address::ptr sourceAddress,

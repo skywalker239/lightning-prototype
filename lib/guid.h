@@ -27,7 +27,11 @@ public:
     static Guid fromData(const void* data, size_t len);
 
     std::ostream& print(std::ostream& os) const;
+
+    //! 0-0-0-0
+    bool empty() const;
     
+    //! Constructs an empty Guid.
     Guid();
 private:
 
@@ -36,7 +40,7 @@ private:
     static const uint32_t kHashSeed = 239;
 
     friend class GuidGenerator;
-};
+} __attribute__((packed));
 
 std::ostream& operator<<(std::ostream& os, const Guid& guid);
 

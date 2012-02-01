@@ -55,7 +55,8 @@ RingManager::RingManager(const GroupConfiguration& groupConfiguration,
       mutex_()
 {
     //XXX for now on master only
-    MORDOR_ASSERT(groupConfiguration.thisHostId() == 0);
+    MORDOR_ASSERT(groupConfiguration.thisHostId() ==
+                  groupConfiguration.masterId());
 }
 
 void RingManager::run() {
@@ -191,6 +192,10 @@ void RingManager::waitForRingToBreak() {
 
         const vector<uint32_t> ringHostIds = currentRing_->ringHostIds();
         for(size_t i = 0; i < ringHostIds.size(); ++i) {
+            if(ringHostIds[i] == groupConfiguration_.thisHostId()) {
+                // we don't ping ourselves
+                continue;
+            }
             auto pingStatsIter = pingStatsMap.find(ringHostIds[i]);
             if(pingStatsIter != pingStatsMap.end()) {
                 const uint32_t hostId = pingStatsIter->first;

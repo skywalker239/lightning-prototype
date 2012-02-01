@@ -45,6 +45,13 @@ RingConfiguration::const_ptr RingHolder::acquireRingConfiguration() const {
     }
 }
 
+RingConfiguration::const_ptr RingHolder::tryAcquireRingConfiguration() const {
+    FiberMutex::ScopedLock lk(mutex_);
+    MORDOR_LOG_TRACE(g_log) << this << " tryAcquireRingConfiguration = " <<
+                               configurationToString();
+    return ringConfiguration_;
+}
+
 string RingHolder::configurationToString() const {
     ostringstream ss;
     if(!ringConfiguration_) {

@@ -3,25 +3,27 @@
 #include "guid.h"
 #include "multicast_rpc_request.h"
 #include "paxos_defs.h"
+#include "value.h"
 #include <mordor/fibersynchronization.h>
 #include <map>
 #include <set>
 
 namespace lightning {
 
-class BatchPhase1Request : public MulticastRpcRequest {
+class Phase1Request : public MulticastRpcRequest {
 public:
-    BatchPhase1Request(const Guid& epoch,
-                       uint32_t ringId,
-                       paxos::BallotId ballotId,
-                       paxos::InstanceId instanceRangeBegin,
-                       paxos::InstanceId instanceRangeEnd,
-                       const std::vector<Mordor::Address::ptr>&
-                             requestRing);
+    typedef boost::shared_ptr<Phase1Request> ptr;
+
+    Phase1Request(const Guid& epoch,
+                  uint32_t ringId,
+                  paxos::BallotId ballot,
+                  paxos::InstanceId instance,
+                  const std::vector<Mordor::Address::ptr>&
+                        requestRing);
 
     enum Result {
         PENDING,
-        IID_TOO_LOW,
+        BALLOT_TOO_LOW,
         SUCCESS
     };
 
@@ -29,10 +31,12 @@ public:
 
     Status status() const;
 
-    const std::set<paxos::InstanceId>&
-        reservedInstances() const;
+    paxos::BallotId lastPromisedBallot() const;
 
-    paxos::InstanceId retryStartInstanceId() const;
+    paxos::BallotId lastVotedBallot() const;
+
+    paxos::Value::ptr lastVotedValue() const;
+
 private:
     const RpcMessageData& request() const;
 
@@ -42,6 +46,8 @@ private:
     void onTimeout();
 
     void wait();
+
+    paxos::Value::ptr parseValue(const ValueData& valueData) const;
 
     struct AddressCompare {
         bool operator()(const Mordor::Address::ptr& lhs,
@@ -56,8 +62,9 @@ private:
     Status status_;
     Result result_;
 
-    std::set<paxos::InstanceId> reservedInstances_;
-    paxos::InstanceId retryStartInstanceId_;
+    paxos::BallotId lastPromisedBallotId_;
+    paxos::BallotId lastVotedBallotId_;
+    paxos::Value::ptr lastVotedValue_;
 
     Mordor::FiberEvent event_;
     mutable Mordor::FiberMutex mutex_;

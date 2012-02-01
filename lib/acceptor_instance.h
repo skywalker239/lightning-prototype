@@ -1,6 +1,8 @@
 #pragma once
 
+#include "guid.h"
 #include "paxos_defs.h"
+#include "value.h"
 
 namespace lightning {
 namespace paxos {
@@ -23,30 +25,45 @@ public:
     bool nextBallot(BallotId ballotId,
                     BallotId* highestBallotParticipated,
                     BallotId* highestBallotVoted,
-                    ValueId*  highestVotedValueId);
+                    Value*    lastVote);
     
     //! Attempt to start Phase 2 of Paxos for ballot ballotId
     //  and value id valueId.
-    //  On success returns true, on failure returns false and
-    //  sets the highest promised ballot id for this instance.
+    //  On success returns true, on failure returns false.
+    //  This is called on all acceptors in the ring when the value
+    //  is multicast, and at this point nobody but the first
+    //  acceptor in the ring can NACK, so don't bother NACKing at
+    //  all. It will be done during the ring vote.
     bool beginBallot(BallotId ballotId,
-                     ValueId  valueId,
-                     BallotId* highestBallotPromised);
+                     const Value& value);
+
+    //! Vote in ballotId for valueId.
+    //  Returns true on success and false on failure.
+    //  It can fail for two reasons:
+    //    * Promised not to vote in a higher ballot. Sets
+    //      highestBallotPromised accordingly.
+    //    * The multicast packet with the corresponding value has been lost
+    //      so this instance doesn't know the value with valueId.
+    //      Sets highestBallotPromised to kInvalidBallotId.
+    bool vote(BallotId ballotId,
+              const Guid& valueId,
+              BallotId* highestBallotPromised);
 
     //! Commit value id valueId to this instance.
-    void commit(ValueId valueId);
+    //  Returns false if we don't have the corresponding value.
+    bool commit(const Guid& valueId);
 
-    //! If committed, set valueId to the committed value id and return true,
+    //! If committed, retrieve value and return true,
     //  otherwise return false.
-    bool value(ValueId* valueId) const;
+    bool value(Value* value) const;
 
     //! Reset this instance to the empty state.
     void reset();
 private:
     BallotId highestBallotParticipated_;
     BallotId highestBallotVoted_;
-    ValueId  highestVotedValueId_;
-    ValueId  valueId_;
+    Value    lastVotedValue_;
+    Guid     committedValueId_;
     bool     committed_;
 };
 

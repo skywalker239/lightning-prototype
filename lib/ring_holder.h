@@ -21,7 +21,12 @@ public:
 
     void resetRingConfiguration(RingConfiguration::const_ptr ringConfiguration);
 protected:
+    //! Blocks until a valid ring configuration is available.
     RingConfiguration::const_ptr acquireRingConfiguration() const;
+
+    //! Returns immediately with the current ring configuration,
+    //  which may be null.
+    RingConfiguration::const_ptr tryAcquireRingConfiguration() const;
 
 private:
     //! For debug logging, called under lock.

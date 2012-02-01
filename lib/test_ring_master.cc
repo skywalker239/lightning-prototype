@@ -1,4 +1,7 @@
 #include <iostream>
+#include <string>
+#include <fstream>
+#include <streambuf>
 #include <boost/bind.hpp>
 #include <boost/lexical_cast.hpp>
 #include <mordor/config.h>
@@ -8,9 +11,10 @@
 #include <mordor/iomanager.h>
 #include <mordor/timer.h>
 #include <map>
+#include "guid.h"
+#include "host_configuration.h"
 #include "ring_oracle.h"
 #include "datacenter_aware_quorum_ring_oracle.h"
-#include "sync_group_requester.h"
 #include "ring_manager.h"
 #include "ring_holder.h"
 #include "pinger.h"
@@ -19,6 +23,100 @@ using namespace std;
 using namespace Mordor;
 using namespace lightning;
 using boost::lexical_cast;
+
+
+void readConfig(const string& filename,
+                Guid* configHash,
+                JSON::Value* config)
+{
+    ifstream f(filename);
+    string fileData;
+    f.seekg(0, ios::end);
+    fileData.reserve(f.tellg());
+    f.seekg(0, ios::beg);
+    fileData.assign(istreambuf_iterator<char>(f), istreambuf_iterator<char>());
+
+    *configHash = Guid::fromData(fileData.c_str(), fileData.length());
+    *config = JSON::parse(fileData);
+
+    cout << *config << endl;
+    cout << *configHash << endl;
+}
+
+MulticastRpcRequester::ptr setupRequester(IOManager* ioManager,
+                                          GuidGenerator::ptr guidGenerator,
+                                          const GroupConfiguration& groupConfiguration,
+                                          Address::ptr mcastDestination)
+{
+    Address::ptr bindAddr = groupConfiguration.thisHostConfiguration().multicastSourceAddress;
+    Socket::ptr s = bindAddr->createSocket(*ioManager, SOCK_DGRAM);
+    s->bind(bindAddr);
+    return MulticastRpcRequester::ptr(new MulticastRpcRequester(ioManager, guidGenerator, s, mcastDestination));
+}
+
+class DummyRingHolder : public RingHolder {};
+
+void setupEverything(uint32_t hostId,
+                     const Guid& configHash,
+                     const JSON::Value& config,
+                     IOManager* ioManager,
+                     Pinger::ptr* pinger,
+                     RingManager::ptr* ringManager)
+{
+    GroupConfiguration groupConfiguration = parseGroupConfiguration(config["hosts"],
+                                                                    hostId);
+    const uint64_t pingWindow = config["ping_window"].get<long long>();
+    const uint64_t pingTimeout = config["ping_timeout"].get<long long>();
+    const uint64_t pingInterval = config["ping_interval"].get<long long>();
+    const uint64_t hostTimeout = config["host_timeout"].get<long long>();
+    const uint64_t ringTimeout = config["ring_timeout"].get<long long>();
+    const uint64_t ringRetryInterval = config["ring_retry_interval"].get<long long>();
+    Address::ptr mcastDestination =
+        Address::lookup(config["mcast_group"].get<string>(), AF_INET).front();
+
+    GuidGenerator::ptr guidGenerator(new GuidGenerator);
+    boost::shared_ptr<FiberEvent> event(new FiberEvent);
+
+    MulticastRpcRequester::ptr requester = setupRequester(ioManager, guidGenerator, groupConfiguration, mcastDestination);
+    ioManager->schedule(boost::bind(&MulticastRpcRequester::run, requester));
+
+    PingTracker::ptr pingTracker(new PingTracker(groupConfiguration, pingWindow, pingTimeout, hostTimeout, event));
+    *pinger = Pinger::ptr(new Pinger(ioManager, requester, groupConfiguration, pingInterval, pingTimeout, pingTracker));
+
+    RingOracle::ptr oracle(new DatacenterAwareQuorumRingOracle(groupConfiguration, true, hostTimeout));
+
+    RingHolder::ptr ringHolder(new DummyRingHolder);
+    vector<RingHolder::ptr> holders(1, ringHolder);
+
+    RingChangeNotifier::ptr notifier(new RingChangeNotifier(holders));
+
+    *ringManager = RingManager::ptr(new RingManager(groupConfiguration, configHash, ioManager, event, requester, pingTracker, oracle, notifier, ringTimeout, ringRetryInterval));
+}
+
+
+
+int main(int argc, char** argv) {
+    Config::loadFromEnvironment();
+    if(argc != 3) {
+        cout << "Usage: master config.json host_id" << endl;
+        return 0;
+    }
+    const uint32_t hostId = lexical_cast<uint32_t>(argv[2]);
+    Guid configHash;
+    JSON::Value config;
+    readConfig(argv[1], &configHash, &config);
+
+    IOManager ioManager;
+    Pinger::ptr pinger;
+    RingManager::ptr ringManager;
+    setupEverything(hostId, configHash, config, &ioManager, &pinger, &ringManager);
+    ioManager.schedule(boost::bind(&Pinger::run, pinger));
+    ioManager.schedule(boost::bind(&RingManager::run, ringManager));
+    ioManager.dispatch();
+    return 0;
+}
+
+/*
 
 class DummyRingHolder : public RingHolder {
 };
@@ -168,3 +266,4 @@ int main(int argc, char** argv) {
     cout << boost::current_exception_diagnostic_information() << endl;
   }
 }
+*/

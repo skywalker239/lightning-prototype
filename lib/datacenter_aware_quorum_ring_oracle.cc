@@ -28,7 +28,8 @@ DatacenterAwareQuorumRingOracle::DatacenterAwareQuorumRingOracle(
       nextDatacenterId_(0)
 {
     // XXX For now only allow creating this on master.
-    MORDOR_ASSERT(groupConfiguration.thisHostId() == 0);
+    MORDOR_ASSERT(groupConfiguration.thisHostId() ==
+                  groupConfiguration.masterId());
     MORDOR_LOG_TRACE(g_log) << this << " okToMiss=" << okToMissDatacenter_ <<
                                " timeout=" << noHeartbeatTimeoutUs_;
     const vector<HostConfiguration>& hosts = groupConfiguration.hosts();
@@ -38,7 +39,7 @@ DatacenterAwareQuorumRingOracle::DatacenterAwareQuorumRingOracle(
         MORDOR_LOG_TRACE(g_log) << this << " host " << i << " is in dc " << dcId;
     }
     thisHostDatacenterId_ =
-        datacenterId(hosts[groupConfiguration.thisHostId()].datacenter);
+        datacenterId(groupConfiguration.thisHostConfiguration().datacenter);
 }
 
 uint32_t DatacenterAwareQuorumRingOracle::datacenterId(
@@ -120,6 +121,13 @@ void DatacenterAwareQuorumRingOracle::gatherLiveHosts(
                                        " loss=" << loss;
             liveHosts->push_back(make_pair(
                                  make_pair(loss, latency), hostId));
+        } else {
+            MORDOR_LOG_TRACE(g_log) << this << " host " << hostId <<
+                                       " not alive: now=" << now <<
+                                       ", maxSendTime=" <<
+                                       pingStats.maxReceivedPongSendTime() <<
+                                       ", delta=" <<
+                                       now-pingStats.maxReceivedPongSendTime();
         }
     }
 }

@@ -11,6 +11,7 @@ namespace lightning {
 
 class BatchPhase1Request : public MulticastRpcRequest {
 public:
+    typedef boost::shared_ptr<BatchPhase1Request> ptr;
     BatchPhase1Request(const Guid& epoch,
                        uint32_t ringId,
                        paxos::BallotId ballotId,

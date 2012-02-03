@@ -6,6 +6,7 @@
 namespace lightning {
 
 using boost::shared_ptr;
+using Mordor::Address;
 using Mordor::FiberEvent;
 using Mordor::Log;
 using Mordor::Logger;
@@ -13,17 +14,23 @@ using paxos::BallotId;
 using paxos::InstanceId;
 using paxos::InstancePool;
 using paxos::ProposerInstance;
-using std::map;
+using std::set;
+using std::vector;
 
 static Logger::ptr g_log = Log::lookup("lightning:phase1_batcher");
 
-Phase1Batcher::Phase1Batcher(uint32_t batchSize,
+Phase1Batcher::Phase1Batcher(const GroupConfiguration& groupConfiguration,
+                             const Guid& epoch,
+                             uint64_t timeoutUs,
+                             uint32_t batchSize,
                              BallotId initialBallot,
                              InstancePool::ptr instancePool,
-                             SyncGroupRequester::ptr requester,
+                             MulticastRpcRequester::ptr requester,
                              shared_ptr<FiberEvent>
                                 pushMoreOpenInstancesEvent)
-    : RingHolder(),
+    : groupConfiguration_(groupConfiguration),
+      epoch_(epoch),
+      timeoutUs_(timeoutUs),
       batchSize_(batchSize),
       initialBallot_(initialBallot),
       instancePool_(instancePool),
@@ -38,39 +45,48 @@ void Phase1Batcher::run() {
                                    "instances are needed";
         pushMoreOpenInstancesEvent_->wait();
 
-        RingConfiguration::const_ptr
-            ringConfiguration(acquireRingConfiguration());
+        vector<Address::ptr> ringAddresses;
+        uint32_t ringId;
+        generateRingAddresses(&ringAddresses, &ringId);
+
         const InstanceId batchStartId = nextStartInstanceId_;
         const InstanceId batchEndId   = nextStartInstanceId_ + batchSize_;
 
         MORDOR_LOG_TRACE(g_log) << this << " batch phase 1 ring_id=" <<
-                                   ringConfiguration->ringId() << ", " <<
+                                   ringId << ", " <<
                                    "ballot=" << initialBallot_ << ", " <<
                                    "instances=[" << batchStartId << ", " <<
                                    batchEndId << ")";
         BatchPhase1Request::ptr request(
             new BatchPhase1Request(
-                ringConfiguration,
+                epoch_,
+                ringId,
                 initialBallot_,
                 batchStartId,
-                batchEndId));
+                batchEndId,
+                ringAddresses));
 
-        SyncGroupRequest::Status status = requester_->request(request);
+        MulticastRpcRequest::Status status = requester_->request(request,
+                                                                 timeoutUs_);
         MORDOR_LOG_TRACE(g_log) << this << " instances [" << batchStartId <<
                                    ", " << batchEndId << "): (" <<
-                                   status << ", " << request->result();
+                                   uint32_t(status) << ", " <<
+                                   uint32_t(request->result());
+        if(status == MulticastRpcRequest::TIMED_OUT) {
+            MORDOR_LOG_TRACE(g_log) << this << " timed out";
+            continue;
+        }
+
+
         switch(request->result()) {
-            case BatchPhase1Request::ALL_OPEN:
-                openInstanceRange(batchStartId, batchEndId);
+            case BatchPhase1Request::IID_TOO_LOW:
+                resetNextInstanceId(request->retryStartInstanceId());
                 break;
-            case BatchPhase1Request::NOT_ALL_OPEN:
-                processMixedResult(batchStartId,
-                                   batchEndId,
-                                   request->reservedInstances());
+            case BatchPhase1Request::SUCCESS:
+                openInstances(batchStartId,
+                              batchEndId,
+                              request->reservedInstances());
                 break;
-            case BatchPhase1Request::START_IID_TOO_LOW:
-               resetNextInstanceId(request->retryStartInstanceId());
-               break;
             default:
                 MORDOR_ASSERT(1==0);
                 break;
@@ -80,36 +96,22 @@ void Phase1Batcher::run() {
     }
 }
 
-void Phase1Batcher::openInstanceRange(InstanceId startId,
-                                      InstanceId endId)
+void Phase1Batcher::openInstances(InstanceId startId,
+                                  InstanceId endId,
+                                  const set<InstanceId>& reservedInstances)
 {
-    MORDOR_LOG_TRACE(g_log) << this << " opening all instances in range [" <<
-                               startId << ", " << endId << ")";
+    MORDOR_LOG_TRACE(g_log) << this << " opening range [" << startId <<
+                               ", " << endId << ")";
+    auto reservedEnd = reservedInstances.end();
     for(InstanceId iid = startId; iid < endId; ++iid) {
         ProposerInstance::ptr instance(new ProposerInstance(iid));
-        instance->phase1Open(initialBallot_);
-        instancePool_->pushOpenInstance(instance);
-    }
-}
-
-void Phase1Batcher::processMixedResult(InstanceId startId,
-                                       InstanceId endId,
-                                       const map<InstanceId, BallotId>&
-                                           reservedInstances)
-{
-    MORDOR_LOG_TRACE(g_log) << this << " processing mixed range [" <<
-                               startId << ", " << endId;
-    for(InstanceId iid = startId; iid < endId; ++iid) {
-        auto reservedIter = reservedInstances.find(iid);
-        ProposerInstance::ptr instance(new ProposerInstance(iid));
-        if(reservedIter == reservedInstances.end()) {
+        if(reservedInstances.find(iid) == reservedEnd) {
             instance->phase1Open(initialBallot_);
             instancePool_->pushOpenInstance(instance);
         } else {
-            MORDOR_LOG_TRACE(g_log) << this << " instance " << iid <<
-                                       " reserved with ballot " <<
-                                       reservedIter->second;
-            instance->phase1Pending(reservedIter->second);
+            MORDOR_LOG_TRACE(g_log) << this << " iid=" << iid <<
+                                       " is reserved";
+            instance->phase1Pending(initialBallot_);
             instancePool_->pushReservedInstance(instance);
         }
     }
@@ -118,6 +120,19 @@ void Phase1Batcher::processMixedResult(InstanceId startId,
 void Phase1Batcher::resetNextInstanceId(InstanceId newStartId) {
     MORDOR_LOG_TRACE(g_log) << this << " reset next iid to " << newStartId;
     nextStartInstanceId_ = newStartId;
+}
+
+void Phase1Batcher::generateRingAddresses(vector<Address::ptr>* hosts,
+                                          uint32_t* ringId) const
+{
+    RingConfiguration::const_ptr ringConfiguration =
+        acquireRingConfiguration();
+    // exclude us
+    for(size_t i = 1; i < ringConfiguration->ringHostIds().size(); ++i) {
+        const uint32_t hostId = ringConfiguration->ringHostIds()[i];
+        hosts->push_back(groupConfiguration_.hosts()[hostId].multicastReplyAddress);
+    }
+    *ringId = ringConfiguration->ringId();
 }
 
 }  // namespace lightning

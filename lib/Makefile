@@ -46,7 +46,7 @@ LIB_OBJS += \
     phase1_request.o \
     phase2_request.o \
     proposer_state.o \
-#    phase1_batcher.o \
+    phase1_batcher.o \
     
 
 TEST_TARGETS = test_ring_master test_ring_responder test_guid

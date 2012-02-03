@@ -15,10 +15,12 @@ using std::string;
 
 static Logger::ptr g_log = Log::lookup("lightning:phase2_handler");
 
-Phase2Handler::Phase2Handler(AcceptorState::ptr acceptorState,
+Phase2Handler::Phase2Handler(const GroupConfiguration& groupConfiguration,
+                             AcceptorState::ptr acceptorState,
                              RingVoter::ptr     ringVoter)
     : acceptorState_(acceptorState),
-      ringVoter_(ringVoter)
+      ringVoter_(ringVoter),
+      initiateVote_(groupConfiguration.thisHostId() == 1)
 {}
 
 bool Phase2Handler::handleRequest(Address::ptr,
@@ -47,7 +49,7 @@ bool Phase2Handler::handleRequest(Address::ptr,
     MORDOR_LOG_TRACE(g_log) << this << " phase2(" << instance << ", " <<
                                ballot << ", " << value.valueId << ") = " <<
                                uint32_t(status);
-    if(status == AcceptorState::OK) {
+    if(status == AcceptorState::OK && initiateVote_) {
         ringVoter_->initiateVote(rpcGuid,
                                  requestEpoch,
                                  requestRingId,

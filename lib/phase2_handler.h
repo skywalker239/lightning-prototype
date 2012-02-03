@@ -1,5 +1,6 @@
 #pragma once
 
+#include "host_configuration.h"
 #include "rpc_handler.h"
 #include "ring_voter.h"
 #include "acceptor_state.h"
@@ -9,7 +10,8 @@ namespace lightning {
 
 class Phase2Handler : public RingHolder, public RpcHandler {
 public:
-    Phase2Handler(AcceptorState::ptr acceptorState,
+    Phase2Handler(const GroupConfiguration& groupConfiguration,
+                  AcceptorState::ptr acceptorState,
                   RingVoter::ptr ringVoter);
 
 private:
@@ -24,6 +26,7 @@ private:
     
     AcceptorState::ptr acceptorState_;
     RingVoter::ptr     ringVoter_;
+    const bool initiateVote_;
 };
 
 }  // namespace lightning

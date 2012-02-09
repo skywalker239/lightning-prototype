@@ -2,6 +2,8 @@
 
 #include <mordor/json.h>
 #include <mordor/socket.h>
+#include <iostream>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -30,28 +32,52 @@ struct HostConfiguration {
     {}
 };
 
+std::ostream& operator<<(std::ostream& os,
+                         const HostConfiguration& hostConfiguration);
+
 //! For the design with a fixed master, host 0 is always the master for
 //  simplicity.
 class GroupConfiguration {
 public:
+    //! So that a quorum can be represented by a 64-bit bitmask.
+    //  I think that 64 acceptors ought to be enough for anybody(TM).
+    static const size_t kMaxGroupSize = 64;
+
+    static const uint32_t kInvalidHostId = ~0;
+
     GroupConfiguration(const std::vector<HostConfiguration>& hosts,
-                       uint32_t thisHostId)
-        : hosts_(hosts),
-          thisHostId_(thisHostId)
-    {}
+                       uint32_t thisHostId);
 
-    const std::vector<HostConfiguration>& hosts() const { return hosts_; }
+    //! Number of hosts in the group
+    size_t size() const;
 
-    const HostConfiguration& thisHostConfiguration() const {
-        return hosts_[thisHostId()];
-    }
+    //! Asserts on invalid indices.
+    const HostConfiguration& host(size_t index) const;
+
+    //! Returns kInvalidHostId for unknown addresses.
+    uint32_t replyAddressToId(const Mordor::Address::ptr& address) const;
 
     uint32_t masterId() const { return kMasterId; }
 
     uint32_t thisHostId() const { return thisHostId_; }
 private:
+    friend std::ostream& operator<<(std::ostream&,
+                                    const GroupConfiguration&);
+
     const std::vector<HostConfiguration> hosts_;
     const uint32_t thisHostId_;
+
+    struct AddressCompare {
+        bool operator()(const Mordor::Address::ptr& a,
+                        const Mordor::Address::ptr& b) const
+        {
+            return *a < *b;
+        }
+    };
+
+    std::map<Mordor::Address::ptr, uint32_t, AddressCompare>
+        replyAddressToHostId_;
+
     //! XXX fixed master for now
     static const uint32_t kMasterId = 0;
 };

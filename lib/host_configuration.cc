@@ -27,7 +27,7 @@ string makeHostnameWithId(uint32_t hostId, const string& hostname) {
 
 }  // anonymous namespace
 
-GroupConfiguration parseGroupConfiguration(const JSON::Value& json,
+GroupConfiguration::ptr parseGroupConfiguration(const JSON::Value& json,
                                            uint32_t thisHostId)
 {
     vector<HostConfiguration> configuration;
@@ -56,7 +56,8 @@ GroupConfiguration parseGroupConfiguration(const JSON::Value& json,
                 multicastSourceAddress,
                 ringAddress));
     }
-    return GroupConfiguration(configuration, thisHostId);
+    return GroupConfiguration::ptr(
+               new GroupConfiguration(configuration, thisHostId));
 }
 
 GroupConfiguration::GroupConfiguration(const vector<HostConfiguration>& hosts,

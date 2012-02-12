@@ -25,11 +25,11 @@ static Logger::ptr g_log = Log::lookup("lightning:phase1_request");
 
 Phase1Request::Phase1Request(
     const Guid& epoch,
-    uint32_t ringId,
     BallotId ballot,
     InstanceId instance,
-    const vector<Address::ptr>& requestRing)
-    : notAcked_(requestRing.begin(), requestRing.end()),
+    RingConfiguration::const_ptr ring)
+    : ring_(ring),
+      notAckedMask_(ring_->ringMask()),
       status_(IN_PROGRESS),
       result_(PENDING),
       lastPromisedBallotId_(kInvalidBallotId),
@@ -40,12 +40,12 @@ Phase1Request::Phase1Request(
     PaxosPhase1RequestData* request =
         requestData_.mutable_phase1_request();
     epoch.serialize(request->mutable_epoch());
-    request->set_ring_id(ringId);
+    request->set_ring_id(ring_->ringId());
     request->set_instance(instance);
     request->set_ballot(ballot);
 
-    MORDOR_LOG_TRACE(g_log) << this << "P1(" << epoch << ", " <<
-                               ringId << ", " << instance << ", " <<
+    MORDOR_LOG_TRACE(g_log) << this << " P1(" << epoch << ", " <<
+                               ring_->ringId() << ", " << instance << ", " <<
                                ballot << ")";
  }
 
@@ -79,7 +79,8 @@ void Phase1Request::onReply(Address::ptr source,
 {
     FiberMutex::ScopedLock lk(mutex_);
 
-    if(notAcked_.find(source) == notAcked_.end()) {
+    const uint32_t hostId = ring_->replyAddressToId(source);
+    if(hostId == GroupConfiguration::kInvalidHostId) {
         MORDOR_LOG_WARNING(g_log) << this << " reply from unknown address " <<
                                      *source;
         return;
@@ -93,17 +94,20 @@ void Phase1Request::onReply(Address::ptr source,
             lastPromisedBallotId_ = max(lastPromisedBallotId_,
                                         reply.last_ballot_id());
             MORDOR_LOG_TRACE(g_log) << this << " BALLOT_TOO_LOW(" <<
-                                       reply.last_ballot_id() << ", new " <<
+                                       reply.last_ballot_id() << ", " <<
                                        "lastPromisedBallot=" <<
-                                       lastPromisedBallotId_;
+                                       lastPromisedBallotId_ << ") from " <<
+                                       *source << "(" << hostId << ")";
             break;
         case PaxosPhase1ReplyData::OK:
             if(!reply.has_last_ballot_id()) {
-                MORDOR_LOG_TRACE(g_log) << this << " OK from " << *source;
+                MORDOR_LOG_TRACE(g_log) << this << " OK from " <<
+                                           *source << "(" << hostId << ")";
             } else {
                 MORDOR_LOG_TRACE(g_log) << this << " OK(" <<
                                            reply.last_ballot_id() << ") " <<
-                                           "from " << *source;
+                                           "from " << *source << "(" <<
+                                           hostId << ")";
                 if(reply.last_ballot_id() > lastVotedBallotId_) {
                     lastVotedBallotId_ = reply.last_ballot_id();
                     lastVotedValue_ = parseValue(reply.value());
@@ -115,8 +119,8 @@ void Phase1Request::onReply(Address::ptr source,
             }
             break;
     }
-    notAcked_.erase(source);
-    if(notAcked_.empty()) {
+    notAckedMask_ &= ~(1 << hostId);
+    if(notAckedMask_ == 0) {
         MORDOR_LOG_TRACE(g_log) << this << " got all replies";
         result_ = (result_ == PENDING) ? SUCCESS : result_;
         status_ = COMPLETED;
@@ -126,11 +130,12 @@ void Phase1Request::onReply(Address::ptr source,
 
 void Phase1Request::onTimeout() {
     FiberMutex::ScopedLock lk(mutex_);
-    if(notAcked_.empty()) {
+    if(notAckedMask_ == 0) {
         MORDOR_LOG_TRACE(g_log) << this << " onTimeout() with no pending acks";
         status_ = COMPLETED;
     } else {
-        MORDOR_LOG_TRACE(g_log) << this << " timed out";
+        MORDOR_LOG_TRACE(g_log) << this << " timed out, notAckedMask=" <<
+                                   notAckedMask_;
         status_ = TIMED_OUT;
     }
     event_.set();
@@ -143,7 +148,7 @@ void Phase1Request::wait() {
 
 Value::ptr Phase1Request::parseValue(const ValueData& valueData) const {
     Value::ptr value(new Value);
-    value->valueId.parse(valueData.id());
+    value->valueId = Guid::parse(valueData.id());
     value->size = valueData.data().length();
     MORDOR_ASSERT(valueData.data().length() <= Value::kMaxValueSize);
     memcpy(value->data, valueData.data().c_str(), valueData.data().length());

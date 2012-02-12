@@ -23,7 +23,9 @@ public:
     typedef paxos::InstancePool InstancePool;
     typedef paxos::ProposerInstance ProposerInstance;
 
-    ProposerState(const GroupConfiguration& groupConfiguration,
+    typedef boost::shared_ptr<ProposerState> ptr;
+
+    ProposerState(GroupConfiguration::ptr group,
                   const Guid& epoch,
                   InstancePool::ptr instancePool,
                   MulticastRpcRequester::ptr requester,
@@ -46,14 +48,7 @@ private:
     // XXX stub
     void onCommit(ProposerInstance::ptr instance);
 
-    //! Blocks until a valid ring configuration is available.
-    void generateRingAddresses(std::vector<Mordor::Address::ptr>* hosts,
-                               uint32_t* ringId) const;
-    //! Ditto
-    void getLastRingHost(Mordor::Address::ptr* lastRingHost,
-                         uint32_t* ringId) const;
-
-    const GroupConfiguration groupConfiguration_;
+    GroupConfiguration::ptr group_;
     const Guid epoch_;
     InstancePool::ptr instancePool_;
     MulticastRpcRequester::ptr requester_;

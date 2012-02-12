@@ -28,7 +28,9 @@ bool AcceptorInstance::nextBallot(BallotId  ballotId,
                                   BallotId* highestBallotVoted,
                                   Value*    lastVote)
 {
-    if(ballotId >= highestBallotParticipated_) {
+    //! Reject the phase 1 request for the same ballot number as
+    //  Paxos is designed for unique ballot numbers.
+    if(ballotId > highestBallotParticipated_) {
         MORDOR_LOG_TRACE(g_log) << this << " accepting nextBallot id=" <<
                                    ballotId << ", MaxBallotVoted=" <<
                                    highestBallotVoted_ << ", MaxVotedValue=" <<
@@ -83,7 +85,7 @@ bool AcceptorInstance::vote(BallotId ballotId,
         return false;
     }
     MORDOR_LOG_TRACE(g_log) << this << " voting in ballot " << ballotId <<
-                            " for" << valueId;
+                            " for " << valueId;
     return true;
 }
 

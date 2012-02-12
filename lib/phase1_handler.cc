@@ -31,8 +31,10 @@ bool Phase1Handler::handleRequest(Address::ptr,
     MORDOR_LOG_TRACE(g_log) << this << " phase 1 request epoch=" <<
                                requestEpoch << " ringId=" << requestRingId <<
                                " iid=" << instance << ", ballot=" << ballot;
-    updateEpoch(requestEpoch);
-    if(!checkRingId(requestRingId)) {
+
+    RingConfiguration::const_ptr ring = tryAcquireRingConfiguration();
+    // XXX updateEpoch(requestEpoch);
+    if(!checkRingId(ring, requestRingId)) {
         MORDOR_LOG_TRACE(g_log) << this << " bad ring id, ignoring request";
         return false;
     }
@@ -58,34 +60,35 @@ bool Phase1Handler::handleRequest(Address::ptr,
                                    " promised ballot=" << highestPromised;
         replyData->set_type(PaxosPhase1ReplyData::BALLOT_TOO_LOW);
         replyData->set_last_ballot_id(highestPromised);
-        return true;
+        return ring->isInRing();
     } else {
         MORDOR_LOG_TRACE(g_log) << this << " phase1 request (" << instance <<
                                    ", " << ballot << ") successful, " <<
                                    "highestVoted=" << highestVoted << ", " <<
                                    "lastVote=" << lastVote.valueId;
+        replyData->set_type(PaxosPhase1ReplyData::OK);
         if(highestVoted != kInvalidBallotId) {
             replyData->set_last_ballot_id(highestVoted);
             lastVote.valueId.serialize(
                 replyData->mutable_value()->mutable_id());
             replyData->mutable_value()->set_data(lastVote.data, lastVote.size);
         }
-        return true;
+        return ring->isInRing();
     }
 }
 
-bool Phase1Handler::checkRingId(uint32_t ringId) {
-    RingConfiguration::const_ptr ringConfiguration =
-        tryAcquireRingConfiguration();
-    if(!ringConfiguration.get()) {
+bool Phase1Handler::checkRingId(RingConfiguration::const_ptr ring,
+                                uint32_t ringId)
+{
+    if(!ring.get()) {
         MORDOR_LOG_TRACE(g_log) << this << " no valid ring configuration " <<
                                    "to check against " << ringId;
         return false;
     } else {
         MORDOR_LOG_TRACE(g_log) << this << " checkRingId(" << ringId <<
-                                   ", " << ringConfiguration->ringId() <<
+                                   ", " << ring->ringId() <<
                                    ")";
-        return ringId == ringConfiguration->ringId();
+        return ringId == ring->ringId();
     }
 }
 

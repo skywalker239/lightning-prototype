@@ -21,7 +21,7 @@ using std::vector;
 
 static Logger::ptr g_log = Log::lookup("lightning:proposer_state");
 
-ProposerState::ProposerState(const GroupConfiguration& groupConfiguration,
+ProposerState::ProposerState(GroupConfiguration::ptr group,
                              const Guid& epoch,
                              InstancePool::ptr instancePool,
                              MulticastRpcRequester::ptr requester,
@@ -29,7 +29,7 @@ ProposerState::ProposerState(const GroupConfiguration& groupConfiguration,
                              IOManager* ioManager,
                              uint64_t phase1TimeoutUs,
                              uint64_t phase2TimeoutUs)
-    : groupConfiguration_(groupConfiguration),
+    : group_(group),
       epoch_(epoch),
       instancePool_(instancePool),
       requester_(requester),
@@ -37,9 +37,9 @@ ProposerState::ProposerState(const GroupConfiguration& groupConfiguration,
       ioManager_(ioManager),
       phase1TimeoutUs_(phase1TimeoutUs),
       phase2TimeoutUs_(phase2TimeoutUs),
-      ballotGenerator_(groupConfiguration_)
+      ballotGenerator_(group_)
 {
-    MORDOR_ASSERT(groupConfiguration_.thisHostId() == 0);
+    MORDOR_ASSERT(group_->thisHostId() == 0);
 }
 
 void ProposerState::processReservedInstances() {
@@ -70,14 +70,12 @@ void ProposerState::processClientValues() {
 void ProposerState::doPhase1(ProposerInstance::ptr instance) {
     //! Full phase 1 presumes that we have already set some ballot id.
     MORDOR_ASSERT(instance->ballotId() != kInvalidBallotId);
-    vector<Address::ptr> replyAddresses;
-    uint32_t ringId;
-    generateRingAddresses(&replyAddresses, &ringId);
+
+    RingConfiguration::const_ptr ring = acquireRingConfiguration();
     Phase1Request::ptr request(new Phase1Request(epoch_,
-                                                 ringId,
                                                  instance->ballotId(),
                                                  instance->instanceId(),
-                                                 replyAddresses));
+                                                 ring));
     if(requester_->request(request, phase1TimeoutUs_) ==
            MulticastRpcRequest::COMPLETED)
     {
@@ -141,16 +139,15 @@ void ProposerState::doPhase2(ProposerInstance::ptr instance) {
             commitQueue_.pop_front();
         }
     }
-    Address::ptr lastRingHost;
-    uint32_t ringId;
-    getLastRingHost(&lastRingHost, &ringId);
+
+    RingConfiguration::const_ptr ring = acquireRingConfiguration();
     Phase2Request::ptr request(new Phase2Request(epoch_,
-                                                 ringId,
+                                                 ring->ringId(),
                                                  instance->instanceId(),
                                                  instance->ballotId(),
                                                  instance->value(),
                                                  commits,
-                                                 lastRingHost));
+                                                 ring->lastRingAddress()));
     if(requester_->request(request, phase2TimeoutUs_) ==
         MulticastRpcRequest::COMPLETED)
     {
@@ -166,7 +163,8 @@ void ProposerState::doPhase2(ProposerInstance::ptr instance) {
         if(instance->state() == ProposerInstance::P2_PENDING_CLIENT_VALUE) {
             clientValueQueue_->push_front(instance->value());
         }
-        instance->phase1Pending(instance->ballotId());
+        instance->phase1Pending(
+            ballotGenerator_.boostBallotId(instance->ballotId()));
         instancePool_->pushReservedInstance(instance);
         {
             FiberMutex::ScopedLock lk(mutex_);
@@ -181,29 +179,6 @@ void ProposerState::onCommit(ProposerInstance::ptr instance) {
     MORDOR_LOG_INFO(g_log) << this << " COMMIT iid=" <<
                               instance->instanceId() <<
                               " value id=" << instance->value()->valueId;
-}
-
-void ProposerState::generateRingAddresses(vector<Address::ptr>* hosts,
-                                          uint32_t* ringId) const
-{
-    RingConfiguration::const_ptr ringConfiguration =
-        acquireRingConfiguration();
-    // exclude us
-    for(size_t i = 1; i < ringConfiguration->ringHostIds().size(); ++i) {
-        const uint32_t hostId = ringConfiguration->ringHostIds()[i];
-        hosts->push_back(groupConfiguration_.hosts()[hostId].multicastReplyAddress);
-    }
-    *ringId = ringConfiguration->ringId();
-}
-
-void ProposerState::getLastRingHost(Address::ptr* lastRingHost,
-                                    uint32_t* ringId) const
-{
-    RingConfiguration::const_ptr ringConfiguration =
-        acquireRingConfiguration();
-    const uint32_t lastHostId = ringConfiguration->ringHostIds().back();
-    *lastRingHost = groupConfiguration_.hosts()[lastHostId].multicastReplyAddress;
-    *ringId = ringConfiguration->ringId();
 }
 
 }  // namespace lightning

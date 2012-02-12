@@ -19,11 +19,12 @@ using std::vector;
 static Logger::ptr g_log = Log::lookup("lightning:ping_request");
 
 PingRequest::PingRequest(
-    const vector<Address::ptr>& hosts,
+    RingConfiguration::const_ptr ring,
     uint64_t pingId,
     PingTracker::ptr pingTracker)
-    : pingTracker_(pingTracker),
-      notAcked_(hosts.begin(), hosts.end()),
+    : ring_(ring),
+      notAckedMask_(ring_->ringMask()),
+      pingTracker_(pingTracker),
       status_(IN_PROGRESS),
       event_(true)
 {
@@ -47,6 +48,13 @@ void PingRequest::onReply(Address::ptr sourceAddress,
     MORDOR_ASSERT(reply.type() == RpcMessageData::PING);
     MORDOR_ASSERT(reply.has_ping());
 
+    const uint32_t hostId = ring_->replyAddressToId(sourceAddress);
+    if(hostId == GroupConfiguration::kInvalidHostId) {
+        MORDOR_LOG_TRACE(g_log) << this << " got reply from unknown host " <<
+                                   *sourceAddress;
+        return;
+    }
+
     const uint64_t id = reply.ping().id();
     const uint64_t sender_now = reply.ping().sender_now();
     const uint64_t now = TimerManager::now();
@@ -55,9 +63,9 @@ void PingRequest::onReply(Address::ptr sourceAddress,
                                *sourceAddress << ", now = " << now;
     {
         FiberMutex::ScopedLock lk(mutex_);
-        notAcked_.erase(sourceAddress);
-        pingTracker_->registerPong(sourceAddress, id, now);
-        if(notAcked_.empty()) {
+        notAckedMask_ &= ~(1 << hostId);
+        pingTracker_->registerPong(hostId, id, now);
+        if(notAckedMask_ == 0) {
             status_ = COMPLETED;
             event_.set();
         }
@@ -67,13 +75,14 @@ void PingRequest::onReply(Address::ptr sourceAddress,
 void PingRequest::onTimeout() {
     const uint32_t pingId = rpcMessageData_.ping().id();
     FiberMutex::ScopedLock lk(mutex_);
-    if(notAcked_.empty()) {
+    if(notAckedMask_ == 0) {
         MORDOR_LOG_TRACE(g_log) << this << "ping " << pingId <<
                                    " timed out, but " <<
                                    "all acks were received";
         status_ = COMPLETED;
     } else {
-        MORDOR_LOG_TRACE(g_log) << this << " ping " << pingId << " timed out";
+        MORDOR_LOG_TRACE(g_log) << this << " ping " << pingId <<
+                                   " timed out, notAckedMask=" << notAckedMask_;
         status_ = TIMED_OUT;
     }
     event_.set();

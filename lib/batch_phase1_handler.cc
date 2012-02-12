@@ -7,6 +7,7 @@ using Mordor::Address;
 using Mordor::Logger;
 using Mordor::Log;
 using paxos::BallotId;
+using paxos::kInvalidBallotId;
 using paxos::InstanceId;
 using paxos::Value;
 
@@ -96,11 +97,13 @@ void BatchPhase1Handler::markReservedInstances(BallotId ballot,
         BallotId highestPromised;
         BallotId highestVoted;
         Value    lastVote;
-        if(acceptorState_->nextBallot(iid,
-                                      ballot,
-                                      &highestPromised,
-                                      &highestVoted,
-                                      &lastVote) != AcceptorState::OK)
+        AcceptorState::Status status =
+            acceptorState_->nextBallot(iid,
+                                       ballot,
+                                       &highestPromised,
+                                       &highestVoted,
+                                       &lastVote);
+        if(status != AcceptorState::OK)
         {
             MORDOR_LOG_TRACE(g_log) << this << " iid " << iid <<
                                        " is reserved";

@@ -13,14 +13,15 @@ static Logger::ptr g_log = Log::lookup("lightning:set_ring_handler");
 
 SetRingHandler::SetRingHandler(const Guid& hostGroupGuid,
                                RingChangeNotifier::ptr ringChangeNotifier,
-                               const GroupConfiguration& groupConfiguration)
+                               GroupConfiguration::ptr groupConfiguration)
     : hostGroupGuid_(hostGroupGuid),
-      ringChangeNotifier_(ringChangeNotifier)
+      ringChangeNotifier_(ringChangeNotifier),
+      groupConfiguration_(groupConfiguration)
 {
     // XXX fixed master
-    const uint32_t masterId = groupConfiguration.masterId();
+    const uint32_t masterId = groupConfiguration_->masterId();
     masterAddress_ =
-        groupConfiguration.hosts()[masterId].multicastSourceAddress;
+        groupConfiguration_->host(masterId).multicastSourceAddress;
 }
 
 bool SetRingHandler::handleRequest(Address::ptr sourceAddress,
@@ -51,7 +52,7 @@ bool SetRingHandler::handleRequest(Address::ptr sourceAddress,
     MORDOR_LOG_TRACE(g_log) << this << " got set ring id=" << ringId <<
                                " with " << ringHosts.size() << " hosts";
     RingConfiguration::ptr ringConfiguration(
-        new RingConfiguration(ringHosts, ringId));
+        new RingConfiguration(groupConfiguration_, ringHosts, ringId));
     ringChangeNotifier_->onRingChange(ringConfiguration);
 
     return true;

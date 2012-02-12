@@ -14,7 +14,7 @@ namespace paxos {
 //  'never participated in any' ballot id.
 class BallotGenerator {
 public:
-    BallotGenerator(const GroupConfiguration& groupConfiguration);
+    BallotGenerator(GroupConfiguration::ptr groupConfiguration);
 
     //! Return the first 'our' ballot id greater than
     //  both ballotId.

@@ -2,6 +2,7 @@
 
 #include "multicast_rpc_request.h"
 #include "ping_tracker.h"
+#include "ring_configuration.h"
 #include <mordor/fibersynchronization.h>
 #include <set>
 #include <vector>
@@ -11,7 +12,7 @@ namespace lightning {
 //! A single multicast ping.
 class PingRequest : public MulticastRpcRequest {
 public:
-    PingRequest(const std::vector<Mordor::Address::ptr>& hosts,
+    PingRequest(RingConfiguration::const_ptr ring,
                 uint64_t pingId,
                 PingTracker::ptr pingTracker);
 
@@ -27,17 +28,10 @@ private:
 
     Status status() const;
 
-    struct AddressCompare {
-        bool operator()(const Mordor::Address::ptr& lhs,
-                       const Mordor::Address::ptr& rhs) const
-        {
-            return *lhs < *rhs;
-        }
-    };
-
     RpcMessageData rpcMessageData_;
+    RingConfiguration::const_ptr ring_;
+    uint64_t notAckedMask_;
     PingTracker::ptr pingTracker_;
-    std::set<Mordor::Address::ptr, AddressCompare> notAcked_;
     Status status_;
 
     Mordor::FiberEvent event_;

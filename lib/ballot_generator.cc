@@ -4,9 +4,9 @@
 namespace lightning {
 namespace paxos {
 
-BallotGenerator::BallotGenerator(const GroupConfiguration& groupConfiguration)
-    : hostId_(groupConfiguration.thisHostId()),
-      hostNumber_(groupConfiguration.hosts().size())
+BallotGenerator::BallotGenerator(GroupConfiguration::ptr groupConfiguration)
+    : hostId_(groupConfiguration->thisHostId()),
+      hostNumber_(groupConfiguration->size())
 {}
 
 BallotId BallotGenerator::boostBallotId(BallotId ballotId) {

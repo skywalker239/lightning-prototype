@@ -21,7 +21,7 @@ public:
     //  In any case, if it succeeds, then the ring is an m-quorum.
     //
     //  noHeartbeatTimeout is used to detect dead hosts' ping stats.
-    DatacenterAwareQuorumRingOracle(const GroupConfiguration& groupConfiguration,
+    DatacenterAwareQuorumRingOracle(GroupConfiguration::ptr group,
                                     bool okToMissDatacenter,
                                     uint64_t noHeartbeatTimeoutUs);
 

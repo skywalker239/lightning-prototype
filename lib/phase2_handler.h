@@ -10,8 +10,7 @@ namespace lightning {
 
 class Phase2Handler : public RingHolder, public RpcHandler {
 public:
-    Phase2Handler(const GroupConfiguration& groupConfiguration,
-                  AcceptorState::ptr acceptorState,
+    Phase2Handler(AcceptorState::ptr acceptorState,
                   RingVoter::ptr ringVoter);
 
 private:
@@ -23,10 +22,11 @@ private:
     bool handleRequest(Mordor::Address::ptr sourceAddress,
                        const RpcMessageData& request,
                        RpcMessageData* reply);
-    
+
+    bool canInitiateVote(RingConfiguration::const_ptr) const;
+
     AcceptorState::ptr acceptorState_;
     RingVoter::ptr     ringVoter_;
-    const bool initiateVote_;
 };
 
 }  // namespace lightning

@@ -30,12 +30,20 @@ def genHostConfiguration(hosts):
     return configuration
 
 configuration = {
-    "ping_timeout" : 300000,
-    "host_timeout" : 1200000,
-    "ping_interval" : 1000000,
+    "ping_timeout" : 30000,
+    "host_timeout" : 500000,
+    "ping_interval" : 200000,
     "ping_window" : 100,
-    "ring_timeout" : 2000000,
-    "ring_retry_interval" : 3000000,
+    "ring_timeout" : 50000,
+    "ring_retry_interval" : 500000,
+    "acceptor_max_pending_instances" : 20000,
+    "acceptor_max_committed_instances" : 100000,
+    "batch_phase1_timeout" : 100000,
+    "phase1_batch_size" : 100,
+    "instance_pool_open_limit" : 500, # 15000, # 1Gbps/10ms latency/8k data
+    "instance_pool_reserved_limit" : 100, #1000, # arbitrary
+    "phase1_timeout" : 100000,
+    "phase2_timeout" : 500000,
     "mcast_group" : "239.3.0.1" + ":" + str(MCAST_LISTEN_PORT)
 }
 

@@ -21,7 +21,7 @@ class RingManager : boost::noncopyable {
 public:
     typedef boost::shared_ptr<RingManager> ptr;
 
-    RingManager(const GroupConfiguration& groupConfiguration,
+    RingManager(GroupConfiguration::ptr groupConfiguration,
                 const Guid& hostGroupGuid,
                 Mordor::IOManager* ioManager,
                 boost::shared_ptr<Mordor::FiberEvent> hostDownEvent,
@@ -42,9 +42,6 @@ private:
 
     uint32_t generateRingId(const std::vector<uint32_t>& ring) const;
 
-    void generateReplyAddresses(const std::vector<uint32_t>& hostIds,
-                                std::vector<Mordor::Address::ptr>* ring) const;
-
     //! Should redo this with ragel if it ever gets more states.
     enum State {
         LOOKING = 0,
@@ -52,7 +49,7 @@ private:
         OK
     };
 
-    const GroupConfiguration groupConfiguration_;
+    GroupConfiguration::ptr groupConfiguration_;
     const Guid hostGroupGuid_;
     const uint64_t setRingTimeoutUs_;
     const uint64_t lookupRingRetryUs_;

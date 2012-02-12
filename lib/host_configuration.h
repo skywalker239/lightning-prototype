@@ -39,6 +39,7 @@ std::ostream& operator<<(std::ostream& os,
 //  simplicity.
 class GroupConfiguration {
 public:
+    typedef boost::shared_ptr<GroupConfiguration> ptr;
     //! So that a quorum can be represented by a 64-bit bitmask.
     //  I think that 64 acceptors ought to be enough for anybody(TM).
     static const size_t kMaxGroupSize = 64;
@@ -82,7 +83,7 @@ private:
     static const uint32_t kMasterId = 0;
 };
 
-GroupConfiguration parseGroupConfiguration(
+GroupConfiguration::ptr parseGroupConfiguration(
     const Mordor::JSON::Value& json,
     uint32_t thisHostId);
 

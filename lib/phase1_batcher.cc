@@ -19,8 +19,7 @@ using std::vector;
 
 static Logger::ptr g_log = Log::lookup("lightning:phase1_batcher");
 
-Phase1Batcher::Phase1Batcher(const GroupConfiguration& groupConfiguration,
-                             const Guid& epoch,
+Phase1Batcher::Phase1Batcher(const Guid& epoch,
                              uint64_t timeoutUs,
                              uint32_t batchSize,
                              BallotId initialBallot,
@@ -28,8 +27,7 @@ Phase1Batcher::Phase1Batcher(const GroupConfiguration& groupConfiguration,
                              MulticastRpcRequester::ptr requester,
                              shared_ptr<FiberEvent>
                                 pushMoreOpenInstancesEvent)
-    : groupConfiguration_(groupConfiguration),
-      epoch_(epoch),
+    : epoch_(epoch),
       timeoutUs_(timeoutUs),
       batchSize_(batchSize),
       initialBallot_(initialBallot),
@@ -45,33 +43,31 @@ void Phase1Batcher::run() {
                                    "instances are needed";
         pushMoreOpenInstancesEvent_->wait();
 
-        vector<Address::ptr> ringAddresses;
-        uint32_t ringId;
-        generateRingAddresses(&ringAddresses, &ringId);
+        MORDOR_LOG_TRACE(g_log) << this << " requesting ring configuration";
+        RingConfiguration::const_ptr ring = acquireRingConfiguration();
 
         const InstanceId batchStartId = nextStartInstanceId_;
         const InstanceId batchEndId   = nextStartInstanceId_ + batchSize_;
 
-        MORDOR_LOG_TRACE(g_log) << this << " batch phase 1 ring_id=" <<
-                                   ringId << ", " <<
+        MORDOR_LOG_TRACE(g_log) << this << " batch phase 1 ring=" << *ring <<
+                                   ", " <<
                                    "ballot=" << initialBallot_ << ", " <<
                                    "instances=[" << batchStartId << ", " <<
                                    batchEndId << ")";
         BatchPhase1Request::ptr request(
             new BatchPhase1Request(
                 epoch_,
-                ringId,
                 initialBallot_,
                 batchStartId,
                 batchEndId,
-                ringAddresses));
+                ring));
 
         MulticastRpcRequest::Status status = requester_->request(request,
                                                                  timeoutUs_);
         MORDOR_LOG_TRACE(g_log) << this << " instances [" << batchStartId <<
                                    ", " << batchEndId << "): (" <<
                                    uint32_t(status) << ", " <<
-                                   uint32_t(request->result());
+                                   uint32_t(request->result()) << ")";
         if(status == MulticastRpcRequest::TIMED_OUT) {
             MORDOR_LOG_TRACE(g_log) << this << " timed out";
             continue;
@@ -120,19 +116,6 @@ void Phase1Batcher::openInstances(InstanceId startId,
 void Phase1Batcher::resetNextInstanceId(InstanceId newStartId) {
     MORDOR_LOG_TRACE(g_log) << this << " reset next iid to " << newStartId;
     nextStartInstanceId_ = newStartId;
-}
-
-void Phase1Batcher::generateRingAddresses(vector<Address::ptr>* hosts,
-                                          uint32_t* ringId) const
-{
-    RingConfiguration::const_ptr ringConfiguration =
-        acquireRingConfiguration();
-    // exclude us
-    for(size_t i = 1; i < ringConfiguration->ringHostIds().size(); ++i) {
-        const uint32_t hostId = ringConfiguration->ringHostIds()[i];
-        hosts->push_back(groupConfiguration_.hosts()[hostId].multicastReplyAddress);
-    }
-    *ringId = ringConfiguration->ringId();
 }
 
 }  // namespace lightning

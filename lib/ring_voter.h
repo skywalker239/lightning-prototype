@@ -15,23 +15,19 @@ public:
     typedef paxos::InstanceId InstanceId;
     typedef boost::shared_ptr<RingVoter> ptr;
 
-    RingVoter(const GroupConfiguration& groupConfiguration,
-              Mordor::Socket::ptr socket,
+    RingVoter(Mordor::Socket::ptr socket,
               AcceptorState::ptr acceptorState);
 
     void run();
 
     //! Start a new vote.
-    //  Asserts that thisHostId() == 1 (only the first acceptor in the
-    //  ring can initiate a ring vote).
     void initiateVote(const Guid& rpcGuid,
                       const Guid& epoch,
-                      uint32_t    ringId,
+                      RingConfiguration::const_ptr ring,
                       InstanceId  instance,
                       BallotId    ballot,
                       const Guid& valueId);
 private:
-    const GroupConfiguration groupConfiguration_;
     Mordor::Socket::ptr socket_;
     AcceptorState::ptr acceptorState_;
     

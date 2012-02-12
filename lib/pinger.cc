@@ -20,7 +20,7 @@ static Logger::ptr g_log = Log::lookup("lightning:pinger");
 
 Pinger::Pinger(IOManager* ioManager,
                MulticastRpcRequester::ptr requester,
-               const GroupConfiguration& groupConfiguration,
+               GroupConfiguration::ptr groupConfiguration,
                uint64_t pingIntervalUs,
                uint64_t pingTimeoutUs,
                PingTracker::ptr pingTracker)
@@ -31,15 +31,16 @@ Pinger::Pinger(IOManager* ioManager,
       pingTracker_(pingTracker),
       currentId_(0)
 {
-    const vector<HostConfiguration>& hosts = groupConfiguration.hosts();
-    for(size_t i = 0; i < hosts.size(); ++i) {
-        if(i != groupConfiguration.thisHostId()) {
-            MORDOR_LOG_TRACE(g_log) << this << " adding host " << i <<
-                                       " at " <<
-                                       *hosts[i].multicastReplyAddress;
-            hosts_.push_back(hosts[i].multicastReplyAddress);
+    const uint32_t kDummyRingId = 239;
+    vector<uint32_t> hostIds;
+    for(size_t i = 0; i < groupConfiguration->size(); ++i) {
+        if(i != groupConfiguration->thisHostId()) {
+            hostIds.push_back(i);
         }
     }
+    pingRing_.reset(new RingConfiguration(groupConfiguration,
+                                          hostIds,
+                                          kDummyRingId));
 }
 
 void Pinger::run() {
@@ -60,7 +61,7 @@ void Pinger::run() {
 
 void Pinger::doSinglePing(uint64_t id) {
     MulticastRpcRequest::ptr request(
-        new PingRequest(hosts_,
+        new PingRequest(pingRing_,
                         id,
                         pingTracker_));
     MulticastRpcRequest::Status status =

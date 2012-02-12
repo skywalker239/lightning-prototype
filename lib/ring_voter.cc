@@ -16,21 +16,23 @@ using std::vector;
 
 static Logger::ptr g_log = Log::lookup("lightning:ring_voter");
 
-RingVoter::RingVoter(const GroupConfiguration& groupConfiguration,
-                     Socket::ptr socket,
+RingVoter::RingVoter(Socket::ptr socket,
                      AcceptorState::ptr acceptorState)
-    : groupConfiguration_(groupConfiguration),
-      socket_(socket),
+    : socket_(socket),
       acceptorState_(acceptorState)
 {}
 
 void RingVoter::run() {
     Address::ptr remoteAddress = socket_->emptyAddress();
+    MORDOR_LOG_TRACE(g_log) << this << " listening at " <<
+                               *(socket_->localAddress()); 
     while(true) {
         char buffer[kMaxDatagramSize];
         ssize_t bytes = socket_->receiveFrom((void*)buffer,
                                              sizeof(buffer),
                                              *remoteAddress);
+        MORDOR_LOG_TRACE(g_log) << this << " got " << bytes << " bytes from " <<
+                                   *remoteAddress;
         RpcMessageData requestData;
         if(!requestData.ParseFromArray(buffer, bytes)) {
             MORDOR_LOG_WARNING(g_log) << this << " malformed " << bytes <<
@@ -47,6 +49,12 @@ void RingVoter::run() {
                                          " ignoring vote " << requestGuid;
             continue;
         }
+        if(!ringConfiguration->isInRing()) {
+            MORDOR_LOG_TRACE(g_log) << this <<
+                                       " acceptor not in ring, ignoring vote "
+                                       << requestGuid;
+            continue;
+        }
         RpcMessageData replyData;
 
         if(processVote(ringConfiguration, requestData, &replyData)) {
@@ -59,44 +67,24 @@ void RingVoter::run() {
             socket_->sendTo((const void*) buffer,
                             replyData.ByteSize(),
                             0,
-                            voteDestination(ringConfiguration));
+                            ringConfiguration->nextRingAddress());
         }
     }
 }
 
 void RingVoter::initiateVote(const Guid& rpcGuid,
                              const Guid& epoch,
-                             uint32_t ringId,
+                             RingConfiguration::const_ptr ring,
                              InstanceId instance,
                              BallotId ballot,
                              const Guid& valueId)
 {
-    MORDOR_ASSERT(groupConfiguration_.thisHostId() == 1);
-
-    RingConfiguration::const_ptr ringConfiguration =
-        tryAcquireRingConfiguration();
-    if(!ringConfiguration.get()) {
-        MORDOR_LOG_TRACE(g_log) << this << " no ring configuration, " <<
-                                   "can't initiate vote for (" <<
-                                   instance << ", " << ballot << ", " <<
-                                   valueId << ")";
-        return;
-    }
-    if(ringId != ringConfiguration->ringId()) {
-        MORDOR_LOG_TRACE(g_log) << this << " current ring id is " <<
-                                   ringConfiguration->ringId() <<
-                                   ", cannot initiate vote for (" <<
-                                   instance << ", " << ballot << ", " <<
-                                   valueId << ") on ring " << ringId;
-        return;
-    }
-
     RpcMessageData rpcMessageData;
     rpcMessageData.set_type(RpcMessageData::PAXOS_PHASE2);
     rpcGuid.serialize(rpcMessageData.mutable_uuid());
     VoteData* voteData = rpcMessageData.mutable_vote();
     epoch.serialize(voteData->mutable_epoch());
-    voteData->set_ring_id(ringId);
+    voteData->set_ring_id(ring->ringId());
     voteData->set_instance(instance);
     voteData->set_ballot(ballot);
     valueId.serialize(voteData->mutable_value_id());
@@ -109,16 +97,17 @@ void RingVoter::initiateVote(const Guid& rpcGuid,
         return;
     }
     
+    Address::ptr destination = ring->nextRingAddress();
     MORDOR_LOG_TRACE(g_log) << this << " sending vote (" <<
                                instance << ", " << ballot << ", " <<
-                               valueId << "), ringId=" << ringId <<
+                               valueId << "), ringId=" << ring->ringId() <<
                                ", epoch=" << epoch << ", rpc_uuid=" <<
-                               rpcGuid;
+                               rpcGuid << " to " << *destination;
 
     socket_->sendTo((const void*)buffer,
                     rpcMessageData.ByteSize(),
                     0,
-                    voteDestination(ringConfiguration));
+                    destination);
 }
 
 bool RingVoter::processVote(RingConfiguration::const_ptr ringConfiguration,
@@ -138,6 +127,7 @@ bool RingVoter::processVote(RingConfiguration::const_ptr ringConfiguration,
     const InstanceId instance = voteData.instance();
     const BallotId ballot = voteData.ballot();
     const Guid valueId = Guid::parse(voteData.value_id());
+    const Guid rpcGuid = Guid::parse(request.uuid());
     BallotId highestPromised = kInvalidBallotId;
 
     AcceptorState::Status status = acceptorState_->vote(instance,
@@ -148,6 +138,11 @@ bool RingVoter::processVote(RingConfiguration::const_ptr ringConfiguration,
         MORDOR_LOG_TRACE(g_log) << this << " vote(" << instance << ", " <<
                                    ballot << ", " << valueId << ") ok";
         reply->MergeFrom(request);
+        MORDOR_LOG_TRACE(g_log) << this << " sending vote(" << instance <<
+                                   ", " << ballot << ", " << valueId <<
+                                   "), ringId=" << voteData.ring_id() <<
+                                   ", rpc_uuid=" << rpcGuid << " to " <<
+                                   *ringConfiguration->nextRingAddress();
         return true;
     } else {
         MORDOR_LOG_TRACE(g_log) << this << " vote(" << instance << ", " <<
@@ -155,27 +150,6 @@ bool RingVoter::processVote(RingConfiguration::const_ptr ringConfiguration,
                                    uint32_t(status) << ", promised=" <<
                                    highestPromised;
         return false;
-    }
-}
-
-Address::ptr RingVoter::voteDestination(
-    RingConfiguration::const_ptr currentRing) const
-{
-    const vector<uint32_t> ringHostIds = currentRing->ringHostIds();
-    const uint32_t myId = groupConfiguration_.thisHostId();
-    size_t myRingIndex = std::find(ringHostIds.begin(),
-                                   ringHostIds.end(),
-                                   myId) - ringHostIds.begin();
-    MORDOR_ASSERT(myRingIndex < ringHostIds.size());
-    uint32_t nextHostId = ringHostIds[(myRingIndex + 1) % ringHostIds.size()];
-
-    //! The last vote to master is sent as a reply to multicast rpc,
-    //  all others are forwarded to the ring ports
-    //  XXX fixed master dependency
-    if(nextHostId != 0) {
-        return groupConfiguration_.hosts()[nextHostId].ringAddress;
-    } else {
-        return groupConfiguration_.hosts()[nextHostId].multicastSourceAddress;
     }
 }
 

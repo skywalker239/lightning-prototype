@@ -31,7 +31,7 @@ public:
     //
     //  hostDownEvent is signaled in timeoutPing if one or more hosts
     //  go down. PingTracker does not assume ownership over it.
-    PingTracker(const GroupConfiguration& groupConfiguration,
+    PingTracker(GroupConfiguration::ptr groupConfiguration,
                 uint64_t pingWindowSize,
                 uint64_t singlePingTimeoutUs,
                 uint64_t noHeartbeatTimeoutUs,
@@ -48,7 +48,7 @@ public:
     void timeoutPing(uint64_t id);
 
     //! Register a received unicast pong.
-    void registerPong(Mordor::Address::ptr address,
+    void registerPong(uint32_t hostId,
                       uint64_t id,
                       uint64_t recvTime);
     
@@ -60,18 +60,8 @@ public:
     //! 'host down' timeout.
     uint64_t noHeartbeatTimeoutUs() const;
 private:
-    struct AddressCompare {
-        bool operator()(const Mordor::Address::ptr& lhs,
-                        const Mordor::Address::ptr& rhs) const
-        {
-            return *lhs < *rhs;
-        }
-    };
+    std::map<uint32_t, PingStats> perHostPingStats_;
 
-    std::map<Mordor::Address::ptr, uint32_t, AddressCompare>
-        replyAddressToHostId_;
-    std::map<Mordor::Address::ptr, PingStats, AddressCompare>
-        perHostPingStats_;
     const uint64_t noHeartbeatTimeoutUs_;
 
     boost::shared_ptr<Mordor::FiberEvent> hostDownEvent_;

@@ -23,12 +23,12 @@ static Logger::ptr g_log = Log::lookup("lightning:batch_phase1_request");
 
 BatchPhase1Request::BatchPhase1Request(
     const Guid& epoch,
-    uint32_t ringId,
     BallotId ballotId,
     InstanceId instanceRangeBegin,
     InstanceId instanceRangeEnd,
-    const vector<Address::ptr>& requestRing)
-    : notAcked_(requestRing.begin(), requestRing.end()),
+    RingConfiguration::const_ptr ring)
+    : ring_(ring),
+      notAckedMask_(ring_->ringMask()),
       status_(IN_PROGRESS),
       result_(PENDING),
       retryStartInstanceId_(0),
@@ -38,13 +38,13 @@ BatchPhase1Request::BatchPhase1Request(
     PaxosPhase1BatchRequestData* request =
         requestData_.mutable_phase1_batch_request();
     epoch.serialize(request->mutable_epoch());
-    request->set_ring_id(ringId);
+    request->set_ring_id(ring->ringId());
     request->set_ballot_id(ballotId);
     request->set_start_instance_id(instanceRangeBegin);
     request->set_end_instance_id(instanceRangeEnd);
 
-    MORDOR_LOG_TRACE(g_log) << this << "BatchP1(" << epoch << ", " <<
-                               ringId << ", " << ballotId << ", [" <<
+    MORDOR_LOG_TRACE(g_log) << this << " BatchP1(" << epoch << ", " <<
+                               ring->ringId() << ", " << ballotId << ", [" <<
                                instanceRangeBegin << ", " <<
                                instanceRangeEnd << "))";    
  }
@@ -75,7 +75,8 @@ void BatchPhase1Request::onReply(Address::ptr source,
 {
     FiberMutex::ScopedLock lk(mutex_);
 
-    if(notAcked_.find(source) == notAcked_.end()) {
+    const uint32_t hostId = ring_->replyAddressToId(source);
+    if(hostId == GroupConfiguration::kInvalidHostId) {
         MORDOR_LOG_WARNING(g_log) << this << " reply from unknown address " <<
                                      *source;
         return;
@@ -90,23 +91,27 @@ void BatchPhase1Request::onReply(Address::ptr source,
                                         reply.retry_iid());
             MORDOR_LOG_TRACE(g_log) << this << " IID_TOO_LOW(" <<
                                        reply.retry_iid() << ") from " <<
-                                       *source << ", new start_iid=" <<
+                                       *source << "(" << hostId <<
+                                       "), new start_iid=" <<
                                        retryStartInstanceId_;
             break;
         case PaxosPhase1BatchReplyData::OK:
-            MORDOR_LOG_TRACE(g_log) << this << " OK from " << *source;
+            MORDOR_LOG_TRACE(g_log) << this << " OK from " << *source <<
+                                               "(" << hostId << ")";
             for(int i = 0; i < reply.reserved_instances_size(); ++i) {
                 const uint64_t& reservedInstance =
                     reply.reserved_instances(i);
                 MORDOR_LOG_TRACE(g_log) << this << " instance " <<
                                            reservedInstance << " reserved " <<
-                                           "on " << *source;
+                                           "on " << *source << "(" <<
+                                           hostId << ")";
                 reservedInstances_.insert(reservedInstance);
             }
             break;
     }
-    notAcked_.erase(source);
-    if(notAcked_.empty()) {
+
+    notAckedMask_ &= ~(1 << hostId);
+    if(notAckedMask_ == 0) {
         MORDOR_LOG_TRACE(g_log) << this << " got all replies";
         result_ = (result_ == PENDING) ? SUCCESS : result_;
         status_ = COMPLETED;
@@ -116,11 +121,12 @@ void BatchPhase1Request::onReply(Address::ptr source,
 
 void BatchPhase1Request::onTimeout() {
     FiberMutex::ScopedLock lk(mutex_);
-    if(notAcked_.empty()) {
+    if(notAckedMask_ == 0) {
         MORDOR_LOG_TRACE(g_log) << this << " onTimeout() with no pending acks";
         status_ = COMPLETED;
     } else {
-        MORDOR_LOG_TRACE(g_log) << this << " timed out";
+        MORDOR_LOG_TRACE(g_log) << this << " timed out, notAckedMask=" <<
+                                   notAckedMask_;
         status_ = TIMED_OUT;
     }
     event_.set();

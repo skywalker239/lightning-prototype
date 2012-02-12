@@ -12,15 +12,14 @@ using paxos::InstanceId;
 using paxos::kInvalidBallotId;
 using paxos::Value;
 using std::string;
+using std::vector;
 
 static Logger::ptr g_log = Log::lookup("lightning:phase2_handler");
 
-Phase2Handler::Phase2Handler(const GroupConfiguration& groupConfiguration,
-                             AcceptorState::ptr acceptorState,
+Phase2Handler::Phase2Handler(AcceptorState::ptr acceptorState,
                              RingVoter::ptr     ringVoter)
     : acceptorState_(acceptorState),
-      ringVoter_(ringVoter),
-      initiateVote_(groupConfiguration.thisHostId() == 1)
+      ringVoter_(ringVoter)
 {}
 
 bool Phase2Handler::handleRequest(Address::ptr,
@@ -41,6 +40,22 @@ bool Phase2Handler::handleRequest(Address::ptr,
     memcpy(value.data, valueData.c_str(), valueData.length());
     value.size = valueData.length();
 
+    RingConfiguration::const_ptr ringConfiguration =
+        tryAcquireRingConfiguration();
+    if(!ringConfiguration.get()) {
+        MORDOR_LOG_TRACE(g_log) << this << " no ring configuration at " <<
+                                   "request " << rpcGuid;
+        return false;
+    }
+    if(requestRingId != ringConfiguration->ringId()) {
+        MORDOR_LOG_TRACE(g_log) << this << " ring id mismatch, our=" <<
+                                   ringConfiguration->ringId() <<
+                                   " request=" << requestRingId <<
+                                   " at request " << rpcGuid;
+        return false;
+    }
+
+
     // XXX epoch
     AcceptorState::Status status = acceptorState_->beginBallot(
                                        instance,
@@ -49,10 +64,13 @@ bool Phase2Handler::handleRequest(Address::ptr,
     MORDOR_LOG_TRACE(g_log) << this << " phase2(" << instance << ", " <<
                                ballot << ", " << value.valueId << ") = " <<
                                uint32_t(status);
-    if(status == AcceptorState::OK && initiateVote_) {
+    if(status == AcceptorState::OK && canInitiateVote(ringConfiguration)) {
+        MORDOR_LOG_TRACE(g_log) << this << " initiating vote (" <<
+                                   instance << ", " << ballot << ", " <<
+                                   value.valueId << ")";
         ringVoter_->initiateVote(rpcGuid,
                                  requestEpoch,
-                                 requestRingId,
+                                 ringConfiguration,
                                  instance,
                                  ballot,
                                  value.valueId);
@@ -68,6 +86,12 @@ bool Phase2Handler::handleRequest(Address::ptr,
                                    valueId << ") = " << uint32_t(status);
     }
     return false;
+}
+
+bool Phase2Handler::canInitiateVote(
+    RingConfiguration::const_ptr ringConfiguration) const
+{
+    return ringConfiguration->ringIndex() == 1;
 }
 
 }  // namespace lightning

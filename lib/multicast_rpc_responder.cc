@@ -71,6 +71,8 @@ void MulticastRpcResponder::run() {
                                  replyData.ByteSize(),
                                  0,
                                  remoteAddress);
+            MORDOR_LOG_TRACE(g_log) << this << " sent reply for id=" <<
+                                       requestGuid << " to " << *remoteAddress;
         } else {
             MORDOR_LOG_WARNING(g_log) << this << " request id=" <<
                                          requestGuid << " ignored";

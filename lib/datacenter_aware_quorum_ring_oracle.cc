@@ -20,7 +20,7 @@ using std::set;
 static Logger::ptr g_log = Log::lookup("lightning:ring_oracle");
 
 DatacenterAwareQuorumRingOracle::DatacenterAwareQuorumRingOracle(
-    const GroupConfiguration& groupConfiguration,
+    GroupConfiguration::ptr group,
     bool okToMissDatacenter,
     uint64_t noHeartbeatTimeoutUs)
     : okToMissDatacenter_(okToMissDatacenter),
@@ -28,18 +28,17 @@ DatacenterAwareQuorumRingOracle::DatacenterAwareQuorumRingOracle(
       nextDatacenterId_(0)
 {
     // XXX For now only allow creating this on master.
-    MORDOR_ASSERT(groupConfiguration.thisHostId() ==
-                  groupConfiguration.masterId());
+    MORDOR_ASSERT(group->thisHostId() ==
+                  group->masterId());
     MORDOR_LOG_TRACE(g_log) << this << " okToMiss=" << okToMissDatacenter_ <<
                                " timeout=" << noHeartbeatTimeoutUs_;
-    const vector<HostConfiguration>& hosts = groupConfiguration.hosts();
-    for(size_t i = 0; i < hosts.size(); ++i) {
-        const uint32_t dcId = datacenterId(hosts[i].datacenter);
+    for(size_t i = 0; i < group->size(); ++i) {
+        const uint32_t dcId = datacenterId(group->host(i).datacenter);
         acceptorToDatacenterId_[i] = dcId;
         MORDOR_LOG_TRACE(g_log) << this << " host " << i << " is in dc " << dcId;
     }
     thisHostDatacenterId_ =
-        datacenterId(groupConfiguration.thisHostConfiguration().datacenter);
+        datacenterId(group->host(group->thisHostId()).datacenter);
 }
 
 uint32_t DatacenterAwareQuorumRingOracle::datacenterId(
@@ -50,7 +49,7 @@ uint32_t DatacenterAwareQuorumRingOracle::datacenterId(
         return dcIdIter->second;
     } else {
         uint32_t newDcId = nextDatacenterId_++;
-        MORDOR_LOG_TRACE(g_log) << this << " ad dc " << name << " id=" << newDcId;
+        MORDOR_LOG_TRACE(g_log) << this << " add dc " << name << " id=" << newDcId;
         datacenterNameToId_[name] = newDcId;
         return newDcId;
     }

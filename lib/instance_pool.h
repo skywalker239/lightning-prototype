@@ -60,11 +60,12 @@ private:
     const uint32_t maxOpenInstancesNumber_;
     const uint32_t maxReservedInstancesNumber_;
     
+    //! We want a min-heap on instances.
     struct InstancePtrCompare {
         bool operator()(const ProposerInstance::ptr& a,
                         const ProposerInstance::ptr& b) const
         {
-            return *a < *b;
+            return !(*a < *b);
         }
     };
 

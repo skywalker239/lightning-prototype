@@ -48,14 +48,6 @@ private:
         const std::vector<std::pair<paxos::InstanceId, Guid> >& commits,
         PaxosPhase2RequestData *request) const;
 
-    struct AddressCompare {
-        bool operator()(const Mordor::Address::ptr& lhs,
-                        const Mordor::Address::ptr& rhs) const
-        {
-            return *lhs < *rhs;
-        }
-    }; 
-
     RpcMessageData requestData_;
     const Guid valueId_;
     Mordor::Address::ptr lastRingHost_;

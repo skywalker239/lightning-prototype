@@ -108,6 +108,7 @@ MulticastRpcRequest::Status MulticastRpcRequester::request(
 
     char buffer[kMaxCommandSize];
     uint64_t commandSize = requestData.ByteSize();
+    MORDOR_LOG_TRACE(g_log) << this << " command size is " << commandSize;
     MORDOR_ASSERT(commandSize <= kMaxCommandSize);
     if(!requestData.SerializeToArray(buffer, kMaxCommandSize)) {
         MORDOR_LOG_WARNING(g_log) << this << " failed to serialize request " <<

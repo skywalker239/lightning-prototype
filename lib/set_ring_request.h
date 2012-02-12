@@ -2,6 +2,7 @@
 
 #include "guid.h"
 #include "multicast_rpc_request.h"
+#include "ring_configuration.h"
 #include <mordor/fibersynchronization.h>
 #include <mordor/socket.h>
 #include <set>
@@ -14,9 +15,7 @@ namespace lightning {
 class SetRingRequest : public MulticastRpcRequest {
 public:
     SetRingRequest(const Guid& hostGroupGuid,
-                   const std::vector<Mordor::Address::ptr>& ringAddresses,
-                   const std::vector<uint32_t>& ringHostIds,
-                   uint32_t ringId);
+                   RingConfiguration::const_ptr ring);
 
 private:
     const RpcMessageData& request() const;
@@ -30,16 +29,9 @@ private:
 
     Status status() const;
 
-    struct AddressCompare {
-        bool operator()(const Mordor::Address::ptr& lhs,
-                        const Mordor::Address::ptr& rhs) const
-        {
-            return *lhs < *rhs;
-        }
-    };
-
     RpcMessageData rpcMessageData_;
-    std::set<Mordor::Address::ptr, AddressCompare> notAcked_;
+    RingConfiguration::const_ptr ring_;
+    uint64_t notAckedMask_;
     Status status_;
 
     Mordor::FiberEvent event_;

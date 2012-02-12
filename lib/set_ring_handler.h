@@ -12,7 +12,7 @@ public:
     //! GroupConfiguration is needed to extract the master address.
     SetRingHandler(const Guid& hostGroupGuid,
                    RingChangeNotifier::ptr ringChangeNotifier,
-                   const GroupConfiguration& groupConfiguration);
+                   GroupConfiguration::ptr groupConfiguration);
 private:
     bool handleRequest(Mordor::Address::ptr sourceAddress,
                        const RpcMessageData& request,
@@ -20,6 +20,7 @@ private:
 
     const Guid hostGroupGuid_;
     const RingChangeNotifier::ptr ringChangeNotifier_;
+    GroupConfiguration::ptr groupConfiguration_;
     Mordor::Address::ptr masterAddress_;
 };
 

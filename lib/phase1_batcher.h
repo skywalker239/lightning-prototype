@@ -14,13 +14,13 @@ namespace lightning {
 //  and pushes new protocol instances into an InstancePool.
 class Phase1Batcher : public RingHolder {
 public:
+    typedef boost::shared_ptr<Phase1Batcher> ptr;
     //! Since all Paxos instances are logically distinct
     //  we only need one initial ballot id with which to
     //  attempt to reserve them. If we fail to reserve
     //  some instance in batch phase 1, it will go
     //  through a complete phase 1 elsewhere.
-    Phase1Batcher(const GroupConfiguration& groupConfiguration,
-                  const Guid& epoch,
+    Phase1Batcher(const Guid& epoch,
                   uint64_t timeoutUs,
                   uint32_t batchSize,
                   paxos::BallotId initialBallot,
@@ -40,10 +40,7 @@ private:
     //  across the acceptors.
     void resetNextInstanceId(paxos::InstanceId newStartId);
 
-    void generateRingAddresses(std::vector<Mordor::Address::ptr>* hosts,
-                               uint32_t* ringId) const;
 
-    const GroupConfiguration groupConfiguration_;
     const Guid epoch_;
     const uint64_t timeoutUs_;
     const uint32_t batchSize_;

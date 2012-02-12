@@ -67,10 +67,10 @@ Phase2Request::Phase2Request(
     serializeValue(value, request->mutable_value());
     serializeCommits(commits, request);
 
-    MORDOR_LOG_TRACE(g_log) << this << "P2(" << epoch << ", " <<
+    MORDOR_LOG_TRACE(g_log) << this << " P2(" << epoch << ", " <<
                                ringId << ", " << instance << ", " <<
                                ballot << ", " << value->valueId << ", " <<
-                               commits << ")";
+                               commits << ") host=" << *lastRingHost_;
  }
 
 Phase2Request::Result Phase2Request::result() const {

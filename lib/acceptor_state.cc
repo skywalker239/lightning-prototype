@@ -165,4 +165,12 @@ AcceptorState::Status AcceptorState::boolToStatus(const bool boolean) const
     return boolean ? OK : NACKED;
 }
 
+void AcceptorState::reset() {
+    FiberMutex::ScopedLock lk(mutex_);
+    pendingInstances_.clear();
+    committedInstances_.clear();
+    notCommittedInstanceIds_.clear();
+    afterLastCommittedInstanceId_ = 0;
+}
+
 }  // namespace lightning

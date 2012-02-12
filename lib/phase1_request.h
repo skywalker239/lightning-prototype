@@ -3,6 +3,7 @@
 #include "guid.h"
 #include "multicast_rpc_request.h"
 #include "paxos_defs.h"
+#include "ring_configuration.h"
 #include "value.h"
 #include <mordor/fibersynchronization.h>
 #include <map>
@@ -15,11 +16,9 @@ public:
     typedef boost::shared_ptr<Phase1Request> ptr;
 
     Phase1Request(const Guid& epoch,
-                  uint32_t ringId,
                   paxos::BallotId ballot,
                   paxos::InstanceId instance,
-                  const std::vector<Mordor::Address::ptr>&
-                        requestRing);
+                  RingConfiguration::const_ptr ring);
 
     enum Result {
         PENDING,
@@ -49,16 +48,10 @@ private:
 
     paxos::Value::ptr parseValue(const ValueData& valueData) const;
 
-    struct AddressCompare {
-        bool operator()(const Mordor::Address::ptr& lhs,
-                        const Mordor::Address::ptr& rhs) const
-        {
-            return *lhs < *rhs;
-        }
-    }; 
-
     RpcMessageData requestData_;
-    std::set<Mordor::Address::ptr, AddressCompare> notAcked_;
+    
+    RingConfiguration::const_ptr ring_;
+    uint64_t notAckedMask_;
     Status status_;
     Result result_;
 

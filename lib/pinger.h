@@ -2,6 +2,7 @@
 
 #include "host_configuration.h"
 #include "ping_tracker.h"
+#include "ring_configuration.h"
 #include "multicast_rpc_requester.h"
 #include <mordor/socket.h>
 #include <mordor/scheduler.h>
@@ -21,7 +22,7 @@ public:
     //  collects replies from the given hosts using the supplied PingTracker.
     Pinger(Mordor::IOManager* ioManager,
            MulticastRpcRequester::ptr requester,
-           const GroupConfiguration& groupConfiguration,
+           GroupConfiguration::ptr groupConfiguration,
            uint64_t pingIntervalUs,
            uint64_t pingTimeoutUs,
            PingTracker::ptr pingTracker);
@@ -33,7 +34,7 @@ private:
 
     Mordor::IOManager* ioManager_;
     MulticastRpcRequester::ptr requester_;
-    std::vector<Mordor::Address::ptr> hosts_;
+    RingConfiguration::const_ptr pingRing_;
     const uint64_t pingIntervalUs_;
     const uint64_t pingTimeoutUs_;
     PingTracker::ptr pingTracker_;

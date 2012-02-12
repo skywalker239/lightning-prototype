@@ -20,7 +20,11 @@ InstancePool::InstancePool(uint32_t maxOpenInstancesNumber,
     : maxOpenInstancesNumber_(maxOpenInstancesNumber),
       maxReservedInstancesNumber_(maxReservedInstancesNumber),
       pushMoreOpenInstancesEvent_(pushMoreOpenInstancesEvent)
-{}
+{
+    FiberMutex::ScopedLock lk(mutex_);
+    //! pushing to an empty pool is allowed
+    pushMoreOpenInstancesEvent_->set();
+}
 
 void InstancePool::pushOpenInstance(ProposerInstance::ptr instance) {
     MORDOR_ASSERT(instance->state() == ProposerInstance::P1_OPEN);

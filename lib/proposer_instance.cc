@@ -58,7 +58,7 @@ void ProposerInstance::phase1Retry(BallotId nextBallotId) {
 
 void ProposerInstance::phase2Pending(shared_ptr<Value> value) {
     MORDOR_ASSERT(state_ == P1_PENDING);
-    MORDOR_ASSERT(!value.get());
+    MORDOR_ASSERT(!value_.get());
 
     MORDOR_LOG_TRACE(g_log) << this << " iid = " << instanceId_ << " " <<
                                "P1_PENDING -> P2_PENDING, ballotId = " <<

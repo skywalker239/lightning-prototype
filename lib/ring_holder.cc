@@ -55,18 +55,9 @@ RingConfiguration::const_ptr RingHolder::tryAcquireRingConfiguration() const {
 string RingHolder::configurationToString() const {
     ostringstream ss;
     if(!ringConfiguration_) {
-        ss << " (null) ";
+        ss << "(null)";
     } else {
-        const vector<uint32_t>& ringHostIds =
-            ringConfiguration_->ringHostIds();
-        ss << "(" << ringConfiguration_->ringId() << ", [";
-        for(size_t i = 0; i < ringHostIds.size(); ++i) {
-            ss << ringHostIds[i];
-            if(i + 1 < ringHostIds.size()) {
-                ss << ", ";
-            }
-        }
-        ss << "])";
+        ss << *ringConfiguration_;
     }
     return ss.str();
 }

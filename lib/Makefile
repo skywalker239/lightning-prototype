@@ -48,6 +48,7 @@ LIB_OBJS += \
     phase2_request.o \
     proposer_state.o \
     phase1_batcher.o \
+    multicast_rpc_request.o \
     
 
 TEST_TARGETS = test_ring_master test_ring_responder test_guid

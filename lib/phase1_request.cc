@@ -27,8 +27,10 @@ Phase1Request::Phase1Request(
     const Guid& epoch,
     BallotId ballot,
     InstanceId instance,
-    RingConfiguration::const_ptr ring)
+    RingConfiguration::const_ptr ring,
+    uint64_t timeoutUs)
     : ring_(ring),
+      timeoutUs_(timeoutUs),
       notAckedMask_(ring_->ringMask()),
       status_(IN_PROGRESS),
       result_(PENDING),
@@ -139,6 +141,10 @@ void Phase1Request::onTimeout() {
         status_ = TIMED_OUT;
     }
     event_.set();
+}
+
+uint64_t Phase1Request::timeoutUs() const {
+    return timeoutUs_;
 }
 
 void Phase1Request::wait() {

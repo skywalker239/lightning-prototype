@@ -21,10 +21,12 @@ static Logger::ptr g_log = Log::lookup("lightning:ping_request");
 PingRequest::PingRequest(
     RingConfiguration::const_ptr ring,
     uint64_t pingId,
-    PingTracker::ptr pingTracker)
+    PingTracker::ptr pingTracker,
+    uint64_t timeoutUs)
     : ring_(ring),
       notAckedMask_(ring_->ringMask()),
       pingTracker_(pingTracker),
+      timeoutUs_(timeoutUs),
       status_(IN_PROGRESS),
       event_(true)
 {
@@ -86,6 +88,10 @@ void PingRequest::onTimeout() {
         status_ = TIMED_OUT;
     }
     event_.set();
+}
+
+uint64_t PingRequest::timeoutUs() const {
+    return timeoutUs_;
 }
 
 void PingRequest::wait() {

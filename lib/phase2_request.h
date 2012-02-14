@@ -21,7 +21,8 @@ public:
                   paxos::Value::ptr value,
                   const std::vector<std::pair<paxos::InstanceId, Guid> >&
                       commits,
-                  Mordor::Address::ptr lastRingHost);
+                  Mordor::Address::ptr lastRingHost,
+                  uint64_t timeoutUs);
 
     enum Result {
         PENDING,
@@ -42,6 +43,8 @@ private:
 
     void wait();
 
+    uint64_t timeoutUs() const;
+
     void serializeValue(paxos::Value::ptr value, ValueData* valueData) const;
 
     void serializeCommits(
@@ -51,6 +54,7 @@ private:
     RpcMessageData requestData_;
     const Guid valueId_;
     Mordor::Address::ptr lastRingHost_;
+    const uint64_t timeoutUs_;
     Status status_;
     Result result_;
 

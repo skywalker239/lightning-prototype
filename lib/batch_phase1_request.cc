@@ -26,8 +26,10 @@ BatchPhase1Request::BatchPhase1Request(
     BallotId ballotId,
     InstanceId instanceRangeBegin,
     InstanceId instanceRangeEnd,
-    RingConfiguration::const_ptr ring)
+    RingConfiguration::const_ptr ring,
+    uint64_t timeoutUs)
     : ring_(ring),
+      timeoutUs_(timeoutUs),
       notAckedMask_(ring_->ringMask()),
       status_(IN_PROGRESS),
       result_(PENDING),
@@ -130,6 +132,10 @@ void BatchPhase1Request::onTimeout() {
         status_ = TIMED_OUT;
     }
     event_.set();
+}
+
+uint64_t BatchPhase1Request::timeoutUs() const {
+    return timeoutUs_;
 }
 
 void BatchPhase1Request::wait() {

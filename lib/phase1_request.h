@@ -18,7 +18,8 @@ public:
     Phase1Request(const Guid& epoch,
                   paxos::BallotId ballot,
                   paxos::InstanceId instance,
-                  RingConfiguration::const_ptr ring);
+                  RingConfiguration::const_ptr ring,
+                  uint64_t timeoutUs);
 
     enum Result {
         PENDING,
@@ -46,11 +47,14 @@ private:
 
     void wait();
 
+    uint64_t timeoutUs() const;
+
     paxos::Value::ptr parseValue(const ValueData& valueData) const;
 
     RpcMessageData requestData_;
     
     RingConfiguration::const_ptr ring_;
+    const uint64_t timeoutUs_;
     uint64_t notAckedMask_;
     Status status_;
     Result result_;

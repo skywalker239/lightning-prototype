@@ -14,7 +14,8 @@ class PingRequest : public MulticastRpcRequest {
 public:
     PingRequest(RingConfiguration::const_ptr ring,
                 uint64_t pingId,
-                PingTracker::ptr pingTracker);
+                PingTracker::ptr pingTracker,
+                uint64_t timeoutUs);
 
 private:
     const RpcMessageData& request() const;
@@ -26,12 +27,15 @@ private:
 
     void wait();
 
+    uint64_t timeoutUs() const;
+
     Status status() const;
 
     RpcMessageData rpcMessageData_;
     RingConfiguration::const_ptr ring_;
     uint64_t notAckedMask_;
     PingTracker::ptr pingTracker_;
+    const uint64_t timeoutUs_;
     Status status_;
 
     Mordor::FiberEvent event_;

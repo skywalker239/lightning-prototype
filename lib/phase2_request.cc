@@ -50,9 +50,11 @@ Phase2Request::Phase2Request(
     BallotId ballot,
     Value::ptr value,
     const vector<pair<InstanceId, Guid> >& commits,
-    Address::ptr lastRingHost)
+    Address::ptr lastRingHost,
+    uint64_t timeoutUs)
     : valueId_(value->valueId),
       lastRingHost_(lastRingHost),
+      timeoutUs_(timeoutUs),
       status_(IN_PROGRESS),
       result_(PENDING),
       event_(true)
@@ -111,6 +113,10 @@ void Phase2Request::onTimeout() {
     status_ = TIMED_OUT;
     MORDOR_LOG_TRACE(g_log) << this << " timed out";
     event_.set();
+}
+
+uint64_t Phase2Request::timeoutUs() const {
+    return timeoutUs_;
 }
 
 void Phase2Request::wait() {

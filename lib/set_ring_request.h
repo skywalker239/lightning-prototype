@@ -15,7 +15,8 @@ namespace lightning {
 class SetRingRequest : public MulticastRpcRequest {
 public:
     SetRingRequest(const Guid& hostGroupGuid,
-                   RingConfiguration::const_ptr ring);
+                   RingConfiguration::const_ptr ring,
+                   uint64_t timeoutUs);
 
 private:
     const RpcMessageData& request() const;
@@ -27,10 +28,13 @@ private:
 
     void wait();
 
+    uint64_t timeoutUs() const;
+
     Status status() const;
 
     RpcMessageData rpcMessageData_;
     RingConfiguration::const_ptr ring_;
+    const uint64_t timeoutUs_;
     uint64_t notAckedMask_;
     Status status_;
 

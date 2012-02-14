@@ -17,7 +17,8 @@ public:
                        paxos::BallotId ballotId,
                        paxos::InstanceId instanceRangeBegin,
                        paxos::InstanceId instanceRangeEnd,
-                       RingConfiguration::const_ptr ring);
+                       RingConfiguration::const_ptr ring,
+                       const uint64_t timeoutUs);
 
     enum Result {
         PENDING,
@@ -43,9 +44,12 @@ private:
 
     void wait();
 
+    uint64_t timeoutUs() const;
+
     RpcMessageData requestData_;
 
     RingConfiguration::const_ptr ring_;
+    const uint64_t timeoutUs_;
     uint64_t notAckedMask_;
     Status status_;
     Result result_;

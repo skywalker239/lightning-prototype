@@ -18,8 +18,10 @@ static Logger::ptr g_log = Log::lookup("lightning:set_ring_request");
 
 SetRingRequest::SetRingRequest(
     const Guid& hostGroupGuid,
-    RingConfiguration::const_ptr ring)
+    RingConfiguration::const_ptr ring,
+    uint64_t timeoutUs)
     : ring_(ring),
+      timeoutUs_(timeoutUs),
       notAckedMask_(ring->ringMask()),
       status_(IN_PROGRESS),
       event_(true)
@@ -75,6 +77,10 @@ void SetRingRequest::onTimeout() {
         status_ = TIMED_OUT;
     }
     event_.set();
+}
+
+uint64_t SetRingRequest::timeoutUs() const {
+    return timeoutUs_;
 }
 
 void SetRingRequest::wait() {

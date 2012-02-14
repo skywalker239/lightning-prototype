@@ -42,6 +42,9 @@ public:
     //  acks have been collected or a nack/timeout happened.
     virtual void wait() = 0;
 
+    //! The timeout for this request, in microseconds.
+    virtual uint64_t timeoutUs() const = 0;
+
     //! Current status. 
     virtual Status status() const = 0;
 };

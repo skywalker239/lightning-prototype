@@ -51,6 +51,10 @@ public:
         return groupConfiguration_->replyAddressToId(address);
     }
 
+    const GroupConfiguration::ptr& group() const {
+        return groupConfiguration_;
+    }
+
 private:
     GroupConfiguration::ptr groupConfiguration_;
     const std::vector<uint32_t> ringHostIds_;

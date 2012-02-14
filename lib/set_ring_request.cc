@@ -20,11 +20,8 @@ SetRingRequest::SetRingRequest(
     const Guid& hostGroupGuid,
     RingConfiguration::const_ptr ring,
     uint64_t timeoutUs)
-    : ring_(ring),
-      timeoutUs_(timeoutUs),
-      notAckedMask_(ring->ringMask()),
-      status_(IN_PROGRESS),
-      event_(true)
+    : MulticastRpcRequest(ring, timeoutUs),
+      ring_(ring)
 {
     rpcMessageData_.set_type(RpcMessageData::SET_RING);
     hostGroupGuid.serialize(
@@ -40,57 +37,11 @@ const RpcMessageData& SetRingRequest::request() const {
     return rpcMessageData_;
 }
 
-void SetRingRequest::onReply(Address::ptr sourceAddress,
-                             const RpcMessageData& reply)
+void SetRingRequest::applyReply(uint32_t hostId,
+                                const RpcMessageData& /* reply */)
 {
-    FiberMutex::ScopedLock lk(mutex_);
-    MORDOR_ASSERT(reply.type() == RpcMessageData::SET_RING);
-    const uint32_t hostId = ring_->replyAddressToId(sourceAddress);
-
-    if(hostId == GroupConfiguration::kInvalidHostId) {
-        MORDOR_LOG_TRACE(g_log) << this << " reply from unknown address " <<
-                                   *sourceAddress;
-        return;
-    }
-
-    notAckedMask_ &= ~(1 << hostId);
-    MORDOR_LOG_TRACE(g_log) << this << " " << *sourceAddress << "(" <<
-                               hostId << ") acked ring_id=" <<
-                               rpcMessageData_.set_ring().ring_id();
-    if(notAckedMask_ == 0) {
-        status_ = COMPLETED;
-        event_.set();
-    }
-}
-
-void SetRingRequest::onTimeout() {
-    FiberMutex::ScopedLock lk(mutex_);
-    const uint32_t ringId = rpcMessageData_.set_ring().ring_id();
-    if(notAckedMask_ == 0) {
-        MORDOR_LOG_TRACE(g_log) << this << " ring_id=" << ringId <<
-                                   " onTimeout() with no pending acks";
-        status_ = COMPLETED;
-    } else {
-        MORDOR_LOG_TRACE(g_log) << this << " set ring_id=" << ringId <<
-                                   " timed out, notAckedMask=" <<
-                                   notAckedMask_;
-        status_ = TIMED_OUT;
-    }
-    event_.set();
-}
-
-uint64_t SetRingRequest::timeoutUs() const {
-    return timeoutUs_;
-}
-
-void SetRingRequest::wait() {
-    event_.wait();
-    FiberMutex::ScopedLock lk(mutex_);
-}
-
-MulticastRpcRequest::Status SetRingRequest::status() const {
-    FiberMutex::ScopedLock lk(mutex_);
-    return status_;
+    MORDOR_LOG_TRACE(g_log) << this << " " << ring_->group()->host(hostId) <<
+                               " acked " << *ring_;
 }
 
 }  // namespace lightning

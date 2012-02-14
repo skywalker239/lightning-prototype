@@ -1,6 +1,8 @@
 #pragma once
 
 #include "proto/rpc_messages.pb.h"
+#include "ring_configuration.h"
+#include <mordor/fibersynchronization.h>
 #include <mordor/socket.h>
 #include <boost/shared_ptr.hpp>
 #include <string>
@@ -22,31 +24,47 @@ public:
         TIMED_OUT
     };
 
-    virtual ~MulticastRpcRequest() {}
+    //! This request will await responses from all acceptors
+    //  of ring (except itself) and have a timeout of timeoutUs.
+    MulticastRpcRequest(RingConfiguration::const_ptr ring,
+                        uint64_t timeoutUs);
+
+    virtual ~MulticastRpcRequest();
+
+    //! If this address belongs to the request ring,
+    //  passes the reply to applyReply(), then marks
+    //  that sourceAddress has responded. If it
+    //  was the last needed ack, releases the wait()'er.
+    void onReply(Mordor::Address::ptr sourceAddress,
+                 const RpcMessageData& reply);
+
+    //! Request-specific logic goes here.
+    virtual void applyReply(uint32_t hostId,
+                            const RpcMessageData& reply) = 0;
 
     //! The serialized request to transmit over the network.
     virtual const RpcMessageData& request() const = 0;
 
-    //! Registers a reply from a certain address.
-    //  Releases the wait()'er if this reply is enough for the
-    //  request to be considered completed.
-    virtual void onReply(Mordor::Address::ptr sourceAddress,
-                         const RpcMessageData& reply) = 0;
+    //! Sets the status to TIMED_OUT and releases the waiter.
+    void onTimeout();
 
-    //! Registers that a timeout occurred.
-    //  The implementation should allow this to be called
-    //  even after all the necessary acks have been received.
-    virtual void onTimeout() = 0;
-
-    //! Should block the calling fiber until all necessary
-    //  acks have been collected or a nack/timeout happened.
-    virtual void wait() = 0;
+    //! Blocks the caller until all necessary replies are collected
+    //  or a timeout happens.
+    void wait();
 
     //! The timeout for this request, in microseconds.
-    virtual uint64_t timeoutUs() const = 0;
+    uint64_t timeoutUs() const;
 
     //! Current status. 
-    virtual Status status() const = 0;
+    Status status() const;
+private:
+    RingConfiguration::const_ptr ring_;
+    const uint64_t timeoutUs_;
+    uint64_t notAckedMask_;
+    Status status_;
+
+    Mordor::FiberEvent event_;
+    mutable Mordor::FiberMutex mutex_;
 };
 
 }  // namespace lightning

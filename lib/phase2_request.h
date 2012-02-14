@@ -13,7 +13,9 @@ namespace lightning {
 class Phase2Request : public MulticastRpcRequest {
 public:
     typedef boost::shared_ptr<Phase2Request> ptr;
-    
+
+    //! Here the ring parameter is actually a surrogate ring
+    //  containing only the last host of the current ring.
     Phase2Request(const Guid& epoch,
                   uint32_t ringId,
                   paxos::InstanceId instance,
@@ -21,7 +23,7 @@ public:
                   paxos::Value::ptr value,
                   const std::vector<std::pair<paxos::InstanceId, Guid> >&
                       commits,
-                  Mordor::Address::ptr lastRingHost,
+                  RingConfiguration::const_ptr ring,
                   uint64_t timeoutUs);
 
     enum Result {
@@ -31,19 +33,11 @@ public:
 
     Result result() const;
 
-    Status status() const;
-
 private:
     const RpcMessageData& request() const;
 
-    void onReply(Mordor::Address::ptr source,
-                 const RpcMessageData& reply);
-
-    void onTimeout();
-
-    void wait();
-
-    uint64_t timeoutUs() const;
+    void applyReply(uint32_t hostId,
+                    const RpcMessageData& reply);
 
     void serializeValue(paxos::Value::ptr value, ValueData* valueData) const;
 
@@ -53,13 +47,8 @@ private:
 
     RpcMessageData requestData_;
     const Guid valueId_;
-    Mordor::Address::ptr lastRingHost_;
-    const uint64_t timeoutUs_;
-    Status status_;
+    const GroupConfiguration::ptr& group_;
     Result result_;
-
-    Mordor::FiberEvent event_;
-    mutable Mordor::FiberMutex mutex_;
 };
 
 } // namespace lightning

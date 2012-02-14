@@ -5,9 +5,6 @@
 
 namespace lightning {
 
-using Mordor::Address;
-using Mordor::FiberEvent;
-using Mordor::FiberMutex;
 using Mordor::Log;
 using Mordor::Logger;
 using paxos::BallotId;
@@ -28,13 +25,10 @@ BatchPhase1Request::BatchPhase1Request(
     InstanceId instanceRangeEnd,
     RingConfiguration::const_ptr ring,
     uint64_t timeoutUs)
-    : ring_(ring),
-      timeoutUs_(timeoutUs),
-      notAckedMask_(ring_->ringMask()),
-      status_(IN_PROGRESS),
+    : MulticastRpcRequest(ring, timeoutUs),
+      group_(ring->group()),
       result_(PENDING),
-      retryStartInstanceId_(0),
-      event_(true)
+      retryStartInstanceId_(0)
 {
     requestData_.set_type(RpcMessageData::PAXOS_BATCH_PHASE1);
     PaxosPhase1BatchRequestData* request =
@@ -52,38 +46,25 @@ BatchPhase1Request::BatchPhase1Request(
  }
 
 BatchPhase1Request::Result BatchPhase1Request::result() const {
-    FiberMutex::ScopedLock lk(mutex_);
     return result_;
 }
 
 const set<InstanceId>& BatchPhase1Request::reservedInstances() const
 {
-    FiberMutex::ScopedLock lk(mutex_);
     return reservedInstances_;
 }
 
 InstanceId BatchPhase1Request::retryStartInstanceId() const {
-    FiberMutex::ScopedLock lk(mutex_);
     return retryStartInstanceId_;
 }
 
 const RpcMessageData& BatchPhase1Request::request() const {
-    FiberMutex::ScopedLock lk(mutex_);
     return requestData_;
 }
 
-void BatchPhase1Request::onReply(Address::ptr source,
-                                 const RpcMessageData& rpcReply)
+void BatchPhase1Request::applyReply(uint32_t hostId,
+                                    const RpcMessageData& rpcReply)
 {
-    FiberMutex::ScopedLock lk(mutex_);
-
-    const uint32_t hostId = ring_->replyAddressToId(source);
-    if(hostId == GroupConfiguration::kInvalidHostId) {
-        MORDOR_LOG_WARNING(g_log) << this << " reply from unknown address " <<
-                                     *source;
-        return;
-    }
-
     MORDOR_ASSERT(rpcReply.has_phase1_batch_reply());
     const PaxosPhase1BatchReplyData& reply = rpcReply.phase1_batch_reply();
     switch(reply.type()) {
@@ -93,59 +74,23 @@ void BatchPhase1Request::onReply(Address::ptr source,
                                         reply.retry_iid());
             MORDOR_LOG_TRACE(g_log) << this << " IID_TOO_LOW(" <<
                                        reply.retry_iid() << ") from " <<
-                                       *source << "(" << hostId <<
-                                       "), new start_iid=" <<
+                                       group_->host(hostId) <<
+                                       ", new start_iid=" <<
                                        retryStartInstanceId_;
             break;
         case PaxosPhase1BatchReplyData::OK:
-            MORDOR_LOG_TRACE(g_log) << this << " OK from " << *source <<
-                                               "(" << hostId << ")";
+            MORDOR_LOG_TRACE(g_log) << this << " OK from " <<
+                                       group_->host(hostId);
             for(int i = 0; i < reply.reserved_instances_size(); ++i) {
                 const uint64_t& reservedInstance =
                     reply.reserved_instances(i);
                 MORDOR_LOG_TRACE(g_log) << this << " instance " <<
                                            reservedInstance << " reserved " <<
-                                           "on " << *source << "(" <<
-                                           hostId << ")";
+                                           "on " << group_->host(hostId);
                 reservedInstances_.insert(reservedInstance);
             }
             break;
     }
-
-    notAckedMask_ &= ~(1 << hostId);
-    if(notAckedMask_ == 0) {
-        MORDOR_LOG_TRACE(g_log) << this << " got all replies";
-        result_ = (result_ == PENDING) ? SUCCESS : result_;
-        status_ = COMPLETED;
-        event_.set();
-    }
-}
-
-void BatchPhase1Request::onTimeout() {
-    FiberMutex::ScopedLock lk(mutex_);
-    if(notAckedMask_ == 0) {
-        MORDOR_LOG_TRACE(g_log) << this << " onTimeout() with no pending acks";
-        status_ = COMPLETED;
-    } else {
-        MORDOR_LOG_TRACE(g_log) << this << " timed out, notAckedMask=" <<
-                                   notAckedMask_;
-        status_ = TIMED_OUT;
-    }
-    event_.set();
-}
-
-uint64_t BatchPhase1Request::timeoutUs() const {
-    return timeoutUs_;
-}
-
-void BatchPhase1Request::wait() {
-    event_.wait();
-    FiberMutex::ScopedLock lk(mutex_);
-}
-
-MulticastRpcRequest::Status BatchPhase1Request::status() const {
-    FiberMutex::ScopedLock lk(mutex_);
-    return status_;
 }
 
 }  // namespace lightning

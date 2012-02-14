@@ -28,37 +28,24 @@ public:
 
     Result result() const;
 
-    Status status() const;
-
     const std::set<paxos::InstanceId>&
         reservedInstances() const;
 
     paxos::InstanceId retryStartInstanceId() const;
 private:
-    const RpcMessageData& request() const;
+    virtual const RpcMessageData& request() const;
 
-    void onReply(Mordor::Address::ptr source,
-                 const RpcMessageData& reply);
+    virtual void applyReply(uint32_t hostId,
+                            const RpcMessageData& reply);
 
-    void onTimeout();
-
-    void wait();
-
-    uint64_t timeoutUs() const;
+    const GroupConfiguration::ptr& group_;
 
     RpcMessageData requestData_;
 
-    RingConfiguration::const_ptr ring_;
-    const uint64_t timeoutUs_;
-    uint64_t notAckedMask_;
-    Status status_;
     Result result_;
 
     std::set<paxos::InstanceId> reservedInstances_;
     paxos::InstanceId retryStartInstanceId_;
-
-    Mordor::FiberEvent event_;
-    mutable Mordor::FiberMutex mutex_;
 };
 
 } // namespace lightning

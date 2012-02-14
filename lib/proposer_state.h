@@ -63,6 +63,9 @@ private:
     std::deque<Commit> commitQueue_;
     static const size_t kCommitBatchLimit = 10;
 
+    //! Dummy ring id for the phase 2 one-host 'ring'.
+    static const size_t kPhase2RingId = 239239;
+
     Mordor::FiberMutex mutex_;
 };
 

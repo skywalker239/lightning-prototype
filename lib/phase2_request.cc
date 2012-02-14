@@ -50,14 +50,12 @@ Phase2Request::Phase2Request(
     BallotId ballot,
     Value::ptr value,
     const vector<pair<InstanceId, Guid> >& commits,
-    Address::ptr lastRingHost,
+    RingConfiguration::const_ptr ring,
     uint64_t timeoutUs)
-    : valueId_(value->valueId),
-      lastRingHost_(lastRingHost),
-      timeoutUs_(timeoutUs),
-      status_(IN_PROGRESS),
-      result_(PENDING),
-      event_(true)
+    : MulticastRpcRequest(ring, timeoutUs),
+      valueId_(value->valueId),
+      group_(ring->group()),
+      result_(PENDING)
 {
     requestData_.set_type(RpcMessageData::PAXOS_PHASE2);
     PaxosPhase2RequestData* request =
@@ -72,30 +70,20 @@ Phase2Request::Phase2Request(
     MORDOR_LOG_TRACE(g_log) << this << " P2(" << epoch << ", " <<
                                ringId << ", " << instance << ", " <<
                                ballot << ", " << value->valueId << ", " <<
-                               commits << ") host=" << *lastRingHost_;
+                               commits << ") ring=" << *ring;
  }
 
 Phase2Request::Result Phase2Request::result() const {
-    FiberMutex::ScopedLock lk(mutex_);
     return result_;
 }
 
 const RpcMessageData& Phase2Request::request() const {
-    FiberMutex::ScopedLock lk(mutex_);
     return requestData_;
 }
 
-void Phase2Request::onReply(Address::ptr source,
-                            const RpcMessageData& rpcReply)
+void Phase2Request::applyReply(uint32_t /* hostId */,
+                               const RpcMessageData& rpcReply)
 {
-    FiberMutex::ScopedLock lk(mutex_);
-
-    if(*source != *lastRingHost_) {
-        MORDOR_LOG_WARNING(g_log) << this << " reply from unknown address " <<
-                                     *source;
-        return;
-    }
-    
     MORDOR_ASSERT(rpcReply.has_vote());
     const VoteData& vote = rpcReply.vote();
     Guid voteValueId = Guid::parse(vote.value_id());
@@ -103,25 +91,7 @@ void Phase2Request::onReply(Address::ptr source,
     MORDOR_LOG_TRACE(g_log) << this << " phase2 successful for iid=" <<
                                requestData_.phase2_request().instance() <<
                                ", valueId=" << valueId_;
-    status_ = COMPLETED;
     result_ = SUCCESS;
-    event_.set();
-}
-
-void Phase2Request::onTimeout() {
-    FiberMutex::ScopedLock lk(mutex_);
-    status_ = TIMED_OUT;
-    MORDOR_LOG_TRACE(g_log) << this << " timed out";
-    event_.set();
-}
-
-uint64_t Phase2Request::timeoutUs() const {
-    return timeoutUs_;
-}
-
-void Phase2Request::wait() {
-    event_.wait();
-    FiberMutex::ScopedLock lk(mutex_);
 }
 
 void Phase2Request::serializeValue(Value::ptr value,
@@ -140,11 +110,6 @@ void Phase2Request::serializeCommits(
         commitData->set_instance(commits[i].first);
         commits[i].second.serialize(commitData->mutable_value_id());
     }
-}
-
-MulticastRpcRequest::Status Phase2Request::status() const {
-    FiberMutex::ScopedLock lk(mutex_);
-    return status_;
 }
 
 }  // namespace lightning

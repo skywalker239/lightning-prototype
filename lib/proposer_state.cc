@@ -142,13 +142,18 @@ void ProposerState::doPhase2(ProposerInstance::ptr instance) {
     }
 
     RingConfiguration::const_ptr ring = acquireRingConfiguration();
+    // XXX extra allocation
+    RingConfiguration::ptr phase2Ring(
+        new RingConfiguration(group_,
+                              vector<uint32_t>(1, ring->ringHostIds().back()),
+                              kPhase2RingId));
     Phase2Request::ptr request(new Phase2Request(epoch_,
                                                  ring->ringId(),
                                                  instance->instanceId(),
                                                  instance->ballotId(),
                                                  instance->value(),
                                                  commits,
-                                                 ring->lastRingAddress(),
+                                                 phase2Ring,
                                                  phase2TimeoutUs_));
     if(requester_->request(request) ==
         MulticastRpcRequest::COMPLETED)

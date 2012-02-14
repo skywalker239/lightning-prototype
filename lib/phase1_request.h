@@ -29,8 +29,6 @@ public:
 
     Result result() const;
 
-    Status status() const;
-
     paxos::BallotId lastPromisedBallot() const;
 
     paxos::BallotId lastVotedBallot() const;
@@ -40,31 +38,19 @@ public:
 private:
     const RpcMessageData& request() const;
 
-    void onReply(Mordor::Address::ptr source,
-                 const RpcMessageData& reply);
-
-    void onTimeout();
-
-    void wait();
-
-    uint64_t timeoutUs() const;
+    void applyReply(uint32_t hostId,
+                    const RpcMessageData& reply);
 
     paxos::Value::ptr parseValue(const ValueData& valueData) const;
 
     RpcMessageData requestData_;
     
-    RingConfiguration::const_ptr ring_;
-    const uint64_t timeoutUs_;
-    uint64_t notAckedMask_;
-    Status status_;
+    const GroupConfiguration::ptr& group_;
     Result result_;
 
     paxos::BallotId lastPromisedBallotId_;
     paxos::BallotId lastVotedBallotId_;
     paxos::Value::ptr lastVotedValue_;
-
-    Mordor::FiberEvent event_;
-    mutable Mordor::FiberMutex mutex_;
 };
 
 } // namespace lightning

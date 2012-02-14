@@ -7,6 +7,7 @@ namespace lightning {
 
 using Mordor::FiberMutex;
 using Mordor::FiberEvent;
+using Mordor::IOManager;
 using Mordor::Address;
 using Mordor::Logger;
 using Mordor::Log;
@@ -22,9 +23,12 @@ PingTracker::PingTracker(GroupConfiguration::ptr groupConfiguration,
                          uint64_t pingWindowSize,
                          uint64_t singlePingTimeoutUs,
                          uint64_t noHeartbeatTimeoutUs,
-                         boost::shared_ptr<FiberEvent> hostDownEvent)
-    : noHeartbeatTimeoutUs_(noHeartbeatTimeoutUs),
-      hostDownEvent_(hostDownEvent)
+                         boost::shared_ptr<FiberEvent> hostDownEvent,
+                         IOManager* ioManager)
+    : singlePingTimeoutUs_(singlePingTimeoutUs),
+      noHeartbeatTimeoutUs_(noHeartbeatTimeoutUs),
+      hostDownEvent_(hostDownEvent),
+      ioManager_(ioManager)
 {
     MORDOR_LOG_TRACE(g_log) << this << " creating tracker for " <<
                                groupConfiguration->size() - 1<<
@@ -52,6 +56,11 @@ void PingTracker::registerPing(uint64_t id, uint64_t sendTime) {
    {
        i->second.addPing(id, sendTime);
    }
+   ioManager_->registerTimer(singlePingTimeoutUs_,
+                             boost::bind(
+                                &PingTracker::timeoutPing,
+                                this,
+                                id));
 }
 
 void PingTracker::registerPong(uint32_t hostId,

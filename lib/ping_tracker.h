@@ -3,6 +3,7 @@
 #include "host_configuration.h"
 #include "ping_stats.h"
 #include <mordor/fibersynchronization.h>
+#include <mordor/iomanager.h>
 #include <mordor/socket.h>
 #include <stdint.h>
 #include <map>
@@ -35,9 +36,11 @@ public:
                 uint64_t pingWindowSize,
                 uint64_t singlePingTimeoutUs,
                 uint64_t noHeartbeatTimeoutUs,
-                boost::shared_ptr<Mordor::FiberEvent> hostDownEvent);
+                boost::shared_ptr<Mordor::FiberEvent> hostDownEvent,
+                Mordor::IOManager* ioManager);
 
     //! Register an outgoing multicast ping.
+    //  Schedules timeoutPing(id) in singlePingTimeoutUs.
     void registerPing(uint64_t id, uint64_t sendTime);
 
     //! Try to timeout the given ping.
@@ -62,9 +65,13 @@ public:
 private:
     std::map<uint32_t, PingStats> perHostPingStats_;
 
+    const uint64_t singlePingTimeoutUs_;
     const uint64_t noHeartbeatTimeoutUs_;
 
     boost::shared_ptr<Mordor::FiberEvent> hostDownEvent_;
+
+    Mordor::IOManager* ioManager_;
+
     mutable Mordor::FiberMutex mutex_;
 };
 

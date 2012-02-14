@@ -63,9 +63,10 @@ void Pinger::doSinglePing(uint64_t id) {
     MulticastRpcRequest::ptr request(
         new PingRequest(pingRing_,
                         id,
-                        pingTracker_));
+                        pingTracker_,
+                        pingTimeoutUs_));
     MulticastRpcRequest::Status status =
-        requester_->request(request, pingTimeoutUs_);
+        requester_->request(request);
     MORDOR_LOG_TRACE(g_log) << this << " doSinglePing(" << id <<
                                ") = " << uint32_t(status);
 }

@@ -60,10 +60,10 @@ void Phase1Batcher::run() {
                 initialBallot_,
                 batchStartId,
                 batchEndId,
-                ring));
+                ring,
+                timeoutUs_));
 
-        MulticastRpcRequest::Status status = requester_->request(request,
-                                                                 timeoutUs_);
+        MulticastRpcRequest::Status status = requester_->request(request);
         MORDOR_LOG_TRACE(g_log) << this << " instances [" << batchStartId <<
                                    ", " << batchEndId << "): (" <<
                                    uint32_t(status) << ", " <<

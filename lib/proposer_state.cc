@@ -75,8 +75,9 @@ void ProposerState::doPhase1(ProposerInstance::ptr instance) {
     Phase1Request::ptr request(new Phase1Request(epoch_,
                                                  instance->ballotId(),
                                                  instance->instanceId(),
-                                                 ring));
-    if(requester_->request(request, phase1TimeoutUs_) ==
+                                                 ring,
+                                                 phase1TimeoutUs_));
+    if(requester_->request(request) ==
            MulticastRpcRequest::COMPLETED)
     {
         switch(request->result()) {
@@ -147,8 +148,9 @@ void ProposerState::doPhase2(ProposerInstance::ptr instance) {
                                                  instance->ballotId(),
                                                  instance->value(),
                                                  commits,
-                                                 ring->lastRingAddress()));
-    if(requester_->request(request, phase2TimeoutUs_) ==
+                                                 ring->lastRingAddress(),
+                                                 phase2TimeoutUs_));
+    if(requester_->request(request) ==
         MulticastRpcRequest::COMPLETED)
     {
         MORDOR_LOG_TRACE(g_log) << this << " phase2 for iid=" <<

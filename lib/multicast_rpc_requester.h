@@ -71,8 +71,7 @@ public:
     void run();
 
     //! Blocks until request is completed or until the timeout expires;
-    MulticastRpcRequest::Status request(MulticastRpcRequest::ptr request,
-                                        uint64_t timeoutUs);
+    MulticastRpcRequest::Status request(MulticastRpcRequest::ptr request);
 
 private:
     //! Sets the multicast TTL to max.

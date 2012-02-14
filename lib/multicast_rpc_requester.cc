@@ -101,8 +101,7 @@ void MulticastRpcRequester::timeoutRequest(const Guid& requestId) {
 }
 
 MulticastRpcRequest::Status MulticastRpcRequester::request(
-    MulticastRpcRequest::ptr requestPtr,
-    uint64_t timeoutUs)
+    MulticastRpcRequest::ptr requestPtr)
 {
     Guid requestGuid = guidGenerator_->generate();
     MORDOR_LOG_TRACE(g_log) << this << " new request id=" << requestGuid <<
@@ -133,7 +132,7 @@ MulticastRpcRequest::Status MulticastRpcRequester::request(
                     0,
                     *groupMulticastAddress_);
     Timer::ptr timeoutTimer =
-        ioManager_->registerTimer(timeoutUs,
+        ioManager_->registerTimer(requestPtr->timeoutUs(),
                                   boost::bind(
                                       &MulticastRpcRequester::timeoutRequest,
                                       this,

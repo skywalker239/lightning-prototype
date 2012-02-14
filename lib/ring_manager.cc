@@ -118,9 +118,9 @@ bool RingManager::trySetRing() {
     MORDOR_ASSERT(nextRing_.get());
 
     MulticastRpcRequest::ptr request(
-        new SetRingRequest(hostGroupGuid_, nextRing_));
+        new SetRingRequest(hostGroupGuid_, nextRing_, setRingTimeoutUs_));
     MORDOR_LOG_TRACE(g_log) << this << " try set ring " << *nextRing_;
-    if(requester_->request(request, setRingTimeoutUs_) !=
+    if(requester_->request(request) !=
            MulticastRpcRequest::COMPLETED)
     {
         MORDOR_LOG_TRACE(g_log) << this << " set ring " << *nextRing_ <<

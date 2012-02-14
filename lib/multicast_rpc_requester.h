@@ -1,6 +1,7 @@
 #pragma once
 
 #include "guid.h"
+#include "host_configuration.h"
 #include "multicast_rpc_request.h"
 #include <mordor/atomic.h>
 #include <mordor/fibersynchronization.h>
@@ -60,7 +61,8 @@ public:
     MulticastRpcRequester(Mordor::IOManager* ioManager,
                           GuidGenerator::ptr guidGenerator,
                           Mordor::Socket::ptr socket,
-                          Mordor::Address::ptr groupMulticastAddress);
+                          Mordor::Address::ptr groupMulticastAddress,
+                          GroupConfiguration::ptr groupConfiguration);
 
     virtual ~MulticastRpcRequester()
     {}
@@ -85,6 +87,7 @@ private:
     GuidGenerator::ptr guidGenerator_;
     Mordor::Socket::ptr socket_;
     Mordor::Address::ptr groupMulticastAddress_;
+    GroupConfiguration::ptr groupConfiguration_;
 
     mutable Mordor::FiberMutex mutex_;
     std::map<Guid, MulticastRpcRequest::ptr> pendingRequests_;

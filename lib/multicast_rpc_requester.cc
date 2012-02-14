@@ -4,6 +4,7 @@
 #include <mordor/log.h>
 #include <mordor/timer.h>
 #include <set>
+#include <sstream>
 
 namespace lightning {
 
@@ -15,6 +16,7 @@ using Mordor::Log;
 using Mordor::Socket;
 using Mordor::Timer;
 using Mordor::TimerManager;
+using std::ostringstream;
 using std::set;
 using std::string;
 using std::vector;
@@ -25,11 +27,13 @@ MulticastRpcRequester::MulticastRpcRequester(
     IOManager* ioManager,
     GuidGenerator::ptr guidGenerator,
     Socket::ptr socket,
-    Address::ptr groupMulticastAddress)
+    Address::ptr groupMulticastAddress,
+    GroupConfiguration::ptr groupConfiguration)
     : ioManager_(ioManager),
       guidGenerator_(guidGenerator),
       socket_(socket),
-      groupMulticastAddress_(groupMulticastAddress)
+      groupMulticastAddress_(groupMulticastAddress),
+      groupConfiguration_(groupConfiguration)
 {
     MORDOR_LOG_TRACE(g_log) << this << " init group='" <<
                             *groupMulticastAddress_;
@@ -52,7 +56,8 @@ void MulticastRpcRequester::run() {
         RpcMessageData reply;
         if(!reply.ParseFromArray(buffer, bytes)) {
             MORDOR_LOG_WARNING(g_log) << this << " failed to parse reply " <<
-                                         "from " << *currentSourceAddress;
+                                         "from " <<
+                                         groupConfiguration_->addressToServiceName(currentSourceAddress);
             continue;
         }
 
@@ -66,13 +71,14 @@ void MulticastRpcRequester::run() {
             }
         }
         if(!request) {
-            MORDOR_LOG_WARNING(g_log) << this << " stale reply: request " <<
-                                         replyGuid << " not pending";
+            MORDOR_LOG_WARNING(g_log) << this << " stale reply for request " <<
+                                         replyGuid << " from " <<
+                                         groupConfiguration_->addressToServiceName(currentSourceAddress);
             continue;
         }
         MORDOR_LOG_TRACE(g_log) << this << " got reply for request " <<
                                    replyGuid << " from " <<
-                                   *currentSourceAddress;
+                                   groupConfiguration_->addressToServiceName(currentSourceAddress);
         request->onReply(currentSourceAddress, reply);
     }
 }

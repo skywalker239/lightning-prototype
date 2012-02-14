@@ -28,7 +28,7 @@ string makeHostnameWithId(uint32_t hostId, const string& hostname) {
 }  // anonymous namespace
 
 GroupConfiguration::ptr parseGroupConfiguration(const JSON::Value& json,
-                                           uint32_t thisHostId)
+                                                uint32_t thisHostId)
 {
     vector<HostConfiguration> configuration;
     const JSON::Array hosts = json.get<JSON::Array>();
@@ -68,10 +68,35 @@ GroupConfiguration::GroupConfiguration(const vector<HostConfiguration>& hosts,
     MORDOR_ASSERT(hosts.size() <= kMaxGroupSize);
     MORDOR_ASSERT(thisHostId < hosts.size());
     for(size_t i = 0; i < hosts_.size(); ++i) {
-        auto result = replyAddressToHostId_.insert(
+        auto hostIdResult = replyAddressToHostId_.insert(
             make_pair(hosts_[i].multicastReplyAddress, i));
-        MORDOR_ASSERT(result.second);
+        MORDOR_ASSERT(hostIdResult.second);
+        auto rpcNameResult = addressToServiceName_.insert(
+            make_pair(hosts_[i].multicastReplyAddress,
+                      hosts_[i].name + ":RPC"));
+        MORDOR_ASSERT(rpcNameResult.second);
+        auto ringNameResult = addressToServiceName_.insert(
+            make_pair(hosts_[i].ringAddress,
+                      hosts_[i].name + ":RING"));
+        MORDOR_ASSERT(ringNameResult.second);
+        auto rpcSrcResult = addressToServiceName_.insert(
+            make_pair(hosts_[i].multicastSourceAddress,
+                      hosts_[i].name + ":SRC"));
+        MORDOR_ASSERT(rpcSrcResult.second);
     }
+}
+
+string GroupConfiguration::addressToServiceName(
+    const Address::ptr& address) const
+{
+    ostringstream ss;
+    auto serviceIter = addressToServiceName_.find(address);
+    if(serviceIter != addressToServiceName_.end()) {
+        ss << serviceIter->second << "[" << *address << "]";
+    } else {
+        ss << "unknown[" << *address << "]";
+    }
+    return ss.str();
 }
 
 size_t GroupConfiguration::size() const {
@@ -81,6 +106,13 @@ size_t GroupConfiguration::size() const {
 const HostConfiguration& GroupConfiguration::host(size_t index) const {
     MORDOR_ASSERT(index < hosts_.size());
     return hosts_[index];
+}
+
+uint32_t GroupConfiguration::replyAddressToId(const Address::ptr& address) const {
+    auto idIter = replyAddressToHostId_.find(address);
+    return (idIter == replyAddressToHostId_.end()) ?
+                                    kInvalidHostId :
+                                    idIter->second;
 }
 
 std::ostream& operator<<(std::ostream& os,

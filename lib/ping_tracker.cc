@@ -33,9 +33,11 @@ PingTracker::PingTracker(GroupConfiguration::ptr groupConfiguration,
                                singlePingTimeoutUs << ", heartbeat timeout=" <<
                                noHeartbeatTimeoutUs;
     for(size_t i = 0; i < groupConfiguration->size(); ++i) {
-        perHostPingStats_.insert(make_pair(i,
-                                           PingStats(pingWindowSize,
-                                                     singlePingTimeoutUs)));
+        if(i != groupConfiguration->thisHostId()) {
+            perHostPingStats_.insert(make_pair(i,
+                                               PingStats(pingWindowSize,
+                                                         singlePingTimeoutUs)));
+        }
     }
 }
 

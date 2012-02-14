@@ -1,7 +1,12 @@
+#include "acceptor_state.h"
+#include "batch_phase1_handler.h"
+#include "phase1_handler.h"
+#include "phase2_handler.h"
 #include "guid.h"
 #include "host_configuration.h"
 #include "multicast_rpc_responder.h"
 #include "ring_holder.h"
+#include "ring_voter.h"
 #include "ring_change_notifier.h"
 #include "set_ring_handler.h"
 #include "ponger.h"
@@ -42,46 +47,56 @@ void readConfig(const string& filename,
 
 class DummyRingHolder : public RingHolder {};
 
-SetRingHandler::ptr setupHandler(const Guid& configHash, const GroupConfiguration& groupConfiguration) {
-    vector<RingHolder::ptr> holders(1, RingHolder::ptr(new DummyRingHolder));
-    RingChangeNotifier::ptr notifier(new RingChangeNotifier(holders));
-    return SetRingHandler::ptr(new SetRingHandler(configHash, notifier, groupConfiguration));
-}
-
-
 Socket::ptr bindSocket(Address::ptr bindAddress, IOManager* ioManager) {
     Socket::ptr s = bindAddress->createSocket(*ioManager, SOCK_DGRAM);
     s->bind(bindAddress);
     return s;
 }
 
-MulticastRpcResponder::ptr setupResponder(IOManager* ioManager, 
-                                          const Guid& configHash,
-                                          const JSON::Value& config,
-                                          uint32_t ourId)
+void setupEverything(IOManager* ioManager, 
+                     const Guid& configHash,
+                     const JSON::Value& config,
+                     uint32_t ourId,
+                     AcceptorState::ptr acceptorState,
+                     MulticastRpcResponder::ptr* responder,
+                     RingVoter::ptr* ringVoter)
 {
-    GroupConfiguration groupConfig = parseGroupConfiguration(config["hosts"], ourId);
-    RpcHandler::ptr ponger(new Ponger);
-    RpcHandler::ptr setRingHandler = setupHandler(configHash, groupConfig);
+    GroupConfiguration::ptr groupConfig = parseGroupConfiguration(config["hosts"], ourId);
 
-    const HostConfiguration& hostConfig = groupConfig.hosts()[ourId];
+    Socket::ptr ringSocket = bindSocket(groupConfig->host(groupConfig->thisHostId()).ringAddress, ioManager);
+    *ringVoter = RingVoter::ptr(new RingVoter(ringSocket, acceptorState));
+
+    RpcHandler::ptr ponger(new Ponger);
+    boost::shared_ptr<BatchPhase1Handler> batchPhase1Handler(new BatchPhase1Handler(acceptorState));
+    boost::shared_ptr<Phase1Handler> phase1Handler(new Phase1Handler(acceptorState));
+    boost::shared_ptr<Phase2Handler> phase2Handler(new Phase2Handler(acceptorState, *ringVoter));
+
+    vector<RingHolder::ptr> holders;
+    holders.push_back(batchPhase1Handler);
+    holders.push_back(phase1Handler);
+    holders.push_back(phase2Handler);
+    holders.push_back(*ringVoter);
+    RingChangeNotifier::ptr notifier(new RingChangeNotifier(holders));
+    RpcHandler::ptr setRingHandler(new SetRingHandler(configHash, notifier, groupConfig));
+
+    const HostConfiguration& hostConfig = groupConfig->host(groupConfig->thisHostId());
 
     Address::ptr multicastGroup = Address::lookup(config["mcast_group"].get<string>(), AF_INET).front();
     Socket::ptr listenSocket = bindSocket(hostConfig.multicastListenAddress, ioManager);
     Socket::ptr replySocket = bindSocket(hostConfig.multicastReplyAddress, ioManager);
 
-    MulticastRpcResponder::ptr responder(new MulticastRpcResponder(listenSocket, multicastGroup, replySocket));
-    responder->addHandler(RpcMessageData::PING, ponger);
-    responder->addHandler(RpcMessageData::SET_RING, setRingHandler);
-    return responder;
+    *responder = MulticastRpcResponder::ptr(new MulticastRpcResponder(listenSocket, multicastGroup, replySocket));
+    (*responder)->addHandler(RpcMessageData::PING, ponger);
+    (*responder)->addHandler(RpcMessageData::SET_RING, setRingHandler);
+    (*responder)->addHandler(RpcMessageData::PAXOS_BATCH_PHASE1, batchPhase1Handler);
+    (*responder)->addHandler(RpcMessageData::PAXOS_PHASE1, phase1Handler);
+    (*responder)->addHandler(RpcMessageData::PAXOS_PHASE2, phase2Handler);
 }
 
-Socket::ptr makeSocket(IOManager& ioManager, const string& addr, uint16_t port) {
-    string fullAddress = addr + ":" + lexical_cast<string>(port);
-    Address::ptr sockAddr = Address::lookup(fullAddress, AF_INET).front();
-    Socket::ptr s = sockAddr->createSocket(ioManager, SOCK_DGRAM);
-    s->bind(sockAddr);
-    return s;
+AcceptorState::ptr createAcceptor(const JSON::Value& config) {
+    uint64_t pendingLimit = config["acceptor_max_pending_instances"].get<long long>();
+    uint64_t committedLimit = config["acceptor_max_committed_instances"].get<long long>();
+    return AcceptorState::ptr(new AcceptorState(pendingLimit, committedLimit));
 }
 
 int main(int argc, char** argv) {
@@ -96,7 +111,11 @@ int main(int argc, char** argv) {
     const uint32_t id = lexical_cast<uint32_t>(argv[2]);
     IOManager ioManager;
 
-    MulticastRpcResponder::ptr responder = setupResponder(&ioManager, configGuid, config, id);
+    AcceptorState::ptr acceptorState = createAcceptor(config);
+    MulticastRpcResponder::ptr responder;
+    RingVoter::ptr ringVoter;
+    setupEverything(&ioManager, configGuid, config, id, acceptorState, &responder, &ringVoter);
     ioManager.schedule(boost::bind(&MulticastRpcResponder::run, responder));
+    ioManager.schedule(boost::bind(&RingVoter::run, ringVoter));
     ioManager.dispatch();
 }

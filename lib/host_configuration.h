@@ -58,6 +58,9 @@ public:
     //! Returns kInvalidHostId for unknown addresses.
     uint32_t replyAddressToId(const Mordor::Address::ptr& address) const;
 
+    //! For debug logging.
+    std::string addressToServiceName(const Mordor::Address::ptr& address) const;
+
     uint32_t masterId() const { return kMasterId; }
 
     uint32_t thisHostId() const { return thisHostId_; }
@@ -78,6 +81,9 @@ private:
 
     std::map<Mordor::Address::ptr, uint32_t, AddressCompare>
         replyAddressToHostId_;
+
+    std::map<Mordor::Address::ptr, std::string, AddressCompare>
+        addressToServiceName_;
 
     //! XXX fixed master for now
     static const uint32_t kMasterId = 0;

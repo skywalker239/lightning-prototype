@@ -1,8 +1,8 @@
 CXX = g++ --std=gnu++0x
-OPT ?= 0
+OPT ?= 2
 
 CXXFLAGS= \
-    -g -O$(OPT) `pkg-config --cflags libmordor` \
+    -g3 -O$(OPT) `pkg-config --cflags libmordor` \
     -Wall -W -Wsign-promo -Wno-deprecated
 LDFLAGS = `pkg-config --libs --static libmordor` -lpthread -lrt -lprotobuf
 
@@ -18,6 +18,7 @@ LIB_OBJS += \
     acceptor_state.o \
     ballot_generator.o \
     host_configuration.o \
+    ring_configuration.o \
     MurmurHash3.o \
     guid.o \
     multicast_rpc_requester.o \

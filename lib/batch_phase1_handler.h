@@ -18,7 +18,6 @@ private:
                        const RpcMessageData& request,
                        RpcMessageData* reply);
     
-    void updateEpoch(const Guid& requestEpoch);
     bool checkRingId(uint32_t requestRingId);
     void markReservedInstances(BallotId ballot,
                                InstanceId startInstance,

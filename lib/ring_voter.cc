@@ -123,7 +123,9 @@ bool RingVoter::processVote(RingConfiguration::const_ptr ringConfiguration,
         return false;
     }
 
-    // XXX ignore epoch for now
+    const Guid epoch = Guid::parse(voteData.epoch());
+    acceptorState_->updateEpoch(epoch);
+
     const InstanceId instance = voteData.instance();
     const BallotId ballot = voteData.ballot();
     const Guid valueId = Guid::parse(voteData.value_id());

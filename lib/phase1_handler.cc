@@ -33,11 +33,12 @@ bool Phase1Handler::handleRequest(Address::ptr,
                                " iid=" << instance << ", ballot=" << ballot;
 
     RingConfiguration::const_ptr ring = tryAcquireRingConfiguration();
-    // XXX updateEpoch(requestEpoch);
     if(!checkRingId(ring, requestRingId)) {
         MORDOR_LOG_TRACE(g_log) << this << " bad ring id, ignoring request";
         return false;
     }
+
+    acceptorState_->updateEpoch(requestEpoch);
 
     reply->set_type(RpcMessageData::PAXOS_PHASE1);
     PaxosPhase1ReplyData* replyData = reply->mutable_phase1_reply();

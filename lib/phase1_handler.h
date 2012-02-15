@@ -18,7 +18,6 @@ private:
                        const RpcMessageData& request,
                        RpcMessageData* reply);
     
-    void updateEpoch(const Guid& requestEpoch);
     bool checkRingId(RingConfiguration::const_ptr ring,
                      uint32_t requestRingId);
 

@@ -56,7 +56,7 @@ bool Phase2Handler::handleRequest(Address::ptr,
     }
 
 
-    // XXX epoch
+    acceptorState_->updateEpoch(requestEpoch);
     AcceptorState::Status status = acceptorState_->beginBallot(
                                        instance,
                                        ballot,

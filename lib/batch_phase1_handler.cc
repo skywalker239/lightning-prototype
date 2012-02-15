@@ -33,7 +33,7 @@ bool BatchPhase1Handler::handleRequest(Address::ptr,
                                requestEpoch << " ringId=" << requestRingId <<
                                " iids=[" << startInstanceId << ", " <<
                                endInstanceId << ") ballot=" << requestBallot;
-    updateEpoch(requestEpoch);
+    acceptorState_->updateEpoch(requestEpoch);
     if(!checkRingId(requestRingId)) {
         MORDOR_LOG_TRACE(g_log) << this << " bad ring id, ignoring request";
         return false;
@@ -55,16 +55,6 @@ bool BatchPhase1Handler::handleRequest(Address::ptr,
                               endInstanceId,
                               replyData);
         return true;
-    }
-}
-
-void BatchPhase1Handler::updateEpoch(const Guid& requestEpoch) {
-    if(requestEpoch != currentEpoch_) {
-        MORDOR_LOG_INFO(g_log) << this << " epoch change " << currentEpoch_ <<
-                                  " -> " << requestEpoch <<
-                                  ", resetting acceptor";
-        currentEpoch_ = requestEpoch;
-        acceptorState_->reset();
     }
 }
 

@@ -1,4 +1,5 @@
 #include "acceptor_state.h"
+#include <mordor/assert.h>
 #include <mordor/log.h>
 
 namespace lightning {
@@ -20,6 +21,7 @@ AcceptorState::AcceptorState(uint32_t pendingInstancesLimit,
                              uint32_t committedInstancesLimit)
     : pendingInstancesLimit_(pendingInstancesLimit),
       committedInstancesLimit_(committedInstancesLimit),
+      pendingInstanceCount_(0),
       afterLastCommittedInstanceId_(0)
 {}
 
@@ -46,8 +48,8 @@ AcceptorState::Status AcceptorState::nextBallot(InstanceId instanceId,
 }
 
 AcceptorState::Status AcceptorState::beginBallot(InstanceId instanceId,
-                                BallotId ballotId,
-                                const Value& value)
+                                                 BallotId ballotId,
+                                                 const Value& value)
 {
     FiberMutex::ScopedLock lk(mutex_);
     AcceptorInstance* instance = lookupInstance(instanceId);
@@ -66,9 +68,9 @@ AcceptorState::Status AcceptorState::beginBallot(InstanceId instanceId,
 }
 
 AcceptorState::Status AcceptorState::vote(InstanceId instanceId,
-                         BallotId ballotId,
-                         const Guid& valueId,
-                         BallotId* highestPromised)
+                                          BallotId ballotId,
+                                          const Guid& valueId,
+                                          BallotId* highestPromised)
 {
     FiberMutex::ScopedLock lk(mutex_);
     AcceptorInstance* instance = lookupInstance(instanceId);
@@ -87,7 +89,7 @@ AcceptorState::Status AcceptorState::vote(InstanceId instanceId,
 }
 
 AcceptorState::Status AcceptorState::commit(InstanceId instanceId,
-                           const Guid& valueId)
+                                            const Guid& valueId)
 {
     FiberMutex::ScopedLock lk(mutex_);
     AcceptorInstance* instance = lookupInstance(instanceId);
@@ -102,7 +104,12 @@ AcceptorState::Status AcceptorState::commit(InstanceId instanceId,
     MORDOR_LOG_TRACE(g_log) << this << " commit(" << instanceId << ", " <<
                                valueId << ") = " << result;
     if(result) {
-        addCommittedInstanceId(instanceId);
+        if(addCommittedInstanceId(instanceId)) {
+            --pendingInstanceCount_;
+        }
+        if(committedInstanceIds_.size() > committedInstancesLimit_) {
+            evictLowestCommittedInstance();
+        }
     }
     return boolToStatus(result);
 }
@@ -110,8 +117,8 @@ AcceptorState::Status AcceptorState::commit(InstanceId instanceId,
 AcceptorState::Status AcceptorState::value(InstanceId instanceId, Value* value) const {
     FiberMutex::ScopedLock lk(mutex_);
 
-    auto instanceIter = committedInstances_.find(instanceId);
-    if(instanceIter == committedInstances_.end()) {
+    auto instanceIter = instances_.find(instanceId);
+    if(instanceIter == instances_.end()) {
         MORDOR_LOG_TRACE(g_log) << this << " value(" << instanceId <<
                                    ") not found";
         return boolToStatus(false);
@@ -128,25 +135,25 @@ InstanceId AcceptorState::lowestInstanceId() const {
 }
 
 AcceptorInstance* AcceptorState::lookupInstance(InstanceId instanceId) {
-    auto committedIter = committedInstances_.find(instanceId);
-    if(committedIter != committedInstances_.end()) {
-        return &committedIter->second;
-    }
-    auto pendingIter = pendingInstances_.find(instanceId);
-    if(pendingIter != pendingInstances_.end()) {
-        return &pendingIter->second;
+    auto instanceIter = instances_.find(instanceId);
+    if(instanceIter != instances_.end()) {
+        return &instanceIter->second;
     } else {
-        if(pendingInstances_.size() < pendingInstancesLimit_) {
-            pendingIter = pendingInstances_.insert(make_pair(instanceId,
-                                                   AcceptorInstance())).first;
-            return &pendingIter->second;
+        if(pendingInstanceCount_ < pendingInstancesLimit_) {
+            MORDOR_LOG_TRACE(g_log) << this << " new pending iid=" <<
+                                       instanceId;
+            auto freshIter = instances_.insert(make_pair(instanceId,
+                                              AcceptorInstance())).first;
+            ++pendingInstanceCount_;
+            return &freshIter->second;
         } else {
             return NULL;
         }
     }
 }
-
-void AcceptorState::addCommittedInstanceId(InstanceId instanceId) {
+                                                    
+bool AcceptorState::addCommittedInstanceId(InstanceId instanceId) {
+    bool freshCommit = false;
     if(instanceId >= afterLastCommittedInstanceId_) {
         for(InstanceId iid = afterLastCommittedInstanceId_;
             iid < instanceId;
@@ -155,9 +162,14 @@ void AcceptorState::addCommittedInstanceId(InstanceId instanceId) {
             notCommittedInstanceIds_.insert(iid);
         }
         afterLastCommittedInstanceId_ = instanceId + 1;
+        freshCommit = true;
     } else {
-        notCommittedInstanceIds_.erase(instanceId);
+        freshCommit = (notCommittedInstanceIds_.erase(instanceId) == 1);
     }
+    if(freshCommit) {
+        committedInstanceIds_.push(instanceId);
+    }
+    return freshCommit;
 }
 
 AcceptorState::Status AcceptorState::boolToStatus(const bool boolean) const
@@ -165,10 +177,32 @@ AcceptorState::Status AcceptorState::boolToStatus(const bool boolean) const
     return boolean ? OK : NACKED;
 }
 
+void AcceptorState::evictLowestCommittedInstance() {
+    MORDOR_ASSERT(!committedInstanceIds_.empty());
+    InstanceId lowestCommittedInstanceId = committedInstanceIds_.top();
+    committedInstanceIds_.pop();
+    MORDOR_LOG_TRACE(g_log) << this << " evicting committed instance iid=" <<
+                               lowestCommittedInstanceId;
+    auto instanceIter = instances_.find(lowestCommittedInstanceId);
+    MORDOR_ASSERT(instanceIter != instances_.end());
+    instances_.erase(instanceIter);
+}
+
+void AcceptorState::updateEpoch(const Guid& epoch) {
+    FiberMutex::ScopedLock lk(mutex_);
+    if(epoch != epoch_) {
+        MORDOR_LOG_TRACE(g_log) << this << " epoch change from " << epoch_ <<
+                                   " to " << epoch;
+        reset();
+        epoch_ = epoch;
+    }
+}
+
 void AcceptorState::reset() {
     FiberMutex::ScopedLock lk(mutex_);
-    pendingInstances_.clear();
-    committedInstances_.clear();
+    instances_.clear();
+    committedInstanceIds_ = InstanceIdHeap();
+    pendingInstanceCount_ = 0;
     notCommittedInstanceIds_.clear();
     afterLastCommittedInstanceId_ = 0;
 }

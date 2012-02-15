@@ -7,6 +7,7 @@
 #include <mordor/fibersynchronization.h>
 #include <functional>
 #include <map>
+#include <queue>
 #include <set>
 
 namespace lightning {
@@ -61,10 +62,18 @@ public:
     //! Lowest unknown-or-pending instance id.
     InstanceId lowestInstanceId() const;
 
+    //! If epoch differs from the last seen one, reset() and
+    //  update the last seen one.
+    void updateEpoch(const Guid& epoch);
+
+private:
     //! Reset the state to empty. Called on master epoch change.
     void reset();
-private:
+
     typedef std::map<InstanceId, AcceptorInstance> InstanceMap;
+    typedef std::priority_queue<InstanceId,
+                                std::vector<InstanceId>,
+                                std::greater<InstanceId> > InstanceIdHeap;
 
     //! Looks up the instances in pending and committed instance
     //  maps.
@@ -78,18 +87,31 @@ private:
 
     Status boolToStatus(const bool boolean) const;
 
-    std::map<InstanceId, AcceptorInstance> pendingInstances_;
-    std::map<InstanceId, AcceptorInstance> committedInstances_;
+    void evictLowestCommittedInstance();
 
     const uint32_t pendingInstancesLimit_;
     const uint32_t committedInstancesLimit_;
 
+    Guid epoch_;
+
+    //! Stores all pending and committed instances.
+    //  Eviction and limits enforcement are handled by
+    //  tracking committed instance ids and pending instances count.
+    InstanceMap instances_;
+    //! When the committed instance limit is reached, the committed instance
+    //  with the lowest id is evicted.
+    InstanceIdHeap committedInstanceIds_;
+
+    uint64_t pendingInstanceCount_;
+
     //! Invariant: the instance ids not yet committed are
     //  notCommittedInstanceIds_ \cup
     //  [afterLastCommittedInstanceId_, infinity).
-    void addCommittedInstanceId(InstanceId instanceId);
     std::set<InstanceId> notCommittedInstanceIds_;
     InstanceId afterLastCommittedInstanceId_;
+
+    //! Returns true iff instanceId was not previously committed.
+    bool addCommittedInstanceId(InstanceId instanceId); 
 
     mutable Mordor::FiberMutex mutex_;
 };

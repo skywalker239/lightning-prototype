@@ -133,6 +133,7 @@ void ProposerState::doPhase1(ProposerInstance::ptr instance) {
                     ioManager_->schedule(boost::bind(&ProposerState::doPhase2,
                                                      shared_from_this(),
                                                      instance));
+                    g_pendingPhase2.increment();
                 } else {
                     MORDOR_LOG_TRACE(g_log) << this << " phase1 for iid=" <<
                                                instance->instanceId() <<

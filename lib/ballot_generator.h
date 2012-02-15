@@ -18,7 +18,7 @@ public:
 
     //! Return the first 'our' ballot id greater than
     //  both ballotId.
-    BallotId boostBallotId(BallotId ballotId);
+    BallotId boostBallotId(BallotId ballotId) const;
 private:
     const uint32_t hostId_;
     const uint32_t hostNumber_;

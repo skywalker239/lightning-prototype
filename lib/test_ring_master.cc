@@ -111,7 +111,7 @@ void setupEverything(uint32_t hostId,
                          new Phase1Batcher(epoch,
                                            phase1BatchTimeout,
                                            phase1BatchSize,
-                                           ballotGenerator.boostBallotId(kInvalidBallotId),
+                                           ballotGenerator,
                                            instancePool,
                                            requester,
                                            batchPhase1SyncEvent));

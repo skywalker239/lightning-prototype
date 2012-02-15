@@ -9,7 +9,7 @@ BallotGenerator::BallotGenerator(GroupConfiguration::ptr groupConfiguration)
       hostNumber_(groupConfiguration->size())
 {}
 
-BallotId BallotGenerator::boostBallotId(BallotId ballotId) {
+BallotId BallotGenerator::boostBallotId(BallotId ballotId) const {
     if(ballotId == kInvalidBallotId) {
         return 1 + hostId_;
     } else {

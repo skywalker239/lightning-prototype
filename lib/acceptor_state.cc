@@ -199,7 +199,6 @@ void AcceptorState::updateEpoch(const Guid& epoch) {
 }
 
 void AcceptorState::reset() {
-    FiberMutex::ScopedLock lk(mutex_);
     instances_.clear();
     committedInstanceIds_ = InstanceIdHeap();
     pendingInstanceCount_ = 0;

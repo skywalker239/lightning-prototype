@@ -18,7 +18,9 @@
 #include <boost/lexical_cast.hpp>
 #include <mordor/json.h>
 #include <mordor/config.h>
+#include <mordor/sleep.h>
 #include <mordor/socket.h>
+#include <mordor/statistics.h>
 #include <mordor/iomanager.h>
 #include <mordor/timer.h>
 
@@ -51,6 +53,15 @@ Socket::ptr bindSocket(Address::ptr bindAddress, IOManager* ioManager) {
     Socket::ptr s = bindAddress->createSocket(*ioManager, SOCK_DGRAM);
     s->bind(bindAddress);
     return s;
+}
+
+static Logger::ptr g_log = Log::lookup("lightning:main");
+
+void dumpStats(IOManager* ioManager) {
+    while(true) {
+        MORDOR_LOG_INFO(g_log) << endl << Statistics::dump();
+        sleep(*ioManager, 1000000);
+    }
 }
 
 void setupEverything(IOManager* ioManager, 
@@ -117,5 +128,6 @@ int main(int argc, char** argv) {
     setupEverything(&ioManager, configGuid, config, id, acceptorState, &responder, &ringVoter);
     ioManager.schedule(boost::bind(&MulticastRpcResponder::run, responder));
     ioManager.schedule(boost::bind(&RingVoter::run, ringVoter));
+    ioManager.schedule(boost::bind(dumpStats, &ioManager));
     ioManager.dispatch();
 }

@@ -141,19 +141,26 @@ void setupEverything(uint32_t hostId,
 
 static Logger::ptr g_log = Log::lookup("lightning:main");
 
+void displayStats(IOManager* ioManager) {
+    while(true) {
+        MORDOR_LOG_INFO(g_log) << std::endl << Statistics::dump();
+        sleep(*ioManager, 1000000);
+    }
+}
+
 void submitValues(IOManager* ioManager,
                   ClientValueQueue::ptr valueQueue,
                   GuidGenerator::ptr guidGenerator)
 {
     sleep(*ioManager, 3500000);
-    const size_t kValuesToSubmit = 1300;
+    const size_t kValuesToSubmit = 1300000;
     for(size_t i = 0; i < kValuesToSubmit; ++i) {
         Value::ptr v(new Value);
         v->size = Value::kMaxValueSize;
         v->valueId = guidGenerator->generate();
         valueQueue->push(v);
-        MORDOR_LOG_INFO(g_log) << " pushed value id=" << v->valueId << " size=" << v->size;
-        sleep(*ioManager, 64);
+        MORDOR_LOG_DEBUG(g_log) << " pushed value id=" << v->valueId << " size=" << v->size;
+        sleep(*ioManager, 100000);
     }
 }
 
@@ -177,6 +184,7 @@ int main(int argc, char** argv) {
         ClientValueQueue::ptr clientValueQueue;
         setupEverything(hostId, configHash, config, &ioManager, &pinger, &ringManager, &phase1Batcher, &proposerState, &clientValueQueue);
         GuidGenerator::ptr guidGenerator(new GuidGenerator);
+        ioManager.schedule(boost::bind(displayStats, &ioManager));
         ioManager.schedule(boost::bind(&Pinger::run, pinger));
         ioManager.schedule(boost::bind(&RingManager::run, ringManager));
         ioManager.schedule(boost::bind(&Phase1Batcher::run, phase1Batcher));

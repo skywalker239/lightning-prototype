@@ -2,6 +2,7 @@
 #include "proto/rpc_messages.pb.h"
 #include <mordor/assert.h>
 #include <mordor/log.h>
+#include <mordor/statistics.h>
 #include <mordor/timer.h>
 #include <set>
 #include <sstream>
@@ -14,6 +15,8 @@ using Mordor::IOManager;
 using Mordor::Logger;
 using Mordor::Log;
 using Mordor::Socket;
+using Mordor::Statistics;
+using Mordor::CountStatistic;
 using Mordor::Timer;
 using Mordor::TimerManager;
 using std::ostringstream;
@@ -22,6 +25,19 @@ using std::string;
 using std::vector;
 
 static Logger::ptr g_log = Log::lookup("lightning:multicast_rpc_requester");
+
+static CountStatistic<uint64_t>& g_outPackets =
+    Statistics::registerStatistic("multicast_rpc_requester.out_packets",
+                                  CountStatistic<uint64_t>("packets"));
+static CountStatistic<uint64_t>& g_inPackets =
+    Statistics::registerStatistic("multicast_rpc_requester.in_packets",
+                                  CountStatistic<uint64_t>("packets"));
+static CountStatistic<uint64_t>& g_outBytes =
+    Statistics::registerStatistic("multicast_rpc_requester.out_bytes",
+                                  CountStatistic<uint64_t>("bytes"));
+static CountStatistic<uint64_t>& g_inBytes =
+    Statistics::registerStatistic("multicast_rpc_requester.in_bytes",
+                                  CountStatistic<uint64_t>("bytes"));
 
 MulticastRpcRequester::MulticastRpcRequester(
     IOManager* ioManager,
@@ -52,6 +68,9 @@ void MulticastRpcRequester::processReplies() {
         ssize_t bytes = socket_->receiveFrom((void*) buffer,
                                              kMaxCommandSize,
                                              *currentSourceAddress);
+        g_inPackets.increment();
+        g_inBytes.add(bytes);
+
         RpcMessageData reply;
         if(!reply.ParseFromArray(buffer, bytes)) {
             MORDOR_LOG_WARNING(g_log) << this << " failed to parse reply " <<
@@ -130,6 +149,8 @@ void MulticastRpcRequester::sendRequests() {
                         commandSize,
                         0,
                         *groupMulticastAddress_);
+        g_outPackets.increment();
+        g_outBytes.add(commandSize);
         Timer::ptr timeoutTimer =
             ioManager_->registerTimer(request->timeoutUs(),
                                       boost::bind(

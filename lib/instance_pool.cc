@@ -1,6 +1,7 @@
 #include "instance_pool.h"
 #include <mordor/assert.h>
 #include <mordor/log.h>
+#include <mordor/statistics.h>
 
 namespace lightning {
 namespace paxos {
@@ -10,7 +11,16 @@ using Mordor::FiberEvent;
 using Mordor::FiberMutex;
 using Mordor::Log;
 using Mordor::Logger;
+using Mordor::Statistics;
+using Mordor::CountStatistic;
 using std::priority_queue;
+
+static CountStatistic<uint64_t>& g_openInstances =
+    Statistics::registerStatistic("instance_pool.open_instances",
+                                  CountStatistic<uint64_t>());
+static CountStatistic<uint64_t>& g_reservedInstances =
+    Statistics::registerStatistic("instance_pool.reserved_instances",
+                                  CountStatistic<uint64_t>());
 
 static Logger::ptr g_log = Log::lookup("lightning:instance_pool");
 
@@ -37,6 +47,7 @@ void InstancePool::pushOpenInstance(ProposerInstance::ptr instance) {
         MORDOR_LOG_TRACE(g_log) << this << " maxOpenInstancesNumber threshold reached";
         pushMoreOpenInstancesEvent_->reset();
     }
+    g_openInstances.increment();
 }
 
 ProposerInstance::ptr InstancePool::popOpenInstance() {
@@ -52,6 +63,7 @@ ProposerInstance::ptr InstancePool::popOpenInstance() {
         MORDOR_LOG_TRACE(g_log) << this << " signaling to push more open instances";
         pushMoreOpenInstancesEvent_->set();
     }
+    g_openInstances.decrement();
     return instance;
 }
 
@@ -67,6 +79,7 @@ void InstancePool::pushReservedInstance(ProposerInstance::ptr instance) {
                                    "reached";
         pushMoreOpenInstancesEvent_->reset();
     }
+    g_reservedInstances.increment();
 }
 
 ProposerInstance::ptr InstancePool::popReservedInstance() {
@@ -82,6 +95,7 @@ ProposerInstance::ptr InstancePool::popReservedInstance() {
         MORDOR_LOG_TRACE(g_log) << this << " signaling to push more open instances";
         pushMoreOpenInstancesEvent_->set();
     }
+    g_reservedInstances.decrement();
     return instance;
 }
 

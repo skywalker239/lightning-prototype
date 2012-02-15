@@ -1,6 +1,7 @@
 #include "ring_voter.h"
 #include <mordor/assert.h>
 #include <mordor/log.h>
+#include <mordor/statistics.h>
 #include <algorithm>
 
 namespace lightning {
@@ -9,12 +10,27 @@ using Mordor::Address;
 using Mordor::Socket;
 using Mordor::Logger;
 using Mordor::Log;
+using Mordor::Statistics;
+using Mordor::CountStatistic;
 using paxos::BallotId;
 using paxos::kInvalidBallotId;
 using paxos::InstanceId;
 using std::vector;
 
 static Logger::ptr g_log = Log::lookup("lightning:ring_voter");
+
+static CountStatistic<uint64_t>& g_outPackets =
+    Statistics::registerStatistic("ring_voter.out_packets",
+                                  CountStatistic<uint64_t>("packets"));
+static CountStatistic<uint64_t>& g_inPackets =
+    Statistics::registerStatistic("ring_voter.in_packets",
+                                  CountStatistic<uint64_t>("packets"));
+static CountStatistic<uint64_t>& g_outBytes =
+    Statistics::registerStatistic("ring_voter.out_bytes",
+                                  CountStatistic<uint64_t>("bytes"));
+static CountStatistic<uint64_t>& g_inBytes =
+    Statistics::registerStatistic("ring_voter.in_bytes",
+                                  CountStatistic<uint64_t>("bytes"));
 
 RingVoter::RingVoter(Socket::ptr socket,
                      AcceptorState::ptr acceptorState)
@@ -31,6 +47,8 @@ void RingVoter::run() {
         ssize_t bytes = socket_->receiveFrom((void*)buffer,
                                              sizeof(buffer),
                                              *remoteAddress);
+        g_inBytes.add(bytes);
+        g_inPackets.increment();
         MORDOR_LOG_TRACE(g_log) << this << " got " << bytes << " bytes from " <<
                                    *remoteAddress;
         RpcMessageData requestData;
@@ -68,6 +86,8 @@ void RingVoter::run() {
                             replyData.ByteSize(),
                             0,
                             ringConfiguration->nextRingAddress());
+            g_outBytes.add(replyData.ByteSize());
+            g_outPackets.increment();
         }
     }
 }

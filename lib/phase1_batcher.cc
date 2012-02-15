@@ -2,6 +2,7 @@
 #include "batch_phase1_request.h"
 #include "proposer_instance.h"
 #include <mordor/log.h>
+#include <mordor/statistics.h>
 
 namespace lightning {
 
@@ -10,6 +11,8 @@ using Mordor::Address;
 using Mordor::FiberEvent;
 using Mordor::Log;
 using Mordor::Logger;
+using Mordor::Statistics;
+using Mordor::CountStatistic;
 using paxos::BallotId;
 using paxos::BallotGenerator;
 using paxos::kInvalidBallotId;
@@ -20,6 +23,10 @@ using std::set;
 using std::vector;
 
 static Logger::ptr g_log = Log::lookup("lightning:phase1_batcher");
+
+static CountStatistic<uint64_t>& g_batchPhase1Timeouts =
+    Statistics::registerStatistic("proposer.batch_phase1_timeouts",
+                                  CountStatistic<uint64_t>());
 
 Phase1Batcher::Phase1Batcher(const Guid& epoch,
                              uint64_t timeoutUs,
@@ -116,6 +123,7 @@ void Phase1Batcher::requestInstanceRange(InstanceId startInstance,
                                        ", " << endInstance << "), " <<
                                        currentBallot << "] timed out";
             currentBallot = ballotGenerator_.boostBallotId(kInvalidBallotId);
+            g_batchPhase1Timeouts.increment();
             continue;
         } else {
             *successfulBallot = currentBallot;

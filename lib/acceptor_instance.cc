@@ -1,14 +1,30 @@
 #include "acceptor_instance.h"
 #include <mordor/assert.h>
 #include <mordor/log.h>
+#include <mordor/statistics.h>
 
 namespace lightning {
 namespace paxos {
 
 using Mordor::Logger;
 using Mordor::Log;
+using Mordor::Statistics;
+using Mordor::CountStatistic;
 
 static Logger::ptr g_log = Log::lookup("lightning:acceptor_instance");
+
+static CountStatistic<uint64_t>& g_phase1Fails =
+    Statistics::registerStatistic("acceptor.phase1_fails",
+                                  CountStatistic<uint64_t>());
+static CountStatistic<uint64_t>& g_phase2Fails =
+    Statistics::registerStatistic("acceptor.phase2_fails",
+                                  CountStatistic<uint64_t>());
+static CountStatistic<uint64_t>& g_voteFails =
+    Statistics::registerStatistic("acceptor.vote_fails",
+                                  CountStatistic<uint64_t>());
+static CountStatistic<uint64_t>& g_unknownValueVotes =
+    Statistics::registerStatistic("acceptor.unknown_value_votes",
+                                   CountStatistic<uint64_t>());
 
 AcceptorInstance::AcceptorInstance() {
     reset();
@@ -45,6 +61,7 @@ bool AcceptorInstance::nextBallot(BallotId  ballotId,
                                            ballotId << ", lastBallot=" <<
                                            highestBallotParticipated_;
         *highestBallotParticipated = highestBallotParticipated_;
+        g_phase1Fails.increment();
         return false;
     }
 }
@@ -56,6 +73,7 @@ bool AcceptorInstance::beginBallot(BallotId ballotId,
         MORDOR_LOG_TRACE(g_log) << this << " rejecting beginBallot id=" <<
                                    ballotId << ", lastBallot=" <<
                                    highestBallotParticipated_;
+        g_phase2Fails.increment();
         return false;
     } else {
         MORDOR_LOG_TRACE(g_log) << this << " accepting beginBallot id=" <<
@@ -75,6 +93,7 @@ bool AcceptorInstance::vote(BallotId ballotId,
                                    ballotId << ", promised " <<
                                    highestBallotParticipated_;
         *highestBallotPromised = highestBallotParticipated_;
+        g_voteFails.increment();
         return false;
     }
     if(lastVotedValue_.valueId != valueId) {
@@ -82,6 +101,7 @@ bool AcceptorInstance::vote(BallotId ballotId,
                                    ballotId << " for valueId " <<
                                    valueId << ", value unknown";
         *highestBallotPromised = kInvalidBallotId;
+        g_unknownValueVotes.increment();
         return false;
     }
     MORDOR_LOG_TRACE(g_log) << this << " voting in ballot " << ballotId <<

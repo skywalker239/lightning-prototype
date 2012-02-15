@@ -1,5 +1,6 @@
 #pragma once
 
+#include "blocking_queue.h"
 #include "guid.h"
 #include "host_configuration.h"
 #include "multicast_rpc_request.h"
@@ -9,6 +10,7 @@
 #include <mordor/socket.h>
 #include <boost/noncopyable.hpp>
 #include <map>
+#include <utility>
 #include <vector>
 
 namespace lightning {
@@ -68,7 +70,10 @@ public:
     {}
 
     //! Collects reply datagrams.
-    void run();
+    void processReplies();
+
+    //! Sends pending requests.
+    void sendRequests();
 
     //! Blocks until request is completed or until the timeout expires;
     MulticastRpcRequest::Status request(MulticastRpcRequest::ptr request);
@@ -87,6 +92,8 @@ private:
     Mordor::Socket::ptr socket_;
     Mordor::Address::ptr groupMulticastAddress_;
     GroupConfiguration::ptr groupConfiguration_;
+
+    BlockingQueue<MulticastRpcRequest::ptr> sendQueue_;
 
     mutable Mordor::FiberMutex mutex_;
     std::map<Guid, MulticastRpcRequest::ptr> pendingRequests_;

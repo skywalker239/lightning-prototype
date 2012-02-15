@@ -45,8 +45,7 @@ void MulticastRpcRequester::setupSocket() {
     socket_->setOption(IPPROTO_IP, IP_MULTICAST_TTL, kMaxMulticastTtl);
 }
 
-void MulticastRpcRequester::run() {
-    MORDOR_LOG_TRACE(g_log) << this << " MulticastRpcRequester::run()";
+void MulticastRpcRequester::processReplies() {
     Address::ptr currentSourceAddress = socket_->emptyAddress();
     while(true) {
         char buffer[kMaxCommandSize + 1];
@@ -100,52 +99,67 @@ void MulticastRpcRequester::timeoutRequest(const Guid& requestId) {
     request->onTimeout();
 }
 
+void MulticastRpcRequester::sendRequests() {
+    while(true) {
+        MulticastRpcRequest::ptr request = sendQueue_.pop();
+        const Guid& requestGuid = request->rpcGuid();
+        MORDOR_LOG_TRACE(g_log) << this << " popped request " <<
+                                   requestGuid;
+        RpcMessageData requestData;
+        requestData.MergeFrom(request->request());
+        requestGuid.serialize(requestData.mutable_uuid());
+
+        char buffer[kMaxCommandSize];
+        uint64_t commandSize = requestData.ByteSize();
+        MORDOR_LOG_TRACE(g_log) << this << " command size is " << commandSize;
+        MORDOR_ASSERT(commandSize <= kMaxCommandSize);
+        if(!requestData.SerializeToArray(buffer, kMaxCommandSize)) {
+            MORDOR_LOG_WARNING(g_log) << this << " failed to serialize request " <<
+                                         requestGuid;
+            request->onTimeout();
+            continue;
+        }
+
+        {
+            FiberMutex::ScopedLock lk(mutex_);
+            pendingRequests_[requestGuid] = request;
+            request->setRpcGuid(requestGuid);
+        }
+
+        socket_->sendTo((const void*) buffer,
+                        commandSize,
+                        0,
+                        *groupMulticastAddress_);
+        Timer::ptr timeoutTimer =
+            ioManager_->registerTimer(request->timeoutUs(),
+                                      boost::bind(
+                                          &MulticastRpcRequester::timeoutRequest,
+                                          this,
+                                          requestGuid));
+        request->setTimeoutTimer(timeoutTimer);
+    }
+}
+
 MulticastRpcRequest::Status MulticastRpcRequester::request(
-    MulticastRpcRequest::ptr requestPtr)
+    MulticastRpcRequest::ptr request)
 {
     Guid requestGuid = guidGenerator_->generate();
-    MORDOR_LOG_TRACE(g_log) << this << " new request id=" << requestGuid <<
-                               " request=" << requestPtr;
-    RpcMessageData requestData;
-    requestData.MergeFrom(requestPtr->request());
-    requestGuid.serialize(requestData.mutable_uuid());
+    request->setRpcGuid(requestGuid);
 
+    MORDOR_LOG_TRACE(g_log) << this << " new request " << requestGuid;
+    sendQueue_.push(request);
 
-    char buffer[kMaxCommandSize];
-    uint64_t commandSize = requestData.ByteSize();
-    MORDOR_LOG_TRACE(g_log) << this << " command size is " << commandSize;
-    MORDOR_ASSERT(commandSize <= kMaxCommandSize);
-    if(!requestData.SerializeToArray(buffer, kMaxCommandSize)) {
-        MORDOR_LOG_WARNING(g_log) << this << " failed to serialize request " <<
-                                     requestGuid;
-        // TODO handle this better.
-        return MulticastRpcRequest::TIMED_OUT;
-    }
-
-    {
-        FiberMutex::ScopedLock lk(mutex_);
-        pendingRequests_[requestGuid] = requestPtr;
-    }
-
-    socket_->sendTo((const void*) buffer,
-                    commandSize,
-                    0,
-                    *groupMulticastAddress_);
-    Timer::ptr timeoutTimer =
-        ioManager_->registerTimer(requestPtr->timeoutUs(),
-                                  boost::bind(
-                                      &MulticastRpcRequester::timeoutRequest,
-                                      this,
-                                      requestGuid));
-    requestPtr->wait();
-    timeoutTimer->cancel();
+    request->wait();
+    request->cancelTimeoutTimer();
     {
         FiberMutex::ScopedLock lk(mutex_);
         pendingRequests_.erase(requestGuid);
+        MORDOR_LOG_TRACE(g_log) << this << " removed request " <<
+                                   requestGuid << " from pending";
     }
-    MulticastRpcRequest::Status status = requestPtr->status();
+    MulticastRpcRequest::Status status = request->status();
     MORDOR_ASSERT(status != MulticastRpcRequest::IN_PROGRESS);
-    return requestPtr->status();
+    return request->status();
 }
 
 }  // namespace lightning

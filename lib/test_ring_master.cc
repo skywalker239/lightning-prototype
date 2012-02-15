@@ -88,7 +88,8 @@ void setupEverything(uint32_t hostId,
     boost::shared_ptr<FiberEvent> event(new FiberEvent);
 
     MulticastRpcRequester::ptr requester = setupRequester(ioManager, guidGenerator, groupConfiguration, mcastDestination);
-    ioManager->schedule(boost::bind(&MulticastRpcRequester::run, requester));
+    ioManager->schedule(boost::bind(&MulticastRpcRequester::processReplies, requester));
+    ioManager->schedule(boost::bind(&MulticastRpcRequester::sendRequests, requester));
 
     PingTracker::ptr pingTracker(new PingTracker(groupConfiguration, pingWindow, pingTimeout, hostTimeout, event, ioManager));
     *pinger = Pinger::ptr(new Pinger(ioManager, requester, groupConfiguration, pingInterval, pingTimeout, pingTracker));
@@ -144,13 +145,15 @@ void submitValues(IOManager* ioManager,
                   ClientValueQueue::ptr valueQueue,
                   GuidGenerator::ptr guidGenerator)
 {
-    while(true) {
+    sleep(*ioManager, 3500000);
+    const size_t kValuesToSubmit = 1300;
+    for(size_t i = 0; i < kValuesToSubmit; ++i) {
         Value::ptr v(new Value);
         v->size = Value::kMaxValueSize;
         v->valueId = guidGenerator->generate();
         valueQueue->push(v);
         MORDOR_LOG_INFO(g_log) << " pushed value id=" << v->valueId << " size=" << v->size;
-        sleep(*ioManager, 10000);
+        sleep(*ioManager, 64);
     }
 }
 

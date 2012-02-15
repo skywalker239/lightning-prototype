@@ -71,6 +71,10 @@ GroupConfiguration::GroupConfiguration(const vector<HostConfiguration>& hosts,
         auto hostIdResult = replyAddressToHostId_.insert(
             make_pair(hosts_[i].multicastReplyAddress, i));
         MORDOR_ASSERT(hostIdResult.second);
+        // XXX HACK to allow ersatz ring for phase 2 to work
+        auto ringResult = replyAddressToHostId_.insert(
+            make_pair(hosts_[i].ringAddress, i));
+        MORDOR_ASSERT(ringResult.second);
         auto rpcNameResult = addressToServiceName_.insert(
             make_pair(hosts_[i].multicastReplyAddress,
                       hosts_[i].name + ":RPC"));

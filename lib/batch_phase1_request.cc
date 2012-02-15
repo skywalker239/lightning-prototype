@@ -79,6 +79,7 @@ void BatchPhase1Request::applyReply(uint32_t hostId,
                                        retryStartInstanceId_;
             break;
         case PaxosPhase1BatchReplyData::OK:
+            result_ = (result_ == IID_TOO_LOW) ? IID_TOO_LOW : SUCCESS;
             MORDOR_LOG_TRACE(g_log) << this << " OK from " <<
                                        group_->host(hostId);
             for(int i = 0; i < reply.reserved_instances_size(); ++i) {

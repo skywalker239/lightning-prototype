@@ -8,6 +8,7 @@ using Mordor::Address;
 using Mordor::FiberMutex;
 using Mordor::Log;
 using Mordor::Logger;
+using Mordor::Timer;
 
 static Logger::ptr g_log = Log::lookup("lightning:multicast_rpc_request");
 
@@ -28,7 +29,7 @@ void MulticastRpcRequest::onReply(Address::ptr sourceAddress,
                                   const RpcMessageData& reply)
 {
     FiberMutex::ScopedLock lk(mutex_);
-    MORDOR_ASSERT(status_ == IN_PROGRESS);
+    //MORDOR_ASSERT(status_ == IN_PROGRESS);
 
     const uint32_t hostId = ring_->replyAddressToId(sourceAddress);
     if(hostId == GroupConfiguration::kInvalidHostId) {
@@ -74,6 +75,32 @@ void MulticastRpcRequest::wait() {
 
 uint64_t MulticastRpcRequest::timeoutUs() const {
     return timeoutUs_;
+}
+
+void MulticastRpcRequest::setTimeoutTimer(Timer::ptr timer) {
+    FiberMutex::ScopedLock lk(mutex_);
+    timeoutTimer_ = timer;
+}
+
+void MulticastRpcRequest::cancelTimeoutTimer() {
+    FiberMutex::ScopedLock lk(mutex_);
+
+    if(timeoutTimer_.get()) {
+        timeoutTimer_->cancel();
+        timeoutTimer_.reset();
+    } else {
+        MORDOR_LOG_WARNING(g_log) << this << " no timeout timer to reset";
+    }
+}
+
+void MulticastRpcRequest::setRpcGuid(const Guid& guid) {
+    FiberMutex::ScopedLock lk(mutex_);
+    rpcGuid_ = guid;
+}
+
+const Guid& MulticastRpcRequest::rpcGuid() const {
+    FiberMutex::ScopedLock lk(mutex_);
+    return rpcGuid_;
 }
 
 MulticastRpcRequest::Status MulticastRpcRequest::status() const {

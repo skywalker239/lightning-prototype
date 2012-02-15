@@ -1,9 +1,11 @@
 #pragma once
 
+#include "guid.h"
 #include "proto/rpc_messages.pb.h"
 #include "ring_configuration.h"
 #include <mordor/fibersynchronization.h>
 #include <mordor/socket.h>
+#include <mordor/timer.h>
 #include <boost/shared_ptr.hpp>
 #include <string>
 
@@ -55,6 +57,20 @@ public:
     //! The timeout for this request, in microseconds.
     uint64_t timeoutUs() const;
 
+    //! MulticastRpcRequester records the timer tracking this request
+    //  here.
+    void setTimeoutTimer(Mordor::Timer::ptr timer);
+
+    //! Cancels the timeout timer set by setTimeoutTimer.
+    void cancelTimeoutTimer();
+
+    //! MulticastRpcRequester also needs to store the rpc guid
+    //  here so that MulticastRpcRequester:request()
+    //  can clean up after itself when the request completes.
+    void setRpcGuid(const Guid& guid);
+
+    const Guid& rpcGuid() const;
+
     //! Current status. 
     Status status() const;
 private:
@@ -62,6 +78,8 @@ private:
     const uint64_t timeoutUs_;
     uint64_t notAckedMask_;
     Status status_;
+    Mordor::Timer::ptr timeoutTimer_;
+    Guid rpcGuid_;
 
     Mordor::FiberEvent event_;
     mutable Mordor::FiberMutex mutex_;

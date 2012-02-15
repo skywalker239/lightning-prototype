@@ -85,6 +85,7 @@ void Phase1Request::applyReply(uint32_t hostId,
                                        group_->host(hostId);
             break;
         case PaxosPhase1ReplyData::OK:
+            result_ = (result_ == BALLOT_TOO_LOW) ? BALLOT_TOO_LOW : SUCCESS;
             if(!reply.has_last_ballot_id()) {
                 MORDOR_LOG_TRACE(g_log) << this << " OK from " <<
                                            group_->host(hostId);

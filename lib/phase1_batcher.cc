@@ -84,6 +84,8 @@ void Phase1Batcher::run() {
                               request->reservedInstances());
                 break;
             default:
+                MORDOR_LOG_ERROR(g_log) << this << " unknown result " <<
+                                           request->result();
                 MORDOR_ASSERT(1==0);
                 break;
         }

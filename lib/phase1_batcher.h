@@ -17,11 +17,7 @@ namespace lightning {
 class Phase1Batcher : public RingHolder {
 public:
     typedef boost::shared_ptr<Phase1Batcher> ptr;
-    //! Since all Paxos instances are logically distinct
-    //  we only need one initial ballot id with which to
-    //  attempt to reserve them. If we fail to reserve
-    //  some instance in batch phase 1, it will go
-    //  through a complete phase 1 elsewhere.
+
     Phase1Batcher(const Guid& epoch,
                   uint64_t timeoutUs,
                   uint32_t batchSize,

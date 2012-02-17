@@ -122,7 +122,7 @@ void Phase1Batcher::requestInstanceRange(InstanceId startInstance,
             MORDOR_LOG_TRACE(g_log) << this << " [[" << startInstance <<
                                        ", " << endInstance << "), " <<
                                        currentBallot << "] timed out";
-            currentBallot = ballotGenerator_.boostBallotId(kInvalidBallotId);
+            currentBallot = ballotGenerator_.boostBallotId(currentBallot);
             g_batchPhase1Timeouts.increment();
             continue;
         } else {

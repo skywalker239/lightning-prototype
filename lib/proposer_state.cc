@@ -105,6 +105,14 @@ void ProposerState::doPhase1(ProposerInstance::ptr instance) {
            MulticastRpcRequest::COMPLETED)
     {
         switch(request->result()) {
+            case Phase1Request::FORGOTTEN:
+                {
+                    MORDOR_LOG_TRACE(g_log) << this <<
+                                               "iid=" <<
+                                               instance->instanceId() <<
+                                               " was forgotten";
+                    break;
+                }
             case Phase1Request::BALLOT_TOO_LOW:
                 {
                     MORDOR_LOG_TRACE(g_log) << this <<

@@ -12,14 +12,26 @@
 
 namespace lightning {
 
-//! The acceptor keeps track of:
-//    * up to pendingInstancesLimit pending Paxos instances.
-//    * up to committedInstancesLimit committed instances.
-//  When pendingInstancesLimit is reached, it starts refusing
-//  commands which would create fresh instances.
-//  When committedInstancesLimit is reached and a new instance
-//  is committed, a committed instance with the lowest iid
-//  is evicted from storage.
+//! The acceptor keeps track of some sliding window of consecutive Paxos
+//  instances. At any point in time, the state consists of:
+//  - Some range F = [0, f) of forgotten instances.
+//    These are the instances that were committed
+//    once but their values were discarded to save memory.
+//  - A range A = [f, l) of active instances. It may contain holes (instances
+//    that this acceptor has never seen yet)
+//  - An infinite range [l, +\infty) of yet unused instances.
+//
+//  The following constraints are enforced:
+//  * There are no more than pendingInstancesLimit pending instances in
+//    range A. Pending instances are the ones that have received at least
+//    one Paxos command but are not yet committed.
+//  * Pending instances are never forgotten.
+//  * Range A is no longer than instanceWindowSize. When A is at maximal
+//    size, its right boundary l can only be extended by forgetting a
+//    needed number of committed instances and shifting f.
+//
+//  When a fresh instance cannot be initialized due to these constraints,
+//  the acceptor refuses the corresponding Paxos command.
 class AcceptorState {
     typedef paxos::AcceptorInstance AcceptorInstance;
     typedef paxos::InstanceId InstanceId;
@@ -31,12 +43,12 @@ public:
     enum Status {
         OK,     // Paxos command succeeded
         NACKED, // Paxos command failed
-        REFUSED // Paxos command refused because
-                // pendingInstancesLimit was reached.
+        REFUSED // Paxos command refused because of
+                // storage constraints.
     };
 
     AcceptorState(uint32_t pendingInstancesLimit,
-                  uint32_t committedInstancesLimit);
+                  uint32_t instanceWindowSize);
 
     Status nextBallot(InstanceId instanceId,
                       BallotId  ballotId,
@@ -59,8 +71,11 @@ public:
     Status value(InstanceId instanceId,
                  Value* value) const;
 
-    //! Lowest unknown-or-pending instance id.
-    InstanceId lowestInstanceId() const;
+    //! The first instance after the last forgotten one.
+    InstanceId firstNotForgottenInstance() const;
+
+    //! The first not committed instance (to hint off batch phase 1)
+    InstanceId firstNotCommittedInstance() const;
 
     //! If epoch differs from the last seen one, reset() and
     //  update the last seen one.
@@ -71,47 +86,47 @@ private:
     void reset();
 
     typedef std::map<InstanceId, AcceptorInstance> InstanceMap;
-    typedef std::priority_queue<InstanceId,
-                                std::vector<InstanceId>,
-                                std::greater<InstanceId> > InstanceIdHeap;
 
-    //! Looks up the instances in pending and committed instance
-    //  maps.
-    //  Returns NULL iff it was not found and pendingInstancesLimit
-    //  has been reached.
-    //  If it has been found, returns a pointer to it.
-    //  Otherwise (not found, but pendingInstancesLimit not reached)
-    //  inserts a fresh instance into pendingInstances_ and returns
-    //  a pointer to it.
+    //! Looks up the instance by its id. If not found, inserts it if
+    //  possible (pendingInstancesLimit not reached and it is possible
+    //  to shift the window if needed).
+    //  Returns NULL iff not found and impossible to insert.
     AcceptorInstance* lookupInstance(InstanceId instanceId);
+
+    //! Tries to forget all instances with iid < upperLimit.
+    //  Returns true on success, false on failure (iff there's
+    //  an uncommitted instance with an iid < upperLimit).
+    //  Forgets nothing on failure..
+    bool tryForgetInstances(InstanceId upperLimit);
+
+    //! Retrieve first not committed instance id without grabbing the lock.
+    InstanceId firstNotCommittedInstanceInternal() const;
 
     Status boolToStatus(const bool boolean) const;
 
-    void evictLowestCommittedInstance();
-
     const uint32_t pendingInstancesLimit_;
-    const uint32_t committedInstancesLimit_;
+    const uint32_t instanceWindowSize_;
 
+    //! The last known master epoch.
     Guid epoch_;
 
     //! Stores all pending and committed instances.
     //  Eviction and limits enforcement are handled by
     //  tracking committed instance ids and pending instances count.
     InstanceMap instances_;
-    //! When the committed instance limit is reached, the committed instance
-    //  with the lowest id is evicted.
-    InstanceIdHeap committedInstanceIds_;
 
+    InstanceId firstNotForgottenInstanceId_;
     uint64_t pendingInstanceCount_;
+
 
     //! Invariant: the instance ids not yet committed are
     //  notCommittedInstanceIds_ \cup
     //  [afterLastCommittedInstanceId_, infinity).
     std::set<InstanceId> notCommittedInstanceIds_;
     InstanceId afterLastCommittedInstanceId_;
-
-    //! Returns true iff instanceId was not previously committed.
-    bool addCommittedInstanceId(InstanceId instanceId); 
+    //! Adjusts pendingInstanceCount and the not committed iid
+    //  tracker.
+    void addCommittedInstanceId(InstanceId instanceId);
 
     mutable Mordor::FiberMutex mutex_;
 };

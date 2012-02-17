@@ -47,6 +47,7 @@ message PaxosPhase1ReplyData {
     enum Type {
         OK = 1;
         BALLOT_TOO_LOW = 2;
+        FORGOTTEN = 3;
     }
     required Type type = 1;
     optional uint32 last_ballot_id = 2;

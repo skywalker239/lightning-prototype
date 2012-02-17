@@ -31,7 +31,7 @@ Phase1Request::Phase1Request(
     uint64_t timeoutUs)
     : MulticastRpcRequest(ring, timeoutUs),
       group_(ring->group()),
-      result_(PENDING),
+      result_(SUCCESS),
       lastPromisedBallotId_(kInvalidBallotId),
       lastVotedBallotId_(kInvalidBallotId)
 {
@@ -74,8 +74,13 @@ void Phase1Request::applyReply(uint32_t hostId,
     MORDOR_ASSERT(rpcReply.has_phase1_reply());
     const PaxosPhase1ReplyData& reply = rpcReply.phase1_reply();
     switch(reply.type()) {
+        case PaxosPhase1ReplyData::FORGOTTEN:
+            result_ = FORGOTTEN;
+            MORDOR_LOG_TRACE(g_log) << this << " FORGOTTEN from " <<
+                                       group_->host(hostId);
+            break;
         case PaxosPhase1ReplyData::BALLOT_TOO_LOW:
-            result_ = BALLOT_TOO_LOW;
+            result_ = (result_ == FORGOTTEN) ? result_ : BALLOT_TOO_LOW;
             lastPromisedBallotId_ = max(lastPromisedBallotId_,
                                         reply.last_ballot_id());
             MORDOR_LOG_TRACE(g_log) << this << " BALLOT_TOO_LOW(" <<
@@ -85,7 +90,6 @@ void Phase1Request::applyReply(uint32_t hostId,
                                        group_->host(hostId);
             break;
         case PaxosPhase1ReplyData::OK:
-            result_ = (result_ == BALLOT_TOO_LOW) ? BALLOT_TOO_LOW : SUCCESS;
             if(!reply.has_last_ballot_id()) {
                 MORDOR_LOG_TRACE(g_log) << this << " OK from " <<
                                            group_->host(hostId);

@@ -18,9 +18,10 @@ using std::set;
 static Logger::ptr g_log = Log::lookup("lightning:acceptor_state");
 
 AcceptorState::AcceptorState(uint32_t pendingInstancesLimit,
-                             uint32_t committedInstancesLimit)
+                             uint32_t instanceWindowSize)
     : pendingInstancesLimit_(pendingInstancesLimit),
-      committedInstancesLimit_(committedInstancesLimit),
+      instanceWindowSize_(instanceWindowSize),
+      firstNotForgottenInstanceId_(0),
       pendingInstanceCount_(0),
       afterLastCommittedInstanceId_(0)
 {}
@@ -104,17 +105,15 @@ AcceptorState::Status AcceptorState::commit(InstanceId instanceId,
     MORDOR_LOG_TRACE(g_log) << this << " commit(" << instanceId << ", " <<
                                valueId << ") = " << result;
     if(result) {
-        if(addCommittedInstanceId(instanceId)) {
-            --pendingInstanceCount_;
-        }
-        if(committedInstanceIds_.size() > committedInstancesLimit_) {
-            evictLowestCommittedInstance();
-        }
+        addCommittedInstanceId(instanceId);
     }
     return boolToStatus(result);
 }
 
-AcceptorState::Status AcceptorState::value(InstanceId instanceId, Value* value) const {
+AcceptorState::Status AcceptorState::value(
+    InstanceId instanceId,
+    Value* value) const
+{
     FiberMutex::ScopedLock lk(mutex_);
 
     auto instanceIter = instances_.find(instanceId);
@@ -127,32 +126,73 @@ AcceptorState::Status AcceptorState::value(InstanceId instanceId, Value* value) 
     }
 }
 
-InstanceId AcceptorState::lowestInstanceId() const {
+InstanceId AcceptorState::firstNotForgottenInstance() const {
     FiberMutex::ScopedLock lk(mutex_);
-    return notCommittedInstanceIds_.empty() ?
-               afterLastCommittedInstanceId_ :
-               *notCommittedInstanceIds_.begin();
+
+    return firstNotForgottenInstanceId_;
+}
+
+InstanceId AcceptorState::firstNotCommittedInstance() const {
+    FiberMutex::ScopedLock lk(mutex_);
+
+    return firstNotCommittedInstanceInternal();
+}
+
+InstanceId AcceptorState::firstNotCommittedInstanceInternal() const {
+    return (notCommittedInstanceIds_.empty()) ?
+                afterLastCommittedInstanceId_ :
+                *notCommittedInstanceIds_.begin();
+}
+
+bool AcceptorState::tryForgetInstances(InstanceId upperLimit) {
+    InstanceId firstNotCommittedId = firstNotCommittedInstanceInternal();
+    if(firstNotCommittedId < upperLimit) {
+        MORDOR_LOG_TRACE(g_log) << this << " forget(" << upperLimit <<
+                                   " failed: iid " << firstNotCommittedId <<
+                                   " not committed";
+        return false;
+    }
+
+    while(!instances_.empty() && instances_.begin()->first < upperLimit) {
+        MORDOR_LOG_TRACE(g_log) << this << " forgetting iid=" <<
+                                   instances_.begin()->first;
+        instances_.erase(instances_.begin());
+    }
+    firstNotForgottenInstanceId_ = upperLimit;
+    return true;
 }
 
 AcceptorInstance* AcceptorState::lookupInstance(InstanceId instanceId) {
+    if(instanceId < firstNotForgottenInstanceId_) {
+        MORDOR_LOG_WARNING(g_log) << this << " lookup forgotten iid=" <<
+                                     instanceId;
+        return false;
+    }
+
     auto instanceIter = instances_.find(instanceId);
     if(instanceIter != instances_.end()) {
         return &instanceIter->second;
     } else {
-        if(pendingInstanceCount_ < pendingInstancesLimit_) {
-            MORDOR_LOG_TRACE(g_log) << this << " new pending iid=" <<
-                                       instanceId;
-            auto freshIter = instances_.insert(make_pair(instanceId,
-                                              AcceptorInstance())).first;
-            ++pendingInstanceCount_;
-            return &freshIter->second;
-        } else {
+        if(pendingInstanceCount_ >= pendingInstancesLimit_) {
             return NULL;
         }
+        if(instanceId - firstNotForgottenInstanceId_ > instanceWindowSize_) {
+            const InstanceId newWindowStart = instanceId - instanceWindowSize_;
+            if(!tryForgetInstances(newWindowStart)) {
+                return NULL;
+            }
+        }
+
+        MORDOR_LOG_TRACE(g_log) << this << " new pending iid=" <<
+                                       instanceId;
+        auto freshIter = instances_.insert(make_pair(instanceId,
+                                           AcceptorInstance())).first;
+        ++pendingInstanceCount_;
+        return &freshIter->second;
     }
 }
                                                     
-bool AcceptorState::addCommittedInstanceId(InstanceId instanceId) {
+void AcceptorState::addCommittedInstanceId(InstanceId instanceId) {
     bool freshCommit = false;
     if(instanceId >= afterLastCommittedInstanceId_) {
         for(InstanceId iid = afterLastCommittedInstanceId_;
@@ -167,25 +207,13 @@ bool AcceptorState::addCommittedInstanceId(InstanceId instanceId) {
         freshCommit = (notCommittedInstanceIds_.erase(instanceId) == 1);
     }
     if(freshCommit) {
-        committedInstanceIds_.push(instanceId);
+        --pendingInstanceCount_;
     }
-    return freshCommit;
 }
 
 AcceptorState::Status AcceptorState::boolToStatus(const bool boolean) const
 {
     return boolean ? OK : NACKED;
-}
-
-void AcceptorState::evictLowestCommittedInstance() {
-    MORDOR_ASSERT(!committedInstanceIds_.empty());
-    InstanceId lowestCommittedInstanceId = committedInstanceIds_.top();
-    committedInstanceIds_.pop();
-    MORDOR_LOG_TRACE(g_log) << this << " evicting committed instance iid=" <<
-                               lowestCommittedInstanceId;
-    auto instanceIter = instances_.find(lowestCommittedInstanceId);
-    MORDOR_ASSERT(instanceIter != instances_.end());
-    instances_.erase(instanceIter);
 }
 
 void AcceptorState::updateEpoch(const Guid& epoch) {
@@ -200,7 +228,7 @@ void AcceptorState::updateEpoch(const Guid& epoch) {
 
 void AcceptorState::reset() {
     instances_.clear();
-    committedInstanceIds_ = InstanceIdHeap();
+    firstNotForgottenInstanceId_ = 0;
     pendingInstanceCount_ = 0;
     notCommittedInstanceIds_.clear();
     afterLastCommittedInstanceId_ = 0;

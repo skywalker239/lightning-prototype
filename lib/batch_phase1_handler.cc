@@ -41,7 +41,8 @@ bool BatchPhase1Handler::handleRequest(Address::ptr,
 
     reply->set_type(RpcMessageData::PAXOS_BATCH_PHASE1);
     PaxosPhase1BatchReplyData* replyData = reply->mutable_phase1_batch_reply();
-    InstanceId lowestOpenInstanceId = acceptorState_->lowestInstanceId();
+    InstanceId lowestOpenInstanceId =
+        acceptorState_->firstNotCommittedInstance();
     if(startInstanceId < lowestOpenInstanceId) {
         MORDOR_LOG_TRACE(g_log) << this << " start iid " << startInstanceId <<
                                    " too low, retry with " <<

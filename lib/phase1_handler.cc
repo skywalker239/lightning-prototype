@@ -43,6 +43,13 @@ bool Phase1Handler::handleRequest(Address::ptr,
     reply->set_type(RpcMessageData::PAXOS_PHASE1);
     PaxosPhase1ReplyData* replyData = reply->mutable_phase1_reply();
 
+    if(instance < acceptorState_->firstNotForgottenInstance()) {
+        MORDOR_LOG_TRACE(g_log) << this << " iid=" << instance <<
+                                   " forgotten";
+        replyData->set_type(PaxosPhase1ReplyData::FORGOTTEN);
+        return ring->isInRing();
+    }
+
     BallotId highestPromised;
     BallotId highestVoted;
     Value    lastVote;

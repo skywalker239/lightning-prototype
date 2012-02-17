@@ -22,7 +22,7 @@ public:
                   uint64_t timeoutUs);
 
     enum Result {
-        PENDING,
+        FORGOTTEN,
         BALLOT_TOO_LOW,
         SUCCESS
     };

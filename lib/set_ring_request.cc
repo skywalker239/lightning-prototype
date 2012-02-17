@@ -33,6 +33,11 @@ SetRingRequest::SetRingRequest(
     }
 }
 
+std::ostream& SetRingRequest::output(std::ostream& os) const {
+    os << "SetRing(" << *ring_ << ")";
+    return os;
+}
+
 const RpcMessageData& SetRingRequest::request() const {
     return rpcMessageData_;
 }

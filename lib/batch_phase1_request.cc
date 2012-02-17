@@ -43,7 +43,17 @@ BatchPhase1Request::BatchPhase1Request(
                                ring->ringId() << ", " << ballotId << ", [" <<
                                instanceRangeBegin << ", " <<
                                instanceRangeEnd << "))";    
- }
+}
+
+std::ostream& BatchPhase1Request::output(std::ostream& os) const {
+    const PaxosPhase1BatchRequestData& request =
+        requestData_.phase1_batch_request();
+    os << "BatchP1(" << Guid::parse(request.epoch()) << ", " <<
+       request.ring_id() << ", " << request.ballot_id() << ", [" <<
+       request.start_instance_id() << ", " << request.end_instance_id() <<
+       "))";
+   return os;
+}
 
 BatchPhase1Request::Result BatchPhase1Request::result() const {
     return result_;

@@ -36,6 +36,8 @@ public:
 private:
     const RpcMessageData& request() const;
 
+    std::ostream& output(std::ostream& os) const;
+
     void applyReply(uint32_t hostId,
                     const RpcMessageData& reply);
 

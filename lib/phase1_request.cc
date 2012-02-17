@@ -46,7 +46,16 @@ Phase1Request::Phase1Request(
     MORDOR_LOG_TRACE(g_log) << this << " P1(" << epoch << ", " <<
                                ring->ringId() << ", " << instance << ", " <<
                                ballot << ")";
- }
+}
+
+std::ostream& Phase1Request::output(std::ostream& os) const {
+     const PaxosPhase1RequestData& request = requestData_.phase1_request();
+     Guid epoch = Guid::parse(request.epoch());
+     os << "P1(" << Guid::parse(request.epoch()) << ", " <<
+        request.ring_id() << ", " << request.instance() << ", " <<
+        request.ballot() << ")";
+     return os;
+}
 
 Phase1Request::Result Phase1Request::result() const {
     return result_;

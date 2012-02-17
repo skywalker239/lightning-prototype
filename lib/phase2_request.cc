@@ -71,7 +71,25 @@ Phase2Request::Phase2Request(
                                ringId << ", " << instance << ", " <<
                                ballot << ", " << value->valueId << ", " <<
                                commits << ") ring=" << *ring;
- }
+}
+
+std::ostream& Phase2Request::output(std::ostream& os) const {
+    const PaxosPhase2RequestData& request = requestData_.phase2_request();
+    os << "P2(" << Guid::parse(request.epoch()) << ", " <<
+       request.ring_id() << ", " << request.instance() << ", " <<
+       request.ballot() << ", Value(" << Guid::parse(request.value().id()) <<
+       ", " << request.value().data().length() << "), [";
+    for(int i = 0; i < request.commits_size(); ++i) {
+        const CommitData& commit = request.commits(i);
+        os << "(" << commit.instance() << ", " <<
+           Guid::parse(commit.value_id()) << ")";
+        if(i + 1 < request.commits_size()) {
+            os << ", ";
+        }
+    }
+    os << "])";
+    return os;
+}
 
 Phase2Request::Result Phase2Request::result() const {
     return result_;

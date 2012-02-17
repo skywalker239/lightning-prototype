@@ -41,6 +41,12 @@ const RpcMessageData& PingRequest::request() const {
     return rpcMessageData_;
 }
 
+std::ostream& PingRequest::output(std::ostream& os) const {
+    const PingData& request = rpcMessageData_.ping();
+    os << "Ping(" << request.id() << ", " << request.sender_now() << ")";
+    return os;
+}
+
 void PingRequest::applyReply(uint32_t hostId,
                              const RpcMessageData& reply)
 {

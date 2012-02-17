@@ -73,6 +73,9 @@ void RingVoter::run() {
                                        << requestGuid;
             continue;
         }
+        MORDOR_LOG_TRACE(g_log) << this << " processing vote " << requestGuid;
+
+
         RpcMessageData replyData;
 
         if(processVote(ringConfiguration, requestData, &replyData)) {

@@ -94,8 +94,8 @@ void MulticastRpcRequester::processReplies() {
                                          groupConfiguration_->addressToServiceName(currentSourceAddress);
             continue;
         }
-        MORDOR_LOG_TRACE(g_log) << this << " got reply for request " <<
-                                   replyGuid << " from " <<
+        MORDOR_LOG_TRACE(g_log) << this << " got reply for request (" <<
+                                   replyGuid << ", " << *request << ") from " <<
                                    groupConfiguration_->addressToServiceName(currentSourceAddress);
         request->onReply(currentSourceAddress, reply);
     }
@@ -112,9 +112,11 @@ void MulticastRpcRequester::timeoutRequest(const Guid& requestId) {
             return;
         }
         request = requestIter->second;
+        MORDOR_LOG_TRACE(g_log) << this << " timed out request " <<
+                                   requestId << " = " <<
+                                   *request;
         pendingRequests_.erase(requestIter);
     }
-    MORDOR_LOG_TRACE(g_log) << this << " timed out request " << requestId;
     request->onTimeout();
 }
 
@@ -122,8 +124,8 @@ void MulticastRpcRequester::sendRequests() {
     while(true) {
         MulticastRpcRequest::ptr request = sendQueue_.pop();
         const Guid& requestGuid = request->rpcGuid();
-        MORDOR_LOG_TRACE(g_log) << this << " popped request " <<
-                                   requestGuid;
+        MORDOR_LOG_TRACE(g_log) << this << " popped request (" <<
+                                   requestGuid << ", " << *request << ")";
         RpcMessageData requestData;
         requestData.MergeFrom(request->request());
         requestGuid.serialize(requestData.mutable_uuid());
@@ -133,8 +135,8 @@ void MulticastRpcRequester::sendRequests() {
         MORDOR_LOG_TRACE(g_log) << this << " command size is " << commandSize;
         MORDOR_ASSERT(commandSize <= kMaxCommandSize);
         if(!requestData.SerializeToArray(buffer, kMaxCommandSize)) {
-            MORDOR_LOG_WARNING(g_log) << this << " failed to serialize request " <<
-                                         requestGuid;
+            MORDOR_LOG_WARNING(g_log) << this << " failed to serialize request (" <<
+                                         requestGuid << ", " << *request << ")";
             request->onTimeout();
             continue;
         }
@@ -167,7 +169,8 @@ MulticastRpcRequest::Status MulticastRpcRequester::request(
     Guid requestGuid = guidGenerator_->generate();
     request->setRpcGuid(requestGuid);
 
-    MORDOR_LOG_TRACE(g_log) << this << " new request " << requestGuid;
+    MORDOR_LOG_TRACE(g_log) << this << " new request (" << requestGuid <<
+                               ", " << *request << ")";
     sendQueue_.push(request);
 
     request->wait();
@@ -175,8 +178,9 @@ MulticastRpcRequest::Status MulticastRpcRequester::request(
     {
         FiberMutex::ScopedLock lk(mutex_);
         pendingRequests_.erase(requestGuid);
-        MORDOR_LOG_TRACE(g_log) << this << " removed request " <<
-                                   requestGuid << " from pending";
+        MORDOR_LOG_TRACE(g_log) << this << " removed request (" <<
+                                   requestGuid << ", " << *request <<
+                                   ") from pending";
     }
     MulticastRpcRequest::Status status = request->status();
     MORDOR_ASSERT(status != MulticastRpcRequest::IN_PROGRESS);

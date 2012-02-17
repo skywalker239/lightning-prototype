@@ -7,6 +7,7 @@
 #include <mordor/socket.h>
 #include <mordor/timer.h>
 #include <boost/shared_ptr.hpp>
+#include <iostream>
 #include <string>
 
 namespace lightning {
@@ -47,6 +48,9 @@ public:
     //! The serialized request to transmit over the network.
     virtual const RpcMessageData& request() const = 0;
 
+    //! For debug logging.
+    virtual std::ostream& output(std::ostream& os) const = 0;
+
     //! Sets the status to TIMED_OUT and releases the waiter.
     void onTimeout();
 
@@ -84,5 +88,12 @@ private:
     Mordor::FiberEvent event_;
     mutable Mordor::FiberMutex mutex_;
 };
+
+inline
+std::ostream& operator<<(std::ostream& os,
+                         const MulticastRpcRequest& request)
+{
+    return request.output(os);
+}
 
 }  // namespace lightning

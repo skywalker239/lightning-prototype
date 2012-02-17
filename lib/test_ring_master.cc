@@ -153,14 +153,14 @@ void submitValues(IOManager* ioManager,
                   GuidGenerator::ptr guidGenerator)
 {
     sleep(*ioManager, 3500000);
-    const size_t kValuesToSubmit = 1300000;
+    const size_t kValuesToSubmit = 13000000;
     for(size_t i = 0; i < kValuesToSubmit; ++i) {
         Value::ptr v(new Value);
         v->size = Value::kMaxValueSize;
         v->valueId = guidGenerator->generate();
         valueQueue->push(v);
         MORDOR_LOG_DEBUG(g_log) << " pushed value id=" << v->valueId << " size=" << v->size;
-        sleep(*ioManager, 100000);
+        sleep(*ioManager, 1000);
     }
 }
 

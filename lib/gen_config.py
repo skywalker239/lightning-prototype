@@ -37,7 +37,7 @@ configuration = {
     "ring_timeout" : 50000,
     "ring_retry_interval" : 500000,
     "acceptor_max_pending_instances" : 20000,
-    "acceptor_max_committed_instances" : 100000,
+    "acceptor_instance_window_size" : 100000,
     "batch_phase1_timeout" : 100000,
     "phase1_batch_size" : 100,
     "instance_pool_open_limit" : 500, # 15000, # 1Gbps/10ms latency/8k data

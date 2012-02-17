@@ -106,7 +106,7 @@ void setupEverything(IOManager* ioManager,
 
 AcceptorState::ptr createAcceptor(const JSON::Value& config) {
     uint64_t pendingLimit = config["acceptor_max_pending_instances"].get<long long>();
-    uint64_t committedLimit = config["acceptor_max_committed_instances"].get<long long>();
+    uint64_t committedLimit = config["acceptor_instance_window_size"].get<long long>();
     return AcceptorState::ptr(new AcceptorState(pendingLimit, committedLimit));
 }
 

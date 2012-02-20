@@ -14,6 +14,9 @@
 #include <mordor/socket.h>
 #include <mordor/streams/file.h>
 #include <mordor/sleep.h>
+#include <mordor/streams/memory.h>
+#include <mordor/streams/socket.h>
+#include <mordor/http/server.h>
 #include <mordor/iomanager.h>
 #include <mordor/timer.h>
 #include <map>
@@ -141,10 +144,27 @@ void setupEverything(uint32_t hostId,
 
 static Logger::ptr g_log = Log::lookup("lightning:main");
 
-void displayStats(IOManager* ioManager) {
+void httpRequest(HTTP::ServerRequest::ptr request) {
+    ostringstream ss;
+    ss << Statistics::dump();
+    MemoryStream::ptr responseStream(new MemoryStream);
+    string response(ss.str());
+    responseStream->write(response.c_str(), response.length());
+    HTTP::respondStream(request, responseStream);
+}
+
+void serveStats(IOManager* ioManager) {
+    Socket s(*ioManager, AF_INET, SOCK_STREAM);
+    IPv4Address address(INADDR_ANY, 80);
+
+    s.bind(address);
+    s.listen();
+
     while(true) {
-        MORDOR_LOG_INFO(g_log) << std::endl << Statistics::dump();
-        sleep(*ioManager, 1000000);
+        Socket::ptr socket = s.accept();
+        Stream::ptr stream(new SocketStream(socket));
+        HTTP::ServerConnection::ptr conn(new HTTP::ServerConnection(stream, &httpRequest));
+        conn->processRequests();
     }
 }
 
@@ -184,7 +204,7 @@ int main(int argc, char** argv) {
         ClientValueQueue::ptr clientValueQueue;
         setupEverything(hostId, configHash, config, &ioManager, &pinger, &ringManager, &phase1Batcher, &proposerState, &clientValueQueue);
         GuidGenerator::ptr guidGenerator(new GuidGenerator);
-        ioManager.schedule(boost::bind(displayStats, &ioManager));
+        ioManager.schedule(boost::bind(&serveStats, &ioManager));
         ioManager.schedule(boost::bind(&Pinger::run, pinger));
         ioManager.schedule(boost::bind(&RingManager::run, ringManager));
         ioManager.schedule(boost::bind(&Phase1Batcher::run, phase1Batcher));

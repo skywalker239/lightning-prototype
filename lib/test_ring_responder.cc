@@ -17,6 +17,9 @@
 #include <boost/bind.hpp>
 #include <boost/lexical_cast.hpp>
 #include <mordor/json.h>
+#include <mordor/streams/socket.h>
+#include <mordor/streams/memory.h>
+#include <mordor/http/server.h>
 #include <mordor/config.h>
 #include <mordor/sleep.h>
 #include <mordor/socket.h>
@@ -57,10 +60,27 @@ Socket::ptr bindSocket(Address::ptr bindAddress, IOManager* ioManager) {
 
 static Logger::ptr g_log = Log::lookup("lightning:main");
 
-void dumpStats(IOManager* ioManager) {
+void httpRequest(HTTP::ServerRequest::ptr request) {
+    ostringstream ss;
+    ss << Statistics::dump();
+    MemoryStream::ptr responseStream(new MemoryStream);
+    string response(ss.str());
+    responseStream->write(response.c_str(), response.length());
+    HTTP::respondStream(request, responseStream);
+}
+
+void serveStats(IOManager* ioManager) {
+    Socket s(*ioManager, AF_INET, SOCK_STREAM);
+    IPv4Address address(INADDR_ANY, 80);
+
+    s.bind(address);
+    s.listen();
+
     while(true) {
-        MORDOR_LOG_INFO(g_log) << endl << Statistics::dump();
-        sleep(*ioManager, 1000000);
+        Socket::ptr socket = s.accept();
+        Stream::ptr stream(new SocketStream(socket));
+        HTTP::ServerConnection::ptr conn(new HTTP::ServerConnection(stream, &httpRequest));
+        conn->processRequests();
     }
 }
 
@@ -128,6 +148,6 @@ int main(int argc, char** argv) {
     setupEverything(&ioManager, configGuid, config, id, acceptorState, &responder, &ringVoter);
     ioManager.schedule(boost::bind(&MulticastRpcResponder::run, responder));
     ioManager.schedule(boost::bind(&RingVoter::run, ringVoter));
-    ioManager.schedule(boost::bind(dumpStats, &ioManager));
+    ioManager.schedule(boost::bind(serveStats, &ioManager));
     ioManager.dispatch();
 }

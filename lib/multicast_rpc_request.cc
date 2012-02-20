@@ -38,7 +38,7 @@ void MulticastRpcRequest::onReply(Address::ptr sourceAddress,
         return;
     }
     if((notAckedMask_ & (1 << hostId)) == 0) {
-        MORDOR_LOG_WARNING(g_log) << this << "unexpected reply from " <<
+        MORDOR_LOG_WARNING(g_log) << this << " unexpected reply from " <<
                                      ring_->group()->host(hostId) <<
                                      " to " << *this;
         return;

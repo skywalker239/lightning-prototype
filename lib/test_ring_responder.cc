@@ -71,7 +71,7 @@ void httpRequest(HTTP::ServerRequest::ptr request) {
 
 void serveStats(IOManager* ioManager) {
     Socket s(*ioManager, AF_INET, SOCK_STREAM);
-    IPv4Address address(INADDR_ANY, 80);
+    IPv4Address address(INADDR_ANY, 8080);
 
     s.bind(address);
     s.listen();

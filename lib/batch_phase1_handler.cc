@@ -34,7 +34,8 @@ bool BatchPhase1Handler::handleRequest(Address::ptr,
                                " iids=[" << startInstanceId << ", " <<
                                endInstanceId << ") ballot=" << requestBallot;
     acceptorState_->updateEpoch(requestEpoch);
-    if(!checkRingId(requestRingId)) {
+    RingConfiguration::const_ptr ring = tryAcquireRingConfiguration();
+    if(!checkRingId(ring, requestRingId)) {
         MORDOR_LOG_TRACE(g_log) << this << " bad ring id, ignoring request";
         return false;
     }
@@ -49,19 +50,20 @@ bool BatchPhase1Handler::handleRequest(Address::ptr,
                                    lowestOpenInstanceId;
         replyData->set_type(PaxosPhase1BatchReplyData::IID_TOO_LOW);
         replyData->set_retry_iid(lowestOpenInstanceId);
-        return true;
+        return ring->isInRing();
     } else {
         markReservedInstances(requestBallot,
                               startInstanceId,
                               endInstanceId,
                               replyData);
-        return true;
+        return ring->isInRing();
     }
 }
 
-bool BatchPhase1Handler::checkRingId(uint32_t ringId) {
-    RingConfiguration::const_ptr ringConfiguration =
-        tryAcquireRingConfiguration();
+bool BatchPhase1Handler::checkRingId(
+    const RingConfiguration::const_ptr& ringConfiguration,
+    uint32_t ringId)
+{
     if(!ringConfiguration.get()) {
         MORDOR_LOG_TRACE(g_log) << this << " no valid ring configuration " <<
                                    "to check against " << ringId;

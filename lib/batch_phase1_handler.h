@@ -18,7 +18,8 @@ private:
                        const RpcMessageData& request,
                        RpcMessageData* reply);
     
-    bool checkRingId(uint32_t requestRingId);
+    bool checkRingId(const RingConfiguration::const_ptr& ring,
+                     uint32_t requestRingId);
     void markReservedInstances(BallotId ballot,
                                InstanceId startInstance,
                                InstanceId endInstance,

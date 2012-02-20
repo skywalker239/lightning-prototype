@@ -66,6 +66,7 @@ void httpRequest(HTTP::ServerRequest::ptr request) {
     MemoryStream::ptr responseStream(new MemoryStream);
     string response(ss.str());
     responseStream->write(response.c_str(), response.length());
+    responseStream->seek(0);
     HTTP::respondStream(request, responseStream);
 }
 

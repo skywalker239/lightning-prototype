@@ -49,10 +49,9 @@ bool SetRingHandler::handleRequest(Address::ptr sourceAddress,
     vector<uint32_t> ringHosts(request.set_ring().ring_host_ids().begin(),
                                request.set_ring().ring_host_ids().end());
 
-    MORDOR_LOG_TRACE(g_log) << this << " got set ring id=" << ringId <<
-                               " with " << ringHosts.size() << " hosts";
     RingConfiguration::ptr ringConfiguration(
         new RingConfiguration(groupConfiguration_, ringHosts, ringId));
+    MORDOR_LOG_TRACE(g_log) << this << " setting ring " << *ringConfiguration;
     ringChangeNotifier_->onRingChange(ringConfiguration);
 
     return true;

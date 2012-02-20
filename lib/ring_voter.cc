@@ -170,10 +170,10 @@ bool RingVoter::processVote(RingConfiguration::const_ptr ringConfiguration,
                                    *ringConfiguration->nextRingAddress();
         return true;
     } else {
-        MORDOR_LOG_WARNING(g_log) << this << " vote(" << instance << ", " <<
-                                     ballot << ", " << valueId << ") = " <<
-                                     uint32_t(status) << ", promised=" <<
-                                     highestPromised;
+        MORDOR_LOG_DEBUG(g_log) << this << " vote(" << instance << ", " <<
+                                   ballot << ", " << valueId << ") = " <<
+                                   uint32_t(status) << ", promised=" <<
+                                   highestPromised;
         return false;
     }
 }

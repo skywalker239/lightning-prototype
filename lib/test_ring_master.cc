@@ -3,6 +3,7 @@
 #include "proposer_state.h"
 #include "client_value_queue.h"
 #include "phase1_batcher.h"
+#include "udp_sender.h"
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -61,7 +62,9 @@ MulticastRpcRequester::ptr setupRequester(IOManager* ioManager,
     Address::ptr bindAddr = groupConfiguration->host(groupConfiguration->thisHostId()).multicastSourceAddress;
     Socket::ptr s = bindAddr->createSocket(*ioManager, SOCK_DGRAM);
     s->bind(bindAddr);
-    return MulticastRpcRequester::ptr(new MulticastRpcRequester(ioManager, guidGenerator, s, mcastDestination, groupConfiguration));
+    UdpSender::ptr sender(new UdpSender("multicast_rpc_requester", s));
+    ioManager->schedule(boost::bind(&UdpSender::run, sender));
+    return MulticastRpcRequester::ptr(new MulticastRpcRequester(ioManager, guidGenerator, sender, s, mcastDestination, groupConfiguration));
 }
 
 class DummyRingHolder : public RingHolder {};
@@ -90,9 +93,9 @@ void setupEverything(uint32_t hostId,
     GuidGenerator::ptr guidGenerator(new GuidGenerator);
     boost::shared_ptr<FiberEvent> event(new FiberEvent);
 
+
     MulticastRpcRequester::ptr requester = setupRequester(ioManager, guidGenerator, groupConfiguration, mcastDestination);
     ioManager->schedule(boost::bind(&MulticastRpcRequester::processReplies, requester));
-    ioManager->schedule(boost::bind(&MulticastRpcRequester::sendRequests, requester));
 
     PingTracker::ptr pingTracker(new PingTracker(groupConfiguration, pingWindow, pingTimeout, hostTimeout, event, ioManager));
     *pinger = Pinger::ptr(new Pinger(ioManager, requester, groupConfiguration, pingInterval, pingTimeout, pingTracker));
@@ -143,6 +146,13 @@ void setupEverything(uint32_t hostId,
 }
 
 static Logger::ptr g_log = Log::lookup("lightning:main");
+
+void dumpStats(IOManager* ioManager) {
+    while(true) {
+        cout << Statistics::dump() << endl;
+        sleep(*ioManager, 1000000);
+    }
+}
 
 void httpRequest(HTTP::ServerRequest::ptr request) {
     ostringstream ss;
@@ -212,6 +222,7 @@ int main(int argc, char** argv) {
         ioManager.schedule(boost::bind(&ProposerState::processReservedInstances, proposerState));
         ioManager.schedule(boost::bind(&ProposerState::processClientValues, proposerState));
         ioManager.schedule(boost::bind(submitValues, &ioManager, clientValueQueue, guidGenerator));
+        ioManager.schedule(boost::bind(dumpStats, &ioManager));
         ioManager.dispatch();
         return 0;
     } catch(...) {

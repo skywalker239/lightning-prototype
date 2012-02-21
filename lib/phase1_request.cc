@@ -73,10 +73,6 @@ Value::ptr Phase1Request::lastVotedValue() const {
     return lastVotedValue_;
 }
 
-const RpcMessageData& Phase1Request::request() const {
-    return requestData_;
-}
-
 void Phase1Request::applyReply(uint32_t hostId,
                                const RpcMessageData& rpcReply)
 {

@@ -34,8 +34,6 @@ public:
     Result result() const;
 
 private:
-    const RpcMessageData& request() const;
-
     std::ostream& output(std::ostream& os) const;
 
     void applyReply(uint32_t hostId,
@@ -47,7 +45,6 @@ private:
         const std::vector<std::pair<paxos::InstanceId, Guid> >& commits,
         PaxosPhase2RequestData *request) const;
 
-    RpcMessageData requestData_;
     const Guid valueId_;
     const GroupConfiguration::ptr& group_;
     Result result_;

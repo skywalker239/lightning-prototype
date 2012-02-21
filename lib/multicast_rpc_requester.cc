@@ -26,15 +26,9 @@ using std::vector;
 
 static Logger::ptr g_log = Log::lookup("lightning:multicast_rpc_requester");
 
-static CountStatistic<uint64_t>& g_outPackets =
-    Statistics::registerStatistic("multicast_rpc_requester.out_packets",
-                                  CountStatistic<uint64_t>("packets"));
 static CountStatistic<uint64_t>& g_inPackets =
     Statistics::registerStatistic("multicast_rpc_requester.in_packets",
                                   CountStatistic<uint64_t>("packets"));
-static CountStatistic<uint64_t>& g_outBytes =
-    Statistics::registerStatistic("multicast_rpc_requester.out_bytes",
-                                  CountStatistic<uint64_t>("bytes"));
 static CountStatistic<uint64_t>& g_inBytes =
     Statistics::registerStatistic("multicast_rpc_requester.in_bytes",
                                   CountStatistic<uint64_t>("bytes"));
@@ -42,23 +36,19 @@ static CountStatistic<uint64_t>& g_inBytes =
 MulticastRpcRequester::MulticastRpcRequester(
     IOManager* ioManager,
     GuidGenerator::ptr guidGenerator,
+    UdpSender::ptr udpSender,
     Socket::ptr socket,
     Address::ptr groupMulticastAddress,
     GroupConfiguration::ptr groupConfiguration)
     : ioManager_(ioManager),
       guidGenerator_(guidGenerator),
+      udpSender_(udpSender),
       socket_(socket),
       groupMulticastAddress_(groupMulticastAddress),
       groupConfiguration_(groupConfiguration)
 {
     MORDOR_LOG_TRACE(g_log) << this << " init group='" <<
                             *groupMulticastAddress_;
-    setupSocket();
-}
-
-void MulticastRpcRequester::setupSocket() {
-    const int kMaxMulticastTtl = 255;
-    socket_->setOption(IPPROTO_IP, IP_MULTICAST_TTL, kMaxMulticastTtl);
 }
 
 void MulticastRpcRequester::processReplies() {
@@ -120,47 +110,23 @@ void MulticastRpcRequester::timeoutRequest(const Guid& requestId) {
     request->onTimeout();
 }
 
-void MulticastRpcRequester::sendRequests() {
-    while(true) {
-        MulticastRpcRequest::ptr request = sendQueue_.pop();
-        const Guid& requestGuid = request->rpcGuid();
-        MORDOR_LOG_TRACE(g_log) << this << " popped request (" <<
-                                   requestGuid << ", " << *request << ")";
-        RpcMessageData requestData;
-        requestData.MergeFrom(request->request());
-        requestGuid.serialize(requestData.mutable_uuid());
+void MulticastRpcRequester::startTimeoutTimer(
+    MulticastRpcRequest::ptr request)
+{
+    MORDOR_LOG_TRACE(g_log) << this << " request (" <<
+                               request->rpcGuid() << ", " << *request <<
+                               ") sent";
+    Timer::ptr timeoutTimer = ioManager_->registerTimer(request->timeoutUs(),
+                                  boost::bind(
+                                  &MulticastRpcRequester::timeoutRequest,
+                                  this,
+                                  request->rpcGuid()));
+    request->setTimeoutTimer(timeoutTimer);
+}
 
-        char buffer[kMaxCommandSize];
-        uint64_t commandSize = requestData.ByteSize();
-        MORDOR_LOG_TRACE(g_log) << this << " command size is " << commandSize;
-        MORDOR_ASSERT(commandSize <= kMaxCommandSize);
-        if(!requestData.SerializeToArray(buffer, kMaxCommandSize)) {
-            MORDOR_LOG_WARNING(g_log) << this << " failed to serialize request (" <<
-                                         requestGuid << ", " << *request << ")";
-            request->onTimeout();
-            continue;
-        }
-
-        {
-            FiberMutex::ScopedLock lk(mutex_);
-            pendingRequests_[requestGuid] = request;
-            request->setRpcGuid(requestGuid);
-        }
-
-        socket_->sendTo((const void*) buffer,
-                        commandSize,
-                        0,
-                        *groupMulticastAddress_);
-        g_outPackets.increment();
-        g_outBytes.add(commandSize);
-        Timer::ptr timeoutTimer =
-            ioManager_->registerTimer(request->timeoutUs(),
-                                      boost::bind(
-                                          &MulticastRpcRequester::timeoutRequest,
-                                          this,
-                                          requestGuid));
-        request->setTimeoutTimer(timeoutTimer);
-    }
+void MulticastRpcRequester::onSendFail(MulticastRpcRequest::ptr request) {
+    MORDOR_LOG_TRACE(g_log) << this << " failed to send " << *request;
+    request->onTimeout();
 }
 
 MulticastRpcRequest::Status MulticastRpcRequester::request(
@@ -171,8 +137,21 @@ MulticastRpcRequest::Status MulticastRpcRequester::request(
 
     MORDOR_LOG_TRACE(g_log) << this << " new request (" << requestGuid <<
                                ", " << *request << ")";
-    sendQueue_.push(request);
+    {
+        FiberMutex::ScopedLock lk(mutex_);
+        pendingRequests_[requestGuid] = request;
+    }
 
+    udpSender_->send(groupMulticastAddress_,
+                     boost::shared_ptr<const RpcMessageData>(
+                         request,
+                         request->requestData()),
+                     boost::bind(&MulticastRpcRequester::startTimeoutTimer,
+                                 this,
+                                 request),
+                     boost::bind(&MulticastRpcRequester::onSendFail,
+                                 this,
+                                 request));
     request->wait();
     request->cancelTimeoutTimer();
     {

@@ -68,10 +68,6 @@ InstanceId BatchPhase1Request::retryStartInstanceId() const {
     return retryStartInstanceId_;
 }
 
-const RpcMessageData& BatchPhase1Request::request() const {
-    return requestData_;
-}
-
 void BatchPhase1Request::applyReply(uint32_t hostId,
                                     const RpcMessageData& rpcReply)
 {

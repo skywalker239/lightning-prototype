@@ -46,7 +46,7 @@ public:
                             const RpcMessageData& reply) = 0;
 
     //! The serialized request to transmit over the network.
-    virtual const RpcMessageData& request() const = 0;
+    const RpcMessageData* requestData() const { return &requestData_; }
 
     //! For debug logging.
     virtual std::ostream& output(std::ostream& os) const = 0;
@@ -77,6 +77,11 @@ public:
 
     //! Current status. 
     Status status() const;
+protected:
+    //! An implementation must fill the necessary fields in its
+    //  constructor.
+    RpcMessageData requestData_;
+
 private:
     RingConfiguration::const_ptr ring_;
     const uint64_t timeoutUs_;

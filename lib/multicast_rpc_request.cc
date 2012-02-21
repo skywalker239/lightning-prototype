@@ -98,6 +98,7 @@ void MulticastRpcRequest::cancelTimeoutTimer() {
 void MulticastRpcRequest::setRpcGuid(const Guid& guid) {
     FiberMutex::ScopedLock lk(mutex_);
     rpcGuid_ = guid;
+    rpcGuid_.serialize(requestData_.mutable_uuid());
 }
 
 const Guid& MulticastRpcRequest::rpcGuid() const {

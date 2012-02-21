@@ -95,10 +95,6 @@ Phase2Request::Result Phase2Request::result() const {
     return result_;
 }
 
-const RpcMessageData& Phase2Request::request() const {
-    return requestData_;
-}
-
 void Phase2Request::applyReply(uint32_t /* hostId */,
                                const RpcMessageData& rpcReply)
 {

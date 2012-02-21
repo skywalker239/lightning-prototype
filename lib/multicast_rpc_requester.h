@@ -1,9 +1,9 @@
 #pragma once
 
-#include "blocking_queue.h"
 #include "guid.h"
 #include "host_configuration.h"
 #include "multicast_rpc_request.h"
+#include "udp_sender.h"
 #include <mordor/atomic.h>
 #include <mordor/fibersynchronization.h>
 #include <mordor/iomanager.h>
@@ -62,6 +62,7 @@ public:
 
     MulticastRpcRequester(Mordor::IOManager* ioManager,
                           GuidGenerator::ptr guidGenerator,
+                          UdpSender::ptr udpSender,
                           Mordor::Socket::ptr socket,
                           Mordor::Address::ptr groupMulticastAddress,
                           GroupConfiguration::ptr groupConfiguration);
@@ -79,8 +80,12 @@ public:
     MulticastRpcRequest::Status request(MulticastRpcRequest::ptr request);
 
 private:
-    //! Sets the multicast TTL to max.
-    void setupSocket();
+    //! Registers a timer that will time the request out.
+    //  Called as an onSend callback by UdpSender.
+    void startTimeoutTimer(MulticastRpcRequest::ptr request);
+
+    //! onFail callback for UdpSender. Times out the request immediately.
+    void onSendFail(MulticastRpcRequest::ptr request);
 
     //! Stop tracking a timed-out request.
     void timeoutRequest(const Guid& requestId);
@@ -89,6 +94,7 @@ private:
 
     Mordor::IOManager* ioManager_;
     GuidGenerator::ptr guidGenerator_;
+    UdpSender::ptr udpSender_;
     Mordor::Socket::ptr socket_;
     Mordor::Address::ptr groupMulticastAddress_;
     GroupConfiguration::ptr groupConfiguration_;

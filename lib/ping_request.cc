@@ -28,21 +28,14 @@ PingRequest::PingRequest(
       pingTracker_(pingTracker)
 {
     const uint64_t now = TimerManager::now();
-    rpcMessageData_.set_type(RpcMessageData::PING);
-    rpcMessageData_.mutable_ping()->set_id(pingId);
-    rpcMessageData_.mutable_ping()->set_sender_now(now);
+    requestData_.set_type(RpcMessageData::PING);
+    requestData_.mutable_ping()->set_id(pingId);
+    requestData_.mutable_ping()->set_sender_now(now);
     pingTracker_->registerPing(pingId, now);
 }
 
-const RpcMessageData& PingRequest::request() const {
-    MORDOR_LOG_TRACE(g_log) << this << " ping(" <<
-                               rpcMessageData_.ping().id() << ", " <<
-                               rpcMessageData_.ping().sender_now() << ")";
-    return rpcMessageData_;
-}
-
 std::ostream& PingRequest::output(std::ostream& os) const {
-    const PingData& request = rpcMessageData_.ping();
+    const PingData& request = requestData_.ping();
     os << "Ping(" << request.id() << ", " << request.sender_now() << ")";
     return os;
 }

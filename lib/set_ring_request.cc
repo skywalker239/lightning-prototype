@@ -23,23 +23,19 @@ SetRingRequest::SetRingRequest(
     : MulticastRpcRequest(ring, timeoutUs),
       ring_(ring)
 {
-    rpcMessageData_.set_type(RpcMessageData::SET_RING);
+    requestData_.set_type(RpcMessageData::SET_RING);
     hostGroupGuid.serialize(
-        rpcMessageData_.mutable_set_ring()->mutable_group_guid());
-    rpcMessageData_.mutable_set_ring()->set_ring_id(ring_->ringId());
+        requestData_.mutable_set_ring()->mutable_group_guid());
+    requestData_.mutable_set_ring()->set_ring_id(ring_->ringId());
     const vector<uint32_t>& ringHostIds = ring_->ringHostIds();
     for(size_t i = 0; i < ringHostIds.size(); ++i) {
-        rpcMessageData_.mutable_set_ring()->add_ring_host_ids(ringHostIds[i]);
+        requestData_.mutable_set_ring()->add_ring_host_ids(ringHostIds[i]);
     }
 }
 
 std::ostream& SetRingRequest::output(std::ostream& os) const {
     os << "SetRing(" << *ring_ << ")";
     return os;
-}
-
-const RpcMessageData& SetRingRequest::request() const {
-    return rpcMessageData_;
 }
 
 void SetRingRequest::applyReply(uint32_t hostId,

@@ -33,16 +33,12 @@ public:
 
     paxos::InstanceId retryStartInstanceId() const;
 private:
-    virtual const RpcMessageData& request() const;
-
     virtual std::ostream& output(std::ostream& os) const;
 
     virtual void applyReply(uint32_t hostId,
                             const RpcMessageData& reply);
 
     const GroupConfiguration::ptr& group_;
-
-    RpcMessageData requestData_;
 
     Result result_;
 

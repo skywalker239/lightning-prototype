@@ -157,6 +157,9 @@ void ProposerState::doPhase1(ProposerInstance::ptr instance) {
     } else {
         MORDOR_LOG_TRACE(g_log) << this << " phase1 timeout for iid=" <<
                                    instance->instanceId();
+        BallotId newBallot =
+            ballotGenerator_.boostBallotId(instance->ballotId());
+        instance->phase1Retry(newBallot);
         instancePool_->pushReservedInstance(instance);
         g_phase1Timeouts.increment();
     }

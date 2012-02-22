@@ -3,6 +3,8 @@
 #include "guid.h"
 #include "paxos_defs.h"
 #include "value.h"
+#include "vote.h"
+#include <boost/optional.hpp>
 
 namespace lightning {
 namespace paxos {
@@ -45,8 +47,10 @@ public:
     //    * The multicast packet with the corresponding value has been lost
     //      so this instance doesn't know the value with valueId.
     //      Sets highestBallotPromised to kInvalidBallotId.
-    bool vote(BallotId ballotId,
-              const Guid& valueId,
+    //      In this case the instance temporarily stores the vote so
+    //      in the event of beginBallot and vote packets are reordered,
+    //      the voting can still be resumed.
+    bool vote(const Vote& voteData,
               BallotId* highestBallotPromised);
 
     //! Commit value id valueId to this instance.
@@ -60,10 +64,10 @@ public:
     //! Reset this instance to the empty state.
     void reset();
 private:
-    BallotId highestBallotParticipated_;
-    BallotId highestBallotVoted_;
+    BallotId highestPromisedBallot_;
+    BallotId highestVotedBallot_;
     Value    lastVotedValue_;
-    Guid     committedValueId_;
+    boost::optional<Vote> pendingVote_;
     bool     committed_;
 };
 

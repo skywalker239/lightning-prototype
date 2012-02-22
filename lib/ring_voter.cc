@@ -16,25 +16,22 @@ using paxos::BallotId;
 using paxos::kInvalidBallotId;
 using paxos::InstanceId;
 using std::vector;
+using std::ostream;
 
 static Logger::ptr g_log = Log::lookup("lightning:ring_voter");
 
-static CountStatistic<uint64_t>& g_outPackets =
-    Statistics::registerStatistic("ring_voter.out_packets",
-                                  CountStatistic<uint64_t>("packets"));
 static CountStatistic<uint64_t>& g_inPackets =
     Statistics::registerStatistic("ring_voter.in_packets",
                                   CountStatistic<uint64_t>("packets"));
-static CountStatistic<uint64_t>& g_outBytes =
-    Statistics::registerStatistic("ring_voter.out_bytes",
-                                  CountStatistic<uint64_t>("bytes"));
 static CountStatistic<uint64_t>& g_inBytes =
     Statistics::registerStatistic("ring_voter.in_bytes",
                                   CountStatistic<uint64_t>("bytes"));
 
 RingVoter::RingVoter(Socket::ptr socket,
+                     UdpSender::ptr udpSender,
                      AcceptorState::ptr acceptorState)
     : socket_(socket),
+      udpSender_(udpSender),
       acceptorState_(acceptorState)
 {}
 
@@ -51,13 +48,14 @@ void RingVoter::run() {
         g_inPackets.increment();
         MORDOR_LOG_TRACE(g_log) << this << " got " << bytes << " bytes from " <<
                                    *remoteAddress;
-        RpcMessageData requestData;
-        if(!requestData.ParseFromArray(buffer, bytes)) {
+
+        boost::shared_ptr<RpcMessageData> requestData;
+        if(!requestData->ParseFromArray(buffer, bytes)) {
             MORDOR_LOG_WARNING(g_log) << this << " malformed " << bytes <<
                                          " bytes from " << *remoteAddress;
             continue;
         }
-        const Guid requestGuid = Guid::parse(requestData.uuid());
+        const Guid requestGuid = Guid::parse(requestData->uuid());
         
         RingConfiguration::const_ptr ringConfiguration =
             tryAcquireRingConfiguration();
@@ -75,69 +73,32 @@ void RingVoter::run() {
         }
         MORDOR_LOG_TRACE(g_log) << this << " processing vote " << requestGuid;
 
+        Vote vote(requestData, shared_from_this());
 
-        RpcMessageData replyData;
-
-        if(processVote(ringConfiguration, requestData, &replyData)) {
-            char replyBuffer[kMaxDatagramSize];
-            if(!replyData.SerializeToArray(replyBuffer, kMaxDatagramSize)) {
-                MORDOR_LOG_WARNING(g_log) << this << " failed to serialize " <<
-                                             "reply for vote " << requestGuid;
-                continue;
-            }
-            socket_->sendTo((const void*) buffer,
-                            replyData.ByteSize(),
-                            0,
-                            ringConfiguration->nextRingAddress());
-            g_outBytes.add(replyData.ByteSize());
-            g_outPackets.increment();
+        if(processVote(ringConfiguration, vote)) {
+            send(vote);
         }
     }
 }
 
-void RingVoter::initiateVote(const Guid& rpcGuid,
-                             const Guid& epoch,
-                             RingConfiguration::const_ptr ring,
-                             InstanceId instance,
-                             BallotId ballot,
-                             const Guid& valueId)
-{
-    RpcMessageData rpcMessageData;
-    rpcMessageData.set_type(RpcMessageData::PAXOS_PHASE2);
-    rpcGuid.serialize(rpcMessageData.mutable_uuid());
-    VoteData* voteData = rpcMessageData.mutable_vote();
-    epoch.serialize(voteData->mutable_epoch());
-    voteData->set_ring_id(ring->ringId());
-    voteData->set_instance(instance);
-    voteData->set_ballot(ballot);
-    valueId.serialize(voteData->mutable_value_id());
-
-    char buffer[kMaxDatagramSize];
-    if(!rpcMessageData.SerializeToArray(buffer, kMaxDatagramSize)) {
-        MORDOR_LOG_WARNING(g_log) << this << " cannot serialize vote (" <<
-                                     instance << ", " << ballot << ", " <<
-                                     valueId << ")";
+void RingVoter::send(const Vote& vote) {
+    RingConfiguration::const_ptr ring = tryAcquireRingConfiguration();
+    if(!ring.get()) {
+        MORDOR_LOG_TRACE(g_log) << this << " no ring, dropping vote " <<
+                                   vote;
         return;
     }
-    
+    // XXX we don't verify the ring id in the vote message here.
     Address::ptr destination = ring->nextRingAddress();
-    MORDOR_LOG_TRACE(g_log) << this << " sending vote (" <<
-                               instance << ", " << ballot << ", " <<
-                               valueId << "), ringId=" << ring->ringId() <<
-                               ", epoch=" << epoch << ", rpc_uuid=" <<
-                               rpcGuid << " to " << *destination;
-
-    socket_->sendTo((const void*)buffer,
-                    rpcMessageData.ByteSize(),
-                    0,
-                    destination);
+    MORDOR_LOG_TRACE(g_log) << this << " sending " << vote << " to " <<
+                               *destination;
+    udpSender_->send(destination, vote.message_);
 }
 
 bool RingVoter::processVote(RingConfiguration::const_ptr ringConfiguration,
-                            const RpcMessageData& request,
-                            RpcMessageData* reply)
+                            const Vote& vote)
 {
-    const VoteData& voteData = request.vote();
+    const VoteData& voteData = vote.message_->vote();
     if(voteData.ring_id() != ringConfiguration->ringId()) {
         MORDOR_LOG_TRACE(g_log) << this << " vote ring id=" <<
                                    voteData.ring_id() << ", current=" <<
@@ -149,29 +110,14 @@ bool RingVoter::processVote(RingConfiguration::const_ptr ringConfiguration,
     const Guid epoch = Guid::parse(voteData.epoch());
     acceptorState_->updateEpoch(epoch);
 
-    const InstanceId instance = voteData.instance();
-    const BallotId ballot = voteData.ballot();
-    const Guid valueId = Guid::parse(voteData.value_id());
-    const Guid rpcGuid = Guid::parse(request.uuid());
-    BallotId highestPromised = kInvalidBallotId;
-
-    AcceptorState::Status status = acceptorState_->vote(instance,
-                                                        ballot,
-                                                        valueId,
+    BallotId highestPromised;
+    AcceptorState::Status status = acceptorState_->vote(vote,
                                                         &highestPromised);
     if(status == AcceptorState::OK) {
-        MORDOR_LOG_TRACE(g_log) << this << " vote(" << instance << ", " <<
-                                   ballot << ", " << valueId << ") ok";
-        reply->MergeFrom(request);
-        MORDOR_LOG_TRACE(g_log) << this << " sending vote(" << instance <<
-                                   ", " << ballot << ", " << valueId <<
-                                   "), ringId=" << voteData.ring_id() <<
-                                   ", rpc_uuid=" << rpcGuid << " to " <<
-                                   *ringConfiguration->nextRingAddress();
+        MORDOR_LOG_TRACE(g_log) << this << " " << vote << " ok";
         return true;
     } else {
-        MORDOR_LOG_DEBUG(g_log) << this << " vote(" << instance << ", " <<
-                                   ballot << ", " << valueId << ") = " <<
+        MORDOR_LOG_DEBUG(g_log) << this << " " << vote << " = " <<
                                    uint32_t(status) << ", promised=" <<
                                    highestPromised;
         return false;

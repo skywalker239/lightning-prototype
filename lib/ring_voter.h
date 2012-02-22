@@ -6,36 +6,36 @@
 #include "paxos_defs.h"
 #include "ring_holder.h"
 #include "proto/rpc_messages.pb.h"
+#include "udp_sender.h"
+#include <boost/enable_shared_from_this.hpp>
+#include <iostream>
 
 namespace lightning {
 
-class RingVoter : public RingHolder { 
+class Vote;
+
+class RingVoter : public RingHolder,
+                  public boost::enable_shared_from_this<RingVoter>
+{
 public:
-    typedef paxos::BallotId   BallotId;
-    typedef paxos::InstanceId InstanceId;
     typedef boost::shared_ptr<RingVoter> ptr;
 
     RingVoter(Mordor::Socket::ptr socket,
+              UdpSender::ptr udpSender,
               AcceptorState::ptr acceptorState);
 
     void run();
 
-    //! Start a new vote.
-    void initiateVote(const Guid& rpcGuid,
-                      const Guid& epoch,
-                      RingConfiguration::const_ptr ring,
-                      InstanceId  instance,
-                      BallotId    ballot,
-                      const Guid& valueId);
+    void send(const Vote& vote);
 private:
     Mordor::Socket::ptr socket_;
+    UdpSender::ptr udpSender_;
     AcceptorState::ptr acceptorState_;
     
     static const size_t kMaxDatagramSize = 8950;
 
     bool processVote(RingConfiguration::const_ptr ringConfiguration,
-                     const RpcMessageData& request,
-                     RpcMessageData* reply);
+                     const Vote& vote);
 
     Mordor::Address::ptr voteDestination(
         RingConfiguration::const_ptr ringConfiguration) const;

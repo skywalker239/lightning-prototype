@@ -12,6 +12,8 @@
 
 namespace lightning {
 
+class Vote;
+
 //! The acceptor keeps track of some sliding window of consecutive Paxos
 //  instances. At any point in time, the state consists of:
 //  - Some range F = [0, f) of forgotten instances.
@@ -56,13 +58,16 @@ public:
                       BallotId* highestVoted,
                       Value*    lastVote);
 
+    //! This is called upon receiving the Phase 2 multicast
+    //  packet.
     Status beginBallot(InstanceId instanceId,
                        BallotId ballotId,
                        const Value& value);
 
-    Status vote(InstanceId instanceId,
-                BallotId ballotId,
-                const Guid& valueId,
+    //! If this acceptor has not yet received a beginBallot
+    //  corresponding to this vote, the corresponding instance
+    //  will buffer the vote to account for UDP reordering.
+    Status vote(const Vote& vote,
                 BallotId* highestBallotPromised);
 
     Status commit(InstanceId instanceId,

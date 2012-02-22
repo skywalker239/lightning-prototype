@@ -68,12 +68,13 @@ bool Phase2Handler::handleRequest(Address::ptr,
         MORDOR_LOG_TRACE(g_log) << this << " initiating vote (" <<
                                    instance << ", " << ballot << ", " <<
                                    value.valueId << ")";
-        ringVoter_->initiateVote(rpcGuid,
-                                 requestEpoch,
-                                 ringConfiguration,
-                                 instance,
-                                 ballot,
-                                 value.valueId);
+        ringVoter_->send(Vote(rpcGuid,
+                              requestEpoch,
+                              ringConfiguration->ringId(),
+                              instance,
+                              ballot,
+                              value.valueId,
+                              ringVoter_));
     }
 
     for(int i = 0; i < paxosRequest.commits_size(); ++i) {

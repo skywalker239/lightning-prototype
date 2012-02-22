@@ -10,6 +10,7 @@
 #include "ring_change_notifier.h"
 #include "set_ring_handler.h"
 #include "ponger.h"
+#include "udp_sender.h"
 #include <iostream>
 #include <fstream>
 #include <streambuf>
@@ -96,7 +97,9 @@ void setupEverything(IOManager* ioManager,
     GroupConfiguration::ptr groupConfig = parseGroupConfiguration(config["hosts"], ourId);
 
     Socket::ptr ringSocket = bindSocket(groupConfig->host(groupConfig->thisHostId()).ringAddress, ioManager);
-    *ringVoter = RingVoter::ptr(new RingVoter(ringSocket, acceptorState));
+    UdpSender::ptr udpSender(new UdpSender("ring_voter", ringSocket));
+    ioManager->schedule(boost::bind(&UdpSender::run, udpSender));
+    *ringVoter = RingVoter::ptr(new RingVoter(ringSocket, udpSender, acceptorState));
 
     RpcHandler::ptr ponger(new Ponger);
     boost::shared_ptr<BatchPhase1Handler> batchPhase1Handler(new BatchPhase1Handler(acceptorState));

@@ -1,4 +1,5 @@
 #include "acceptor_state.h"
+#include "ring_voter.h"
 #include <mordor/assert.h>
 #include <mordor/log.h>
 
@@ -68,24 +69,17 @@ AcceptorState::Status AcceptorState::beginBallot(InstanceId instanceId,
     return boolToStatus(result);
 }
 
-AcceptorState::Status AcceptorState::vote(InstanceId instanceId,
-                                          BallotId ballotId,
-                                          const Guid& valueId,
+AcceptorState::Status AcceptorState::vote(const Vote& vote,
                                           BallotId* highestPromised)
 {
     FiberMutex::ScopedLock lk(mutex_);
-    AcceptorInstance* instance = lookupInstance(instanceId);
+    AcceptorInstance* instance = lookupInstance(vote.instance());
     if(!instance) {
-        MORDOR_LOG_TRACE(g_log) << this << "vote(" << instanceId <<
-                                   ") refused";
+        MORDOR_LOG_TRACE(g_log) << this << " " << vote << " refused";
         return REFUSED;
     }
-    bool result = instance->vote(ballotId,
-                                 valueId,
-                                 highestPromised);
-    MORDOR_LOG_TRACE(g_log) << this << " vote(" << instanceId << ", " <<
-                               ballotId << ", " << valueId << ") = " <<
-                               result;
+    bool result = instance->vote(vote, highestPromised);
+    MORDOR_LOG_TRACE(g_log) << this << " " << vote << " = " << result;
     return boolToStatus(result);
 }
 

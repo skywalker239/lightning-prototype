@@ -1,3 +1,4 @@
+#include "ring_voter.h"
 #include "acceptor_instance.h"
 #include <mordor/assert.h>
 #include <mordor/log.h>
@@ -25,6 +26,9 @@ static CountStatistic<uint64_t>& g_voteFails =
 static CountStatistic<uint64_t>& g_unknownValueVotes =
     Statistics::registerStatistic("acceptor.unknown_value_votes",
                                    CountStatistic<uint64_t>());
+static CountStatistic<uint64_t>& g_recoveredVotes =
+    Statistics::registerStatistic("acceptor.recovered_votes",
+                                  CountStatistic<uint64_t>());
 
 AcceptorInstance::AcceptorInstance() {
     reset();
@@ -32,35 +36,36 @@ AcceptorInstance::AcceptorInstance() {
 
 void AcceptorInstance::reset() {
     MORDOR_LOG_TRACE(g_log) << this << " reset";
-    highestBallotParticipated_ = kInvalidBallotId;
-    highestBallotVoted_ = kInvalidBallotId;
+    highestPromisedBallot_ = kInvalidBallotId;
+    highestVotedBallot_ = kInvalidBallotId;
     lastVotedValue_ = Value();
-    committedValueId_ = Guid();
+    pendingVote_ = boost::none;
     committed_ = false;
 }
 
 bool AcceptorInstance::nextBallot(BallotId  ballotId,
-                                  BallotId* highestBallotParticipated,
-                                  BallotId* highestBallotVoted,
+                                  BallotId* highestPromisedBallot,
+                                  BallotId* highestVotedBallot,
                                   Value*    lastVote)
 {
     //! Reject the phase 1 request for the same ballot number as
     //  Paxos is designed for unique ballot numbers.
-    if(ballotId > highestBallotParticipated_) {
+    if(ballotId > highestPromisedBallot_) {
         MORDOR_LOG_TRACE(g_log) << this << " accepting nextBallot id=" <<
-                                   ballotId << ", MaxBallotVoted=" <<
-                                   highestBallotVoted_ << ", MaxVotedValue=" <<
+                                   ballotId << ", highestVotedBallot=" <<
+                                   highestVotedBallot_ << ", lastVotedValue=" <<
                                    lastVotedValue_.valueId;
-        highestBallotParticipated_ = ballotId;
-        *highestBallotParticipated = highestBallotParticipated_;
-        *highestBallotVoted = highestBallotVoted_;
+        highestPromisedBallot_ = ballotId;
+        *highestPromisedBallot = highestPromisedBallot_;
+        *highestVotedBallot = highestVotedBallot_;
         *lastVote = lastVotedValue_;
         return true;
     } else {
         MORDOR_LOG_TRACE(g_log) << this << " rejecting nextBallot id=" <<
-                                           ballotId << ", lastBallot=" <<
-                                           highestBallotParticipated_;
-        *highestBallotParticipated = highestBallotParticipated_;
+                                           ballotId <<
+                                           ", highestPromisedBallot=" <<
+                                           highestPromisedBallot_;
+        *highestPromisedBallot = highestPromisedBallot_;
         g_phase1Fails.increment();
         return false;
     }
@@ -69,43 +74,54 @@ bool AcceptorInstance::nextBallot(BallotId  ballotId,
 bool AcceptorInstance::beginBallot(BallotId ballotId,
                                    const Value& value)
 {
-    if(ballotId < highestBallotParticipated_) {
+    if(ballotId < highestPromisedBallot_) {
         MORDOR_LOG_TRACE(g_log) << this << " rejecting beginBallot id=" <<
-                                   ballotId << ", lastBallot=" <<
-                                   highestBallotParticipated_;
+                                   ballotId << ", highestPromisedBallot=" <<
+                                   highestPromisedBallot_;
         g_phase2Fails.increment();
         return false;
     } else {
         MORDOR_LOG_TRACE(g_log) << this << " accepting beginBallot id=" <<
                                    ballotId << " with value=" << value.valueId;
-        highestBallotVoted_ = ballotId;
+        highestVotedBallot_ = ballotId;
         lastVotedValue_ = value;
+        if(!!pendingVote_) {
+            if(pendingVote_->ballot() == ballotId &&
+               pendingVote_->valueId() == lastVotedValue_.valueId)
+            {
+                g_recoveredVotes.increment();
+                MORDOR_LOG_TRACE(g_log) << this << " recovered " <<
+                                           *pendingVote_;
+                pendingVote_->send();
+            }
+
+            pendingVote_.reset();
+        }
+
         return true;
     }
 }
 
-bool AcceptorInstance::vote(BallotId ballotId,
-                            const Guid& valueId,
+bool AcceptorInstance::vote(const Vote& vote,
                             BallotId* highestBallotPromised)
 {
-    if(ballotId < highestBallotParticipated_) {
+    if(vote.ballot() < highestPromisedBallot_) {
         MORDOR_LOG_TRACE(g_log) << this << " not voting in ballot " <<
-                                   ballotId << ", promised " <<
-                                   highestBallotParticipated_;
-        *highestBallotPromised = highestBallotParticipated_;
+                                   vote.ballot() << ", promised " <<
+                                   highestPromisedBallot_;
+        *highestBallotPromised = highestPromisedBallot_;
         g_voteFails.increment();
         return false;
     }
-    if(lastVotedValue_.valueId != valueId) {
-        MORDOR_LOG_TRACE(g_log) << this << " not voting in ballot " <<
-                                   ballotId << " for valueId " <<
-                                   valueId << ", value unknown";
+    if(lastVotedValue_.valueId != vote.valueId()) {
+        MORDOR_LOG_TRACE(g_log) << this << " value unknown for " <<
+                                   vote;
+        pendingVote_ = vote;
         *highestBallotPromised = kInvalidBallotId;
         g_unknownValueVotes.increment();
         return false;
     }
-    MORDOR_LOG_TRACE(g_log) << this << " voting in ballot " << ballotId <<
-                            " for " << valueId;
+    MORDOR_LOG_TRACE(g_log) << this << " " << vote << " successful";
     return true;
 }
 
@@ -116,9 +132,6 @@ bool AcceptorInstance::commit(const Guid& valueId) {
         return false;
     }
     MORDOR_LOG_TRACE(g_log) << this << " committing " << valueId;
-    MORDOR_ASSERT(committedValueId_.empty() ||
-                  committedValueId_ == valueId);
-    committedValueId_ = lastVotedValue_.valueId;
     committed_ = true;
     return true;
 }

@@ -50,6 +50,7 @@ LIB_OBJS += \
     phase1_batcher.o \
     multicast_rpc_request.o \
     udp_sender.o \
+    vote.o \
 
 TEST_TARGETS = test_ring_master test_ring_responder test_guid
 TEST_OBJS = $(addsuffix .o, $(TEST_TARGETS))

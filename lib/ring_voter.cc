@@ -49,7 +49,7 @@ void RingVoter::run() {
         MORDOR_LOG_TRACE(g_log) << this << " got " << bytes << " bytes from " <<
                                    *remoteAddress;
 
-        boost::shared_ptr<RpcMessageData> requestData;
+        boost::shared_ptr<RpcMessageData> requestData(new RpcMessageData);
         if(!requestData->ParseFromArray(buffer, bytes)) {
             MORDOR_LOG_WARNING(g_log) << this << " malformed " << bytes <<
                                          " bytes from " << *remoteAddress;

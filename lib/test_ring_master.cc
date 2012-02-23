@@ -184,14 +184,18 @@ void submitValues(IOManager* ioManager,
                   GuidGenerator::ptr guidGenerator)
 {
     sleep(*ioManager, 3500000);
-    const size_t kValuesToSubmit = 13000000;
+    const size_t kValuesToSubmit = 468750; // 13000000;
+    uint64_t startTime = TimerManager::now();
     for(size_t i = 0; i < kValuesToSubmit; ++i) {
         Value::ptr v(new Value);
         v->size = Value::kMaxValueSize;
         v->valueId = guidGenerator->generate();
         valueQueue->push(v);
         MORDOR_LOG_DEBUG(g_log) << " pushed value id=" << v->valueId << " size=" << v->size;
-        sleep(*ioManager, 1000);
+        int64_t waitTime = startTime + (i + 1) * 80 - TimerManager::now();
+        if(waitTime > 100) {
+            sleep(*ioManager, waitTime);
+        }
     }
 }
 
@@ -208,6 +212,7 @@ int main(int argc, char** argv) {
 
     try {
         IOManager ioManager;
+        IOManager submitManager(1, false);
         Pinger::ptr pinger;
         RingManager::ptr ringManager;
         Phase1Batcher::ptr phase1Batcher;
@@ -221,7 +226,7 @@ int main(int argc, char** argv) {
         ioManager.schedule(boost::bind(&Phase1Batcher::run, phase1Batcher));
         ioManager.schedule(boost::bind(&ProposerState::processReservedInstances, proposerState));
         ioManager.schedule(boost::bind(&ProposerState::processClientValues, proposerState));
-        ioManager.schedule(boost::bind(submitValues, &ioManager, clientValueQueue, guidGenerator));
+        ioManager.schedule(boost::bind(submitValues, &submitManager, clientValueQueue, guidGenerator));
         ioManager.schedule(boost::bind(dumpStats, &ioManager));
         ioManager.dispatch();
         return 0;

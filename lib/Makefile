@@ -51,6 +51,7 @@ LIB_OBJS += \
     multicast_rpc_request.o \
     udp_sender.o \
     vote.o \
+    sleep_helper.o \
 
 TEST_TARGETS = test_ring_master test_ring_responder
 TEST_OBJS = $(addsuffix .o, $(TEST_TARGETS))

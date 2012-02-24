@@ -40,10 +40,12 @@ configuration = {
     "acceptor_instance_window_size" : 1000000,
     "batch_phase1_timeout" : 300000,
     "phase1_batch_size" : 1000,
-    "instance_pool_open_limit" : 160000, # 15000, # 1Gbps/10ms latency/8k data
-    "instance_pool_reserved_limit" : 2000, #1000, # arbitrary
+    "instance_pool_open_limit" : 160000, # 10 sec worth of 1 Gbit
+    "instance_pool_reserved_limit" : 2000, # arbitrary, must tune
     "phase1_timeout" : 100000,
+    "phase1_interval" : 640, # much more expensive that phase 2
     "phase2_timeout" : 500000,
+    "phase2_interval" : 64, # 15625 * 8000 bytes = 1 Gbit/s
     "mcast_group" : "239.3.0.1" + ":" + str(MCAST_LISTEN_PORT)
 }
 

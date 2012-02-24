@@ -1,6 +1,7 @@
 #include "proposer_state.h"
 #include "phase1_request.h"
 #include "phase2_request.h"
+#include "sleep_helper.h"
 #include <mordor/assert.h>
 #include <mordor/log.h>
 #include <mordor/statistics.h>
@@ -43,6 +44,12 @@ static CountStatistic<uint64_t>& g_committedBytes =
     Statistics::registerStatistic("proposer.committed_bytes",
                                   CountStatistic<uint64_t>());
 
+namespace {
+
+const int64_t kSleepPrecision = 1000; // 1 ms for epoll
+
+}  // anonymous namespace
+
 ProposerState::ProposerState(GroupConfiguration::ptr group,
                              const Guid& epoch,
                              InstancePool::ptr instancePool,
@@ -50,7 +57,9 @@ ProposerState::ProposerState(GroupConfiguration::ptr group,
                              ClientValueQueue::ptr clientValueQueue,
                              IOManager* ioManager,
                              uint64_t phase1TimeoutUs,
-                             uint64_t phase2TimeoutUs)
+                             uint64_t phase1IntervalUs,
+                             uint64_t phase2TimeoutUs,
+                             uint64_t phase2IntervalUs)
     : group_(group),
       epoch_(epoch),
       instancePool_(instancePool),
@@ -58,15 +67,21 @@ ProposerState::ProposerState(GroupConfiguration::ptr group,
       clientValueQueue_(clientValueQueue),
       ioManager_(ioManager),
       phase1TimeoutUs_(phase1TimeoutUs),
+      phase1IntervalUs_(phase1IntervalUs),
       phase2TimeoutUs_(phase2TimeoutUs),
+      phase2IntervalUs_(phase2IntervalUs),
       ballotGenerator_(group_)
 {
     MORDOR_ASSERT(group_->thisHostId() == 0);
 }
 
 void ProposerState::processReservedInstances() {
+    SleepHelper sleeper(ioManager_, phase1IntervalUs_, kSleepPrecision);
     while(true) {
+        sleeper.startWaiting();
         ProposerInstance::ptr instance = instancePool_->popReservedInstance();
+        sleeper.stopWaiting();
+        sleeper.wait();
         ioManager_->schedule(boost::bind(&ProposerState::doPhase1,
                                          shared_from_this(),
                                          instance));
@@ -77,9 +92,13 @@ void ProposerState::processReservedInstances() {
 }
 
 void ProposerState::processClientValues() {
+    SleepHelper sleeper(ioManager_, phase2IntervalUs_, kSleepPrecision);
     while(true) {
+        sleeper.startWaiting();
         ProposerInstance::ptr instance = instancePool_->popOpenInstance();
         Value::ptr currentValue = clientValueQueue_->pop();
+        sleeper.stopWaiting();
+        sleeper.wait();
         MORDOR_LOG_TRACE(g_log) << this << " submitting value " <<
                                    currentValue->valueId << " to instance " <<
                                    instance->instanceId();

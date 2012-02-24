@@ -195,7 +195,7 @@ void submitValues(IOManager* ioManager,
     sleep(*ioManager, 3500000); // let the ring selection happen
     const size_t kValuesToSubmit = 4687500; // 60 sec @ 1 Gbps
 
-    SleepHelper sleeper(ioManagaer, kSleepInterval, kSleepPrecision);
+    SleepHelper sleeper(ioManager, kSleepInterval, kSleepPrecision);
     for(size_t i = 0; i < kValuesToSubmit; ++i) {
         Value::ptr v(new Value);
         v->size = Value::kMaxValueSize;

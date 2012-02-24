@@ -52,7 +52,7 @@ LIB_OBJS += \
     udp_sender.o \
     vote.o \
 
-TEST_TARGETS = test_ring_master test_ring_responder test_guid
+TEST_TARGETS = test_ring_master test_ring_responder
 TEST_OBJS = $(addsuffix .o, $(TEST_TARGETS))
 
 UT_LIB_OBJS = \

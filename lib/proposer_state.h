@@ -32,7 +32,9 @@ public:
                   ClientValueQueue::ptr clientValueQueue,
                   Mordor::IOManager* ioManager,
                   uint64_t phase1TimeoutUs,
-                  uint64_t phase2TimeoutUs);
+                  uint64_t phase1IntervalUs,
+                  uint64_t phase2TimeoutUs,
+                  uint64_t phase2IntervalUs);
     
     void processReservedInstances();
 
@@ -55,7 +57,9 @@ private:
     ClientValueQueue::ptr clientValueQueue_;
     Mordor::IOManager* ioManager_;
     const uint64_t phase1TimeoutUs_;
+    const uint64_t phase1IntervalUs_;
     const uint64_t phase2TimeoutUs_;
+    const uint64_t phase2IntervalUs_;
 
     BallotGenerator ballotGenerator_;
 

@@ -3,6 +3,7 @@
 #include "proposer_state.h"
 #include "client_value_queue.h"
 #include "phase1_batcher.h"
+#include "sleep_helper.h"
 #include "udp_sender.h"
 #include <iostream>
 #include <string>
@@ -124,8 +125,12 @@ void setupEverything(uint32_t hostId,
 
     const uint64_t phase1TimeoutUs =
         config["phase1_timeout"].get<long long>();
+    const uint64_t phase1IntervalUs =
+        config["phase1_interval"].get<long long>();
     const uint64_t phase2TimeoutUs =
         config["phase2_timeout"].get<long long>();
+    const uint64_t phase2IntervalUs =
+        config["phase2_interval"].get<long long>();
 
     *valueQueue = ClientValueQueue::ptr(new ClientValueQueue);
     *proposerState =
@@ -136,7 +141,9 @@ void setupEverything(uint32_t hostId,
                                              *valueQueue,
                                              ioManager,
                                              phase1TimeoutUs,
-                                             phase2TimeoutUs));
+                                             phase1IntervalUs,
+                                             phase2TimeoutUs,
+                                             phase2IntervalUs));
 
     vector<RingHolder::ptr> ringHolders;
     ringHolders.push_back(*phase1Batcher);
@@ -183,19 +190,19 @@ void submitValues(IOManager* ioManager,
                   ClientValueQueue::ptr valueQueue,
                   GuidGenerator::ptr guidGenerator)
 {
-    sleep(*ioManager, 3500000);
-    const size_t kValuesToSubmit = 468750; // 13000000;
-    uint64_t startTime = TimerManager::now();
+    const int64_t kSleepPrecision = 1000;
+    const int64_t kSleepInterval = 64;
+    sleep(*ioManager, 3500000); // let the ring selection happen
+    const size_t kValuesToSubmit = 4687500; // 60 sec @ 1 Gbps
+
+    SleepHelper sleeper(ioManagaer, kSleepInterval, kSleepPrecision);
     for(size_t i = 0; i < kValuesToSubmit; ++i) {
         Value::ptr v(new Value);
         v->size = Value::kMaxValueSize;
         v->valueId = guidGenerator->generate();
         valueQueue->push(v);
         MORDOR_LOG_DEBUG(g_log) << " pushed value id=" << v->valueId << " size=" << v->size;
-        int64_t waitTime = startTime + (i + 1) * 80 - TimerManager::now();
-        if(waitTime > 100) {
-            sleep(*ioManager, waitTime);
-        }
+        sleeper.wait();
     }
 }
 

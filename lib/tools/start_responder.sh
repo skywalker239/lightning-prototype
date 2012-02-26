@@ -1,5 +1,5 @@
 #!/bin/bash
-cd /home/skywalker/deploy
+cd ${HOME}/deploy
 HOSTID=`./hostid.py`
 [ $HOSTID == "0" ] && exit
 killall -9 test_ring_responder

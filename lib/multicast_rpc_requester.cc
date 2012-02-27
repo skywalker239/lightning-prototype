@@ -9,6 +9,8 @@
 
 namespace lightning {
 
+const size_t MulticastRpcRequester::kMaxDatagramSize;
+
 using Mordor::Address;
 using Mordor::FiberMutex;
 using Mordor::IOManager;
@@ -54,9 +56,9 @@ MulticastRpcRequester::MulticastRpcRequester(
 void MulticastRpcRequester::processReplies() {
     Address::ptr currentSourceAddress = socket_->emptyAddress();
     while(true) {
-        char buffer[kMaxCommandSize + 1];
+        char buffer[kMaxDatagramSize + 1];
         ssize_t bytes = socket_->receiveFrom((void*) buffer,
-                                             kMaxCommandSize,
+                                             kMaxDatagramSize,
                                              *currentSourceAddress);
         g_inPackets.increment();
         g_inBytes.add(bytes);

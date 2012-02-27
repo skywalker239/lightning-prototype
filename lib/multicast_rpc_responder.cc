@@ -5,6 +5,8 @@
 
 namespace lightning {
 
+const size_t MulticastRpcResponder::kMaxDatagramSize;
+
 using Mordor::Address;
 using Mordor::Log;
 using Mordor::Logger;

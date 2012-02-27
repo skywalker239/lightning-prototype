@@ -4,6 +4,10 @@
 
 namespace lightning {
 
+const size_t GroupConfiguration::kMaxGroupSize;
+const uint32_t GroupConfiguration::kInvalidHostId;
+const uint32_t GroupConfiguration::kMasterId;
+
 using Mordor::Address;
 namespace JSON = Mordor::JSON;
 using std::make_pair;

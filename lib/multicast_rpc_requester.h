@@ -90,7 +90,7 @@ private:
     //! Stop tracking a timed-out request.
     void timeoutRequest(const Guid& requestId);
 
-    static const size_t kMaxCommandSize = 8900;
+    static const size_t kMaxDatagramSize = 8950;
 
     Mordor::IOManager* ioManager_;
     GuidGenerator::ptr guidGenerator_;

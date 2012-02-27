@@ -74,8 +74,6 @@ private:
 
     Seed seed_;
     Mordor::Atomic<uint32_t> counter_;
-
-    static const uint32_t kHashSeed = 239;
 };
 
 }  // namespace lightning

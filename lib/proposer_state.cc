@@ -8,6 +8,9 @@
 
 namespace lightning {
 
+const size_t ProposerState::kCommitBatchLimit;
+const size_t ProposerState::kPhase2RingId;
+
 using Mordor::Address;
 using Mordor::FiberMutex;
 using Mordor::IOManager;
@@ -190,7 +193,7 @@ void ProposerState::doPhase2(ProposerInstance::ptr instance) {
     {
         FiberMutex::ScopedLock lk(mutex_);
         for(size_t i = 0;
-            i < min(kCommitBatchLimit, commitQueue_.size());
+            i < min(ProposerState::kCommitBatchLimit, commitQueue_.size());
             ++i)
         {
             commits.push_back(commitQueue_.front());

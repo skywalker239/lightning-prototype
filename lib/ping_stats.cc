@@ -11,6 +11,11 @@ using std::max;
 
 namespace lightning {
 
+const uint64_t PingStats::kNever;
+const uint64_t PingStats::Ping::kLostPacketRecvTime;
+const uint64_t PingStats::Ping::kPendingPacketRecvTime;
+const uint64_t PingStats::Ping::kInvalidPingId;
+
 static Logger::ptr g_log = Log::lookup("lightning:ping_stats");
 
 PingStats::PingStats(int windowSize, uint64_t pingTimeoutUs)

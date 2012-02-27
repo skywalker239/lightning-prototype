@@ -3,6 +3,8 @@
 
 namespace lightning {
 
+const size_t UdpSender::kMaxDatagramSize;
+
 using Mordor::Address;
 using Mordor::CountStatistic;
 using Mordor::Log;

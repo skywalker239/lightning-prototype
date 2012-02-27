@@ -6,6 +6,8 @@
 
 namespace lightning {
 
+const size_t RingVoter::kMaxDatagramSize;
+
 using Mordor::Address;
 using Mordor::Socket;
 using Mordor::Logger;

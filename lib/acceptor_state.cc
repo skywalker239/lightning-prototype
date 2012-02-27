@@ -160,7 +160,7 @@ AcceptorInstance* AcceptorState::lookupInstance(InstanceId instanceId) {
     if(instanceId < firstNotForgottenInstanceId_) {
         MORDOR_LOG_WARNING(g_log) << this << " lookup forgotten iid=" <<
                                      instanceId;
-        return false;
+        return NULL;
     }
 
     auto instanceIter = instances_.find(instanceId);

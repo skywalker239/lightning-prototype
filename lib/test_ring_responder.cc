@@ -37,7 +37,7 @@ void readConfig(const string& filename,
                 Guid* configHash,
                 JSON::Value* config)
 {
-    ifstream f(filename);
+    ifstream f(filename.c_str());
     string fileData;
     f.seekg(0, ios::end);
     fileData.reserve(f.tellg());

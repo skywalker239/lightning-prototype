@@ -1,6 +1,7 @@
 #include "guid.h"
 #include "MurmurHash3.h"
 #include <mordor/timer.h>
+#include <stdio.h>
 #include <syscall.h>
 #include <sys/time.h>
 
@@ -10,6 +11,8 @@ using Mordor::Atomic;
 using Mordor::TimerManager;
 using std::ostream;
 using std::string;
+
+const uint32_t Guid::kHashSeed;
 
 GuidGenerator::GuidGenerator()
     : counter_(0)
@@ -55,7 +58,7 @@ Guid GuidGenerator::generate() {
     memcpy(data + kAdditionalSpace, &seed_, sizeof(Seed));
     
     uint32_t hash[4];
-    MurmurHash3_x64_128(data, sizeof(data), kHashSeed, hash);
+    MurmurHash3_x64_128(data, sizeof(data), Guid::kHashSeed, hash);
     //! Collapse the full 128-bit hash into 64 bits.
     hash[0] ^= hash[2];
     hash[1] ^= hash[3];
@@ -93,7 +96,7 @@ void Guid::serialize(string* destination) const {
 
 Guid Guid::parse(const string& data) {
     Guid guid;
-    memcpy(guid.parts_, data.c_str(), sizeof(parts_));
+    memcpy(guid.parts_, data.c_str(), sizeof(guid.parts_));
     return guid;
 }
 

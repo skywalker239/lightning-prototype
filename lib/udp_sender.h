@@ -40,7 +40,7 @@ private:
     //! Sets the multicast TTL on the socket to max (255).
     void setupSocket();
 
-    static const size_t kMaxDatagramSize = 8900;
+    static const size_t kMaxDatagramSize = 8950;
 
     struct PendingMessage {
         Mordor::Address::ptr destination;

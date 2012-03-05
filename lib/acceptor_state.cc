@@ -2,12 +2,15 @@
 #include "ring_voter.h"
 #include <mordor/assert.h>
 #include <mordor/log.h>
+#include <mordor/statistics.h>
 
 namespace lightning {
 
+using Mordor::CountStatistic;
 using Mordor::FiberMutex;
 using Mordor::Logger;
 using Mordor::Log;
+using Mordor::Statistics;
 using paxos::AcceptorInstance;
 using paxos::InstanceId;
 using paxos::BallotId;
@@ -15,6 +18,13 @@ using paxos::Value;
 using std::make_pair;
 using std::map;
 using std::set;
+
+static CountStatistic<uint64_t>& g_pendingInstances =
+    Statistics::registerStatistic("acceptor.pending_instances",
+                                  CountStatistic<uint64_t>());
+static CountStatistic<uint64_t>& g_notCommittedInstances =
+    Statistics::registerStatistic("acceptor.not_committed_instances",
+                                  CountStatistic<uint64_t>());
 
 static Logger::ptr g_log = Log::lookup("lightning:acceptor_state");
 
@@ -182,6 +192,7 @@ AcceptorInstance* AcceptorState::lookupInstance(InstanceId instanceId) {
         auto freshIter = instances_.insert(make_pair(instanceId,
                                            AcceptorInstance())).first;
         ++pendingInstanceCount_;
+        g_pendingInstances.increment();
         return &freshIter->second;
     }
 }
@@ -194,14 +205,23 @@ void AcceptorState::addCommittedInstanceId(InstanceId instanceId) {
             ++iid)
         {
             notCommittedInstanceIds_.insert(iid);
+            g_notCommittedInstances.increment();
+            MORDOR_ASSERT(g_notCommittedInstances.count ==
+                          notCommittedInstanceIds_.size())
         }
         afterLastCommittedInstanceId_ = instanceId + 1;
         freshCommit = true;
     } else {
         freshCommit = (notCommittedInstanceIds_.erase(instanceId) == 1);
+        if(freshCommit) {
+            g_notCommittedInstances.decrement();
+            MORDOR_ASSERT(g_notCommittedInstances.count ==
+                          notCommittedInstanceIds_.size());
+        }
     }
     if(freshCommit) {
         --pendingInstanceCount_;
+        g_pendingInstances.decrement();
     }
 }
 
@@ -224,6 +244,8 @@ void AcceptorState::reset() {
     instances_.clear();
     firstNotForgottenInstanceId_ = 0;
     pendingInstanceCount_ = 0;
+    g_pendingInstances.reset();
+    g_notCommittedInstances.reset();
     notCommittedInstanceIds_.clear();
     afterLastCommittedInstanceId_ = 0;
 }

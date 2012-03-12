@@ -38,6 +38,9 @@ public:
     //  kInvalidRingIndex if not in the ring.
     uint32_t ringIndex() const { return ringIndex_; }
 
+    //! Multicast address to reach the whole ring.
+    Mordor::Address::ptr ringMulticastAddress() const;
+
     //! The address that this host should forward vote data to.
     //  NULL if this acceptor is not in the ring.
     Mordor::Address::ptr nextRingAddress() const { return nextRingAddress_; }

@@ -15,17 +15,12 @@ static Logger::ptr g_log = Log::lookup("lightning:multicast_rpc_request");
 MulticastRpcRequest::MulticastRpcRequest(
     RingConfiguration::const_ptr ring,
     uint64_t timeoutUs)
-    : ring_(ring),
-      timeoutUs_(timeoutUs),
-      notAckedMask_(ring_->ringMask()),
-      status_(IN_PROGRESS),
-      event_(true)
+    : RpcRequest(ring->ringMulticastAddress(), timeoutUs),
+      ring_(ring),
+      notAckedMask_(ring_->ringMask())
 {}
 
-MulticastRpcRequest::~MulticastRpcRequest()
-{}
-
-void MulticastRpcRequest::onReply(Address::ptr sourceAddress,
+void MulticastRpcRequest::onReply(const Address::ptr& sourceAddress,
                                   const RpcMessageData& reply)
 {
     FiberMutex::ScopedLock lk(mutex_);
@@ -68,47 +63,6 @@ void MulticastRpcRequest::onTimeout() {
         status_ = TIMED_OUT;
     }
     event_.set();
-}
-
-void MulticastRpcRequest::wait() {
-    //! XXX Probably should lock here. Then probably not.
-    event_.wait();
-}
-
-uint64_t MulticastRpcRequest::timeoutUs() const {
-    return timeoutUs_;
-}
-
-void MulticastRpcRequest::setTimeoutTimer(Timer::ptr timer) {
-    FiberMutex::ScopedLock lk(mutex_);
-    timeoutTimer_ = timer;
-}
-
-void MulticastRpcRequest::cancelTimeoutTimer() {
-    FiberMutex::ScopedLock lk(mutex_);
-
-    if(timeoutTimer_.get()) {
-        timeoutTimer_->cancel();
-        timeoutTimer_.reset();
-    } else {
-        MORDOR_LOG_WARNING(g_log) << this << " no timeout timer to reset";
-    }
-}
-
-void MulticastRpcRequest::setRpcGuid(const Guid& guid) {
-    FiberMutex::ScopedLock lk(mutex_);
-    rpcGuid_ = guid;
-    rpcGuid_.serialize(requestData_.mutable_uuid());
-}
-
-const Guid& MulticastRpcRequest::rpcGuid() const {
-    FiberMutex::ScopedLock lk(mutex_);
-    return rpcGuid_;
-}
-
-MulticastRpcRequest::Status MulticastRpcRequest::status() const {
-    FiberMutex::ScopedLock lk(mutex_);
-    return status_;
 }
 
 }  // namespace lightning

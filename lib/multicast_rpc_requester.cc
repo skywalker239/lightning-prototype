@@ -41,13 +41,15 @@ MulticastRpcRequester::MulticastRpcRequester(
     UdpSender::ptr udpSender,
     Socket::ptr socket,
     Address::ptr groupMulticastAddress,
-    GroupConfiguration::ptr groupConfiguration)
+    GroupConfiguration::ptr groupConfiguration,
+    MulticastRpcStats::ptr rpcStats)
     : ioManager_(ioManager),
       guidGenerator_(guidGenerator),
       udpSender_(udpSender),
       socket_(socket),
       groupMulticastAddress_(groupMulticastAddress),
-      groupConfiguration_(groupConfiguration)
+      groupConfiguration_(groupConfiguration),
+      rpcStats_(rpcStats)
 {
     MORDOR_LOG_TRACE(g_log) << this << " init group='" <<
                             *groupMulticastAddress_;
@@ -70,6 +72,9 @@ void MulticastRpcRequester::processReplies() {
                                          groupConfiguration_->addressToServiceName(currentSourceAddress);
             continue;
         }
+
+        const uint64_t recvTime = TimerManager::now();
+        rpcStats_->receivedPacket(recvTime, bytes);
 
         Guid replyGuid = Guid::parse(reply.uuid());
         MulticastRpcRequest::ptr request;
@@ -144,6 +149,8 @@ MulticastRpcRequest::Status MulticastRpcRequester::request(
         pendingRequests_[requestGuid] = request;
     }
 
+    size_t bytes = request->requestData()->ByteSize();
+    const uint64_t sendTime = TimerManager::now();
     udpSender_->send(groupMulticastAddress_,
                      boost::shared_ptr<const RpcMessageData>(
                          request,
@@ -156,6 +163,9 @@ MulticastRpcRequest::Status MulticastRpcRequester::request(
                                  request));
     request->wait();
     request->cancelTimeoutTimer();
+    const uint64_t recvTime = TimerManager::now();
+    rpcStats_->sentPacket(sendTime, recvTime, bytes);
+
     {
         FiberMutex::ScopedLock lk(mutex_);
         pendingRequests_.erase(requestGuid);

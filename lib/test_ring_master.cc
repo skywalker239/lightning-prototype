@@ -58,14 +58,15 @@ void readConfig(const string& filename,
 MulticastRpcRequester::ptr setupRequester(IOManager* ioManager,
                                           GuidGenerator::ptr guidGenerator,
                                           GroupConfiguration::ptr groupConfiguration,
-                                          Address::ptr mcastDestination)
+                                          Address::ptr mcastDestination,
+                                          MulticastRpcStats::ptr rpcStats)
 {
     Address::ptr bindAddr = groupConfiguration->host(groupConfiguration->thisHostId()).multicastSourceAddress;
     Socket::ptr s = bindAddr->createSocket(*ioManager, SOCK_DGRAM);
     s->bind(bindAddr);
     UdpSender::ptr sender(new UdpSender("multicast_rpc_requester", s));
     ioManager->schedule(boost::bind(&UdpSender::run, sender));
-    return MulticastRpcRequester::ptr(new MulticastRpcRequester(ioManager, guidGenerator, sender, s, mcastDestination, groupConfiguration));
+    return MulticastRpcRequester::ptr(new MulticastRpcRequester(ioManager, guidGenerator, sender, s, mcastDestination, groupConfiguration, rpcStats));
 }
 
 class DummyRingHolder : public RingHolder {};
@@ -94,8 +95,11 @@ void setupEverything(uint32_t hostId,
     GuidGenerator::ptr guidGenerator(new GuidGenerator);
     boost::shared_ptr<FiberEvent> event(new FiberEvent);
 
+    const uint64_t sendWindowUs = config["send_window"].get<long long>();
+    const uint64_t recvWindowUs = config["recv_window"].get<long long>();
+    MulticastRpcStats::ptr rpcStats(new MulticastRpcStats(sendWindowUs, recvWindowUs));
 
-    MulticastRpcRequester::ptr requester = setupRequester(ioManager, guidGenerator, groupConfiguration, mcastDestination);
+    MulticastRpcRequester::ptr requester = setupRequester(ioManager, guidGenerator, groupConfiguration, mcastDestination, rpcStats);
     ioManager->schedule(boost::bind(&MulticastRpcRequester::processReplies, requester));
 
     PingTracker::ptr pingTracker(new PingTracker(groupConfiguration, pingWindow, pingTimeout, hostTimeout, event, ioManager));

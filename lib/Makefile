@@ -21,6 +21,7 @@ LIB_OBJS += \
     ring_configuration.o \
     MurmurHash3.o \
     guid.o \
+    multicast_rpc_stats.o \
     multicast_rpc_requester.o \
     multicast_rpc_responder.o \
     set_ring_handler.o \

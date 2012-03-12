@@ -61,7 +61,7 @@ void MulticastRpcStats::receivedPacket(uint64_t recvTime, size_t bytes)
 void MulticastRpcStats::updateStats(PacketStat &stat, Packet &packet, int windowUs)
 {
     // We need to keep the window non-empty, so we'll only clean it up when we got a non-instant packet.
-    if (packet.sendTime > packet.recvTime)
+    if (packet.sendTime > packet.recvTime) {
         while (stat.window.size() > 0 && stat.window.front().sendTime + windowUs < packet.sendTime) {
             Packet &pop = stat.window.front();
 	    stat.sum_latency -= (pop.recvTime - pop.sendTime);
@@ -69,6 +69,7 @@ void MulticastRpcStats::updateStats(PacketStat &stat, Packet &packet, int window
 	    stat.byte_count -= pop.bytes;
             stat.window.pop_front();
 	}
+    }
 
     stat.sum_latency += (packet.recvTime - packet.sendTime);
     stat.packet_count++;

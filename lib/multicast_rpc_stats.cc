@@ -15,6 +15,8 @@ MulticastRpcStats::MulticastRpcStats(
       recvWindowUs_(recvWindowUs)
 {
 	lastRecvTime_ = 0;
+	memset(&sent_, 0, sizeof(sent_));
+	memset(&received_, 0, sizeof(received_));
 }
 
 void MulticastRpcStats::sentPacket(uint64_t sendTime, uint64_t recvTime, size_t bytes)
@@ -60,21 +62,21 @@ void MulticastRpcStats::receivedPacket(uint64_t recvTime, size_t bytes)
 
 void MulticastRpcStats::updateStats(PacketStat &stat, Packet &packet, int windowUs)
 {
-    // We need to keep the window non-empty, so we'll only clean it up when we got a non-instant packet.
-    if (packet.sendTime > packet.recvTime) {
-        while (stat.window.size() > 0 && stat.window.front().sendTime + windowUs < packet.sendTime) {
-            Packet &pop = stat.window.front();
-	    stat.sum_latency -= (pop.recvTime - pop.sendTime);
-	    stat.packet_count--;
-	    stat.byte_count -= pop.bytes;
-            stat.window.pop_front();
-	}
-    }
-
     stat.sum_latency += (packet.recvTime - packet.sendTime);
     stat.packet_count++;
     stat.byte_count += packet.bytes;
     stat.window.push_back(packet);
+
+    // We'll keep our window size not smaller than windowUs, but with minimal packets count.
+    while (stat.window.size() > 0) {
+        Packet &pop = stat.window.front();
+	uint64_t latency = (pop.recvTime - pop.sendTime);
+        if (stat.sum_latency < windowUs + latency) break;
+        stat.sum_latency -= latency;
+        stat.packet_count--;
+        stat.byte_count -= pop.bytes;
+        stat.window.pop_front();
+    }
 }
 
 }  // namespace lightning

@@ -4,7 +4,7 @@
 #include "phase2_handler.h"
 #include "guid.h"
 #include "host_configuration.h"
-#include "multicast_rpc_responder.h"
+#include "rpc_responder.h"
 #include "ring_holder.h"
 #include "ring_voter.h"
 #include "ring_change_notifier.h"
@@ -91,10 +91,11 @@ void setupEverything(IOManager* ioManager,
                      const JSON::Value& config,
                      uint32_t ourId,
                      AcceptorState::ptr acceptorState,
-                     MulticastRpcResponder::ptr* responder,
+                     RpcResponder::ptr* responder,
                      RingVoter::ptr* ringVoter)
 {
-    GroupConfiguration::ptr groupConfig = parseGroupConfiguration(config["hosts"], ourId);
+    Address::ptr multicastGroup = Address::lookup(config["mcast_group"].get<string>(), AF_INET).front();
+    GroupConfiguration::ptr groupConfig = parseGroupConfiguration(config["hosts"], ourId, multicastGroup);
 
     Socket::ptr ringSocket = bindSocket(groupConfig->host(groupConfig->thisHostId()).ringAddress, ioManager);
     UdpSender::ptr udpSender(new UdpSender("ring_voter", ringSocket));
@@ -116,11 +117,10 @@ void setupEverything(IOManager* ioManager,
 
     const HostConfiguration& hostConfig = groupConfig->host(groupConfig->thisHostId());
 
-    Address::ptr multicastGroup = Address::lookup(config["mcast_group"].get<string>(), AF_INET).front();
     Socket::ptr listenSocket = bindSocket(hostConfig.multicastListenAddress, ioManager);
     Socket::ptr replySocket = bindSocket(hostConfig.multicastReplyAddress, ioManager);
 
-    *responder = MulticastRpcResponder::ptr(new MulticastRpcResponder(listenSocket, multicastGroup, replySocket));
+    *responder = RpcResponder::ptr(new RpcResponder(listenSocket, multicastGroup, replySocket));
     (*responder)->addHandler(RpcMessageData::PING, ponger);
     (*responder)->addHandler(RpcMessageData::SET_RING, setRingHandler);
     (*responder)->addHandler(RpcMessageData::PAXOS_BATCH_PHASE1, batchPhase1Handler);
@@ -147,10 +147,10 @@ int main(int argc, char** argv) {
     IOManager ioManager;
 
     AcceptorState::ptr acceptorState = createAcceptor(config);
-    MulticastRpcResponder::ptr responder;
+    RpcResponder::ptr responder;
     RingVoter::ptr ringVoter;
     setupEverything(&ioManager, configGuid, config, id, acceptorState, &responder, &ringVoter);
-    ioManager.schedule(boost::bind(&MulticastRpcResponder::run, responder));
+    ioManager.schedule(boost::bind(&RpcResponder::run, responder));
     ioManager.schedule(boost::bind(&RingVoter::run, ringVoter));
     ioManager.schedule(boost::bind(serveStats, &ioManager));
     ioManager.dispatch();

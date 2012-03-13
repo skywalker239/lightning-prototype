@@ -1,11 +1,11 @@
-#include "multicast_rpc_responder.h"
+#include "rpc_responder.h"
 #include "guid.h"
 #include "multicast_util.h"
 #include <mordor/log.h>
 
 namespace lightning {
 
-const size_t MulticastRpcResponder::kMaxDatagramSize;
+const size_t RpcResponder::kMaxDatagramSize;
 
 using Mordor::Address;
 using Mordor::Log;
@@ -16,7 +16,7 @@ using std::map;
 
 static Logger::ptr g_log = Log::lookup("lightning:multicast_rpc_responder");
 
-MulticastRpcResponder::MulticastRpcResponder(Socket::ptr listenSocket,
+RpcResponder::RpcResponder(Socket::ptr listenSocket,
                                              Address::ptr multicastGroup,
                                              Socket::ptr replySocket)
     : listenSocket_(listenSocket),
@@ -24,7 +24,7 @@ MulticastRpcResponder::MulticastRpcResponder(Socket::ptr listenSocket,
       replySocket_(replySocket)
 {}
 
-void MulticastRpcResponder::run() {
+void RpcResponder::run() {
     joinMulticastGroup(listenSocket_, multicastGroup_);
     MORDOR_LOG_TRACE(g_log) << this << " listening @" <<
                                *listenSocket_->localAddress() <<
@@ -82,7 +82,7 @@ void MulticastRpcResponder::run() {
     }
 }
 
-void MulticastRpcResponder::addHandler(RpcMessageData::Type type,
+void RpcResponder::addHandler(RpcMessageData::Type type,
                                        RpcHandler::ptr handler)
 {
     handlers_[type] = handler;

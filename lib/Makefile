@@ -21,8 +21,8 @@ LIB_OBJS += \
     ring_configuration.o \
     MurmurHash3.o \
     guid.o \
-    multicast_rpc_requester.o \
-    multicast_rpc_responder.o \
+    rpc_requester.o \
+    rpc_responder.o \
     set_ring_handler.o \
     ping_stats.o \
     pinger.o \
@@ -53,6 +53,7 @@ LIB_OBJS += \
     vote.o \
     sleep_helper.o \
     rpc_request.o \
+    unicast_rpc_request.o \
 
 TEST_TARGETS = test_ring_master test_ring_responder
 TEST_OBJS = $(addsuffix .o, $(TEST_TARGETS))

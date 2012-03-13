@@ -1,7 +1,7 @@
 #pragma once
 
 #include "guid.h"
-#include "multicast_rpc_requester.h"
+#include "rpc_requester.h"
 #include "ring_change_notifier.h"
 #include "ring_oracle.h"
 #include <mordor/fibersynchronization.h>
@@ -25,7 +25,7 @@ public:
                 const Guid& hostGroupGuid,
                 Mordor::IOManager* ioManager,
                 boost::shared_ptr<Mordor::FiberEvent> hostDownEvent,
-                MulticastRpcRequester::ptr requester,
+                RpcRequester::ptr requester,
                 PingTracker::ptr acceptorPingTracker,
                 RingOracle::ptr ringOracle,
                 RingChangeNotifier::ptr ringChangeNotifier,
@@ -56,7 +56,7 @@ private:
 
     Mordor::IOManager* ioManager_;
     boost::shared_ptr<Mordor::FiberEvent> hostDownEvent_;
-    MulticastRpcRequester::ptr requester_;
+    RpcRequester::ptr requester_;
     PingTracker::ptr acceptorPingTracker_;
     RingOracle::ptr ringOracle_;
     RingChangeNotifier::ptr ringChangeNotifier_;

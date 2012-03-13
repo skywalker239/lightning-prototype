@@ -4,7 +4,7 @@
 #include "guid.h"
 #include "host_configuration.h"
 #include "instance_pool.h"
-#include "multicast_rpc_requester.h"
+#include "rpc_requester.h"
 #include "client_value_queue.h"
 #include "proposer_instance.h"
 #include "ring_holder.h"
@@ -28,7 +28,7 @@ public:
     ProposerState(GroupConfiguration::ptr group,
                   const Guid& epoch,
                   InstancePool::ptr instancePool,
-                  MulticastRpcRequester::ptr requester,
+                  RpcRequester::ptr requester,
                   ClientValueQueue::ptr clientValueQueue,
                   Mordor::IOManager* ioManager,
                   uint64_t phase1TimeoutUs,
@@ -53,7 +53,7 @@ private:
     GroupConfiguration::ptr group_;
     const Guid epoch_;
     InstancePool::ptr instancePool_;
-    MulticastRpcRequester::ptr requester_;
+    RpcRequester::ptr requester_;
     ClientValueQueue::ptr clientValueQueue_;
     Mordor::IOManager* ioManager_;
     const uint64_t phase1TimeoutUs_;

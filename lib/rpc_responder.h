@@ -7,11 +7,11 @@
 
 namespace lightning {
 
-class MulticastRpcResponder {
+class RpcResponder {
 public:
-    typedef boost::shared_ptr<MulticastRpcResponder> ptr;
+    typedef boost::shared_ptr<RpcResponder> ptr;
 
-    MulticastRpcResponder(Mordor::Socket::ptr listenSocket,
+    RpcResponder(Mordor::Socket::ptr listenSocket,
                           Mordor::Address::ptr multicastGroup,
                           Mordor::Socket::ptr replySocket);
     

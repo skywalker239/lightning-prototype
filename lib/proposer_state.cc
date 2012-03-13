@@ -56,7 +56,7 @@ const int64_t kSleepPrecision = 1000; // 1 ms for epoll
 ProposerState::ProposerState(GroupConfiguration::ptr group,
                              const Guid& epoch,
                              InstancePool::ptr instancePool,
-                             MulticastRpcRequester::ptr requester,
+                             RpcRequester::ptr requester,
                              ClientValueQueue::ptr clientValueQueue,
                              IOManager* ioManager,
                              uint64_t phase1TimeoutUs,

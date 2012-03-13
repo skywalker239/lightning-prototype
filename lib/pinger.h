@@ -3,7 +3,7 @@
 #include "host_configuration.h"
 #include "ping_tracker.h"
 #include "ring_configuration.h"
-#include "multicast_rpc_requester.h"
+#include "rpc_requester.h"
 #include <mordor/socket.h>
 #include <mordor/scheduler.h>
 #include <boost/enable_shared_from_this.hpp>
@@ -21,7 +21,7 @@ public:
     //! Sends multicast pings to pingAddress once in pingIntervalUs us,
     //  collects replies from the given hosts using the supplied PingTracker.
     Pinger(Mordor::IOManager* ioManager,
-           MulticastRpcRequester::ptr requester,
+           RpcRequester::ptr requester,
            GroupConfiguration::ptr groupConfiguration,
            uint64_t pingIntervalUs,
            uint64_t pingTimeoutUs,
@@ -33,7 +33,7 @@ private:
     void doSinglePing(uint64_t id);
 
     Mordor::IOManager* ioManager_;
-    MulticastRpcRequester::ptr requester_;
+    RpcRequester::ptr requester_;
     RingConfiguration::const_ptr pingRing_;
     const uint64_t pingIntervalUs_;
     const uint64_t pingTimeoutUs_;

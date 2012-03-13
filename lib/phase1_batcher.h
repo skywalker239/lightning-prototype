@@ -7,7 +7,7 @@
 #include "instance_pool.h"
 #include "paxos_defs.h"
 #include "ring_holder.h"
-#include "multicast_rpc_requester.h"
+#include "rpc_requester.h"
 #include <mordor/fibersynchronization.h>
 
 namespace lightning {
@@ -23,7 +23,7 @@ public:
                   uint32_t batchSize,
                   const paxos::BallotGenerator& ballotGenerator,
                   paxos::InstancePool::ptr instancePool,
-                  MulticastRpcRequester::ptr requester,
+                  RpcRequester::ptr requester,
                   boost::shared_ptr<Mordor::FiberEvent>
                       pushMoreOpenInstancesEvent);
 
@@ -60,7 +60,7 @@ private:
     const paxos::BallotGenerator ballotGenerator_;
 
     paxos::InstancePool::ptr instancePool_;
-    MulticastRpcRequester::ptr requester_;
+    RpcRequester::ptr requester_;
     boost::shared_ptr<Mordor::FiberEvent>
         pushMoreOpenInstancesEvent_;
     

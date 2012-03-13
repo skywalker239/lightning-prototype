@@ -39,7 +39,9 @@ public:
     uint32_t ringIndex() const { return ringIndex_; }
 
     //! Multicast address to reach the whole ring.
-    Mordor::Address::ptr ringMulticastAddress() const;
+    Mordor::Address::ptr ringMulticastAddress() const {
+        return groupConfiguration_->groupMulticastAddress();
+    }
 
     //! The address that this host should forward vote data to.
     //  NULL if this acceptor is not in the ring.

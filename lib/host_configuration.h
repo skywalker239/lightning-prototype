@@ -16,19 +16,22 @@ struct HostConfiguration {
     Mordor::Address::ptr multicastReplyAddress;
     Mordor::Address::ptr multicastSourceAddress;
     Mordor::Address::ptr ringAddress;
+    Mordor::Address::ptr unicastAddress;
 
     HostConfiguration(const std::string& _name,
                       const std::string& _datacenter,
                       Mordor::Address::ptr _multicastListenAddress,
                       Mordor::Address::ptr _multicastReplyAddress,
                       Mordor::Address::ptr _multicastSourceAddress,
-                      Mordor::Address::ptr _ringAddress)
+                      Mordor::Address::ptr _ringAddress,
+                      Mordor::Address::ptr _unicastAddress)
         : name(_name),
           datacenter(_datacenter),
           multicastListenAddress(_multicastListenAddress),
           multicastReplyAddress(_multicastReplyAddress),
           multicastSourceAddress(_multicastSourceAddress),
-          ringAddress(_ringAddress)
+          ringAddress(_ringAddress),
+          unicastAddress(_unicastAddress)
     {}
 };
 
@@ -46,11 +49,16 @@ public:
 
     static const uint32_t kInvalidHostId = ~0;
 
-    GroupConfiguration(const std::vector<HostConfiguration>& hosts,
+    GroupConfiguration(const Mordor::Address::ptr groupMulticastAddress,
+                       const std::vector<HostConfiguration>& hosts,
                        uint32_t thisHostId);
 
     //! Number of hosts in the group
     size_t size() const;
+
+    const Mordor::Address::ptr groupMulticastAddress() const {
+            return groupMulticastAddress_;
+    }
 
     //! Asserts on invalid indices.
     const HostConfiguration& host(size_t index) const;
@@ -68,6 +76,7 @@ private:
     friend std::ostream& operator<<(std::ostream&,
                                     const GroupConfiguration&);
 
+    const Mordor::Address::ptr groupMulticastAddress_;
     const std::vector<HostConfiguration> hosts_;
     const uint32_t thisHostId_;
 
@@ -91,6 +100,7 @@ private:
 
 GroupConfiguration::ptr parseGroupConfiguration(
     const Mordor::JSON::Value& json,
-    uint32_t thisHostId);
+    uint32_t thisHostId,
+    Mordor::Address::ptr groupMulticastAddress);
 
 }  // namespace lightning

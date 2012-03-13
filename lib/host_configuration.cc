@@ -32,14 +32,15 @@ string makeHostnameWithId(uint32_t hostId, const string& hostname) {
 }  // anonymous namespace
 
 GroupConfiguration::ptr parseGroupConfiguration(const JSON::Value& json,
-                                                uint32_t thisHostId)
+                                                uint32_t thisHostId,
+                                                Address::ptr groupMulticastAddress)
 {
     vector<HostConfiguration> configuration;
     const JSON::Array hosts = json.get<JSON::Array>();
 
     for(size_t i = 0; i < hosts.size(); ++i) {
         const JSON::Array& hostData = hosts[i].get<JSON::Array>();
-        MORDOR_ASSERT(hostData.size() == 6);
+        MORDOR_ASSERT(hostData.size() == 7);
         const string& name = makeHostnameWithId(i, hostData[0].get<string>());
         const string& datacenter = hostData[1].get<string>();
         auto multicastListenAddress =
@@ -50,6 +51,8 @@ GroupConfiguration::ptr parseGroupConfiguration(const JSON::Value& json,
             lookupAddress(hostData[4].get<string>());
         auto ringAddress =
             lookupAddress(hostData[5].get<string>());
+        auto unicastAddress =
+            lookupAddress(hostData[6].get<string>());
 
         configuration.push_back(
             HostConfiguration(
@@ -58,15 +61,20 @@ GroupConfiguration::ptr parseGroupConfiguration(const JSON::Value& json,
                 multicastListenAddress,
                 multicastReplyAddress,
                 multicastSourceAddress,
-                ringAddress));
+                ringAddress,
+                unicastAddress));
     }
     return GroupConfiguration::ptr(
-               new GroupConfiguration(configuration, thisHostId));
+               new GroupConfiguration(groupMulticastAddress,
+                                      configuration,
+                                      thisHostId));
 }
 
-GroupConfiguration::GroupConfiguration(const vector<HostConfiguration>& hosts,
+GroupConfiguration::GroupConfiguration(Address::ptr groupMulticastAddress,
+                                       const vector<HostConfiguration>& hosts,
                                        uint32_t thisHostId)
-    : hosts_(hosts),
+    : groupMulticastAddress_(groupMulticastAddress),
+      hosts_(hosts),
       thisHostId_(thisHostId)
 {
     MORDOR_ASSERT(hosts.size() <= kMaxGroupSize);
@@ -81,7 +89,7 @@ GroupConfiguration::GroupConfiguration(const vector<HostConfiguration>& hosts,
         MORDOR_ASSERT(ringResult.second);
         auto rpcNameResult = addressToServiceName_.insert(
             make_pair(hosts_[i].multicastReplyAddress,
-                      hosts_[i].name + ":RPC"));
+                      hosts_[i].name + ":MRPC"));
         MORDOR_ASSERT(rpcNameResult.second);
         auto ringNameResult = addressToServiceName_.insert(
             make_pair(hosts_[i].ringAddress,
@@ -91,6 +99,10 @@ GroupConfiguration::GroupConfiguration(const vector<HostConfiguration>& hosts,
             make_pair(hosts_[i].multicastSourceAddress,
                       hosts_[i].name + ":SRC"));
         MORDOR_ASSERT(rpcSrcResult.second);
+        auto unicastResult = addressToServiceName_.insert(
+            make_pair(hosts_[i].unicastAddress,
+                      hosts_[i].name + ":URPC"));
+        MORDOR_ASSERT(unicastResult.second);
     }
 }
 

@@ -19,7 +19,7 @@ using std::vector;
 static Logger::ptr g_log = Log::lookup("lightning:pinger");
 
 Pinger::Pinger(IOManager* ioManager,
-               MulticastRpcRequester::ptr requester,
+               RpcRequester::ptr requester,
                GroupConfiguration::ptr groupConfiguration,
                uint64_t pingIntervalUs,
                uint64_t pingTimeoutUs,

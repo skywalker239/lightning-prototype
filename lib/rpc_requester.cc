@@ -1,4 +1,4 @@
-#include "multicast_rpc_requester.h"
+#include "rpc_requester.h"
 #include "proto/rpc_messages.pb.h"
 #include <mordor/assert.h>
 #include <mordor/log.h>
@@ -9,7 +9,7 @@
 
 namespace lightning {
 
-const size_t MulticastRpcRequester::kMaxDatagramSize;
+const size_t RpcRequester::kMaxDatagramSize;
 
 using Mordor::Address;
 using Mordor::FiberMutex;
@@ -26,34 +26,30 @@ using std::set;
 using std::string;
 using std::vector;
 
-static Logger::ptr g_log = Log::lookup("lightning:multicast_rpc_requester");
+static Logger::ptr g_log = Log::lookup("lightning:rpc_requester");
 
 static CountStatistic<uint64_t>& g_inPackets =
-    Statistics::registerStatistic("multicast_rpc_requester.in_packets",
+    Statistics::registerStatistic("rpc_requester.in_packets",
                                   CountStatistic<uint64_t>("packets"));
 static CountStatistic<uint64_t>& g_inBytes =
-    Statistics::registerStatistic("multicast_rpc_requester.in_bytes",
+    Statistics::registerStatistic("rpc_requester.in_bytes",
                                   CountStatistic<uint64_t>("bytes"));
 
-MulticastRpcRequester::MulticastRpcRequester(
+RpcRequester::RpcRequester(
     IOManager* ioManager,
     GuidGenerator::ptr guidGenerator,
     UdpSender::ptr udpSender,
     Socket::ptr socket,
-    Address::ptr groupMulticastAddress,
     GroupConfiguration::ptr groupConfiguration)
     : ioManager_(ioManager),
       guidGenerator_(guidGenerator),
       udpSender_(udpSender),
       socket_(socket),
-      groupMulticastAddress_(groupMulticastAddress),
       groupConfiguration_(groupConfiguration)
 {
-    MORDOR_LOG_TRACE(g_log) << this << " init group='" <<
-                            *groupMulticastAddress_;
 }
 
-void MulticastRpcRequester::processReplies() {
+void RpcRequester::processReplies() {
     Address::ptr currentSourceAddress = socket_->emptyAddress();
     while(true) {
         char buffer[kMaxDatagramSize + 1];
@@ -72,7 +68,7 @@ void MulticastRpcRequester::processReplies() {
         }
 
         Guid replyGuid = Guid::parse(reply.uuid());
-        MulticastRpcRequest::ptr request;
+        RpcRequest::ptr request;
         {
             FiberMutex::ScopedLock lk(mutex_);
             auto requestIter = pendingRequests_.find(replyGuid);
@@ -93,8 +89,8 @@ void MulticastRpcRequester::processReplies() {
     }
 }
 
-void MulticastRpcRequester::timeoutRequest(const Guid& requestId) {
-    MulticastRpcRequest::ptr request;
+void RpcRequester::timeoutRequest(const Guid& requestId) {
+    RpcRequest::ptr request;
     {
         FiberMutex::ScopedLock lk(mutex_);
         auto requestIter = pendingRequests_.find(requestId);
@@ -112,27 +108,27 @@ void MulticastRpcRequester::timeoutRequest(const Guid& requestId) {
     request->onTimeout();
 }
 
-void MulticastRpcRequester::startTimeoutTimer(
-    MulticastRpcRequest::ptr request)
+void RpcRequester::startTimeoutTimer(
+    RpcRequest::ptr request)
 {
     MORDOR_LOG_TRACE(g_log) << this << " request (" <<
                                request->rpcGuid() << ", " << *request <<
                                ") sent";
     Timer::ptr timeoutTimer = ioManager_->registerTimer(request->timeoutUs(),
                                   boost::bind(
-                                  &MulticastRpcRequester::timeoutRequest,
+                                  &RpcRequester::timeoutRequest,
                                   this,
                                   request->rpcGuid()));
     request->setTimeoutTimer(timeoutTimer);
 }
 
-void MulticastRpcRequester::onSendFail(MulticastRpcRequest::ptr request) {
+void RpcRequester::onSendFail(RpcRequest::ptr request) {
     MORDOR_LOG_TRACE(g_log) << this << " failed to send " << *request;
     request->onTimeout();
 }
 
-MulticastRpcRequest::Status MulticastRpcRequester::request(
-    MulticastRpcRequest::ptr request)
+RpcRequest::Status RpcRequester::request(
+    RpcRequest::ptr request)
 {
     Guid requestGuid = guidGenerator_->generate();
     request->setRpcGuid(requestGuid);
@@ -144,14 +140,14 @@ MulticastRpcRequest::Status MulticastRpcRequester::request(
         pendingRequests_[requestGuid] = request;
     }
 
-    udpSender_->send(groupMulticastAddress_,
+    udpSender_->send(request->destination(),
                      boost::shared_ptr<const RpcMessageData>(
                          request,
                          request->requestData()),
-                     boost::bind(&MulticastRpcRequester::startTimeoutTimer,
+                     boost::bind(&RpcRequester::startTimeoutTimer,
                                  this,
                                  request),
-                     boost::bind(&MulticastRpcRequester::onSendFail,
+                     boost::bind(&RpcRequester::onSendFail,
                                  this,
                                  request));
     request->wait();
@@ -163,8 +159,8 @@ MulticastRpcRequest::Status MulticastRpcRequester::request(
                                    requestGuid << ", " << *request <<
                                    ") from pending";
     }
-    MulticastRpcRequest::Status status = request->status();
-    MORDOR_ASSERT(status != MulticastRpcRequest::IN_PROGRESS);
+    RpcRequest::Status status = request->status();
+    MORDOR_ASSERT(status != RpcRequest::IN_PROGRESS);
     return request->status();
 }
 

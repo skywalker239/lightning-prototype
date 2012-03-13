@@ -25,7 +25,7 @@ public:
     RpcRequest(Mordor::Address::ptr destination,
                uint64_t timeoutUs);
 
-    virtual ~RpcRequest();
+    virtual ~RpcRequest() {}
 
     //! Process a reply from some address.
     virtual void onReply(const Mordor::Address::ptr& sourceAddress,

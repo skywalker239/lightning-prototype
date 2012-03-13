@@ -55,17 +55,16 @@ void readConfig(const string& filename,
     cout << *configHash << endl;
 }
 
-MulticastRpcRequester::ptr setupRequester(IOManager* ioManager,
+RpcRequester::ptr setupRequester(IOManager* ioManager,
                                           GuidGenerator::ptr guidGenerator,
-                                          GroupConfiguration::ptr groupConfiguration,
-                                          Address::ptr mcastDestination)
+                                          GroupConfiguration::ptr groupConfiguration)
 {
     Address::ptr bindAddr = groupConfiguration->host(groupConfiguration->thisHostId()).multicastSourceAddress;
     Socket::ptr s = bindAddr->createSocket(*ioManager, SOCK_DGRAM);
     s->bind(bindAddr);
-    UdpSender::ptr sender(new UdpSender("multicast_rpc_requester", s));
+    UdpSender::ptr sender(new UdpSender("rpc_requester", s));
     ioManager->schedule(boost::bind(&UdpSender::run, sender));
-    return MulticastRpcRequester::ptr(new MulticastRpcRequester(ioManager, guidGenerator, sender, s, mcastDestination, groupConfiguration));
+    return RpcRequester::ptr(new RpcRequester(ioManager, guidGenerator, sender, s, groupConfiguration));
 }
 
 class DummyRingHolder : public RingHolder {};
@@ -80,23 +79,24 @@ void setupEverything(uint32_t hostId,
                      ProposerState::ptr* proposerState,
                      ClientValueQueue::ptr* valueQueue)
 {
+    Address::ptr groupMcastAddress =
+        Address::lookup(config["mcast_group"].get<string>(), AF_INET).front();;
     GroupConfiguration::ptr groupConfiguration = parseGroupConfiguration(config["hosts"],
-                                                                    hostId);
+                                                                    hostId,
+                                                                    groupMcastAddress);
     const uint64_t pingWindow = config["ping_window"].get<long long>();
     const uint64_t pingTimeout = config["ping_timeout"].get<long long>();
     const uint64_t pingInterval = config["ping_interval"].get<long long>();
     const uint64_t hostTimeout = config["host_timeout"].get<long long>();
     const uint64_t ringTimeout = config["ring_timeout"].get<long long>();
     const uint64_t ringRetryInterval = config["ring_retry_interval"].get<long long>();
-    Address::ptr mcastDestination =
-        Address::lookup(config["mcast_group"].get<string>(), AF_INET).front();
 
     GuidGenerator::ptr guidGenerator(new GuidGenerator);
     boost::shared_ptr<FiberEvent> event(new FiberEvent);
 
 
-    MulticastRpcRequester::ptr requester = setupRequester(ioManager, guidGenerator, groupConfiguration, mcastDestination);
-    ioManager->schedule(boost::bind(&MulticastRpcRequester::processReplies, requester));
+    RpcRequester::ptr requester = setupRequester(ioManager, guidGenerator, groupConfiguration);
+    ioManager->schedule(boost::bind(&RpcRequester::processReplies, requester));
 
     PingTracker::ptr pingTracker(new PingTracker(groupConfiguration, pingWindow, pingTimeout, hostTimeout, event, ioManager));
     *pinger = Pinger::ptr(new Pinger(ioManager, requester, groupConfiguration, pingInterval, pingTimeout, pingTracker));

@@ -33,7 +33,7 @@ Phase1Batcher::Phase1Batcher(const Guid& epoch,
                              uint32_t batchSize,
                              const BallotGenerator& ballotGenerator,
                              InstancePool::ptr instancePool,
-                             MulticastRpcRequester::ptr requester,
+                             RpcRequester::ptr requester,
                              shared_ptr<FiberEvent>
                                 pushMoreOpenInstancesEvent)
     : epoch_(epoch),

@@ -33,7 +33,7 @@ private:
     struct PacketStat {
 	uint64_t sum_latency;
         uint64_t packet_count;
-	size_t byte_count;
+        size_t byte_count;
         std::list<Packet> window;
     };
 

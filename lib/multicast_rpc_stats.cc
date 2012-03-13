@@ -24,7 +24,7 @@ void MulticastRpcStats::sentPacket(uint64_t sendTime, uint64_t recvTime, size_t 
     if (sent_.window.size() > 0 && sendTime > sent_.window.back().recvTime) {
         MORDOR_LOG_WARNING(g_log) << this << " received packets are interferred: " <<
                                      sendTime << "/" << recvTime << " vs. " <<
-				     sent_.window.back().recvTime;
+                                     sent_.window.back().recvTime;
         return;
     }
 
@@ -70,7 +70,7 @@ void MulticastRpcStats::updateStats(PacketStat &stat, Packet &packet, int window
     // We'll keep our window size not smaller than windowUs, but with minimal packets count.
     while (stat.window.size() > 0) {
         Packet &pop = stat.window.front();
-	uint64_t latency = (pop.recvTime - pop.sendTime);
+        uint64_t latency = (pop.recvTime - pop.sendTime);
         if (stat.sum_latency < windowUs + latency) break;
         stat.sum_latency -= latency;
         stat.packet_count--;

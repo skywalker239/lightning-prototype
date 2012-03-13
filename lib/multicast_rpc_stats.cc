@@ -14,9 +14,9 @@ MulticastRpcStats::MulticastRpcStats(
     : sendWindowUs_(sendWindowUs),
       recvWindowUs_(recvWindowUs)
 {
-	lastRecvTime_ = 0;
-	memset(&sent_, 0, sizeof(sent_));
-	memset(&received_, 0, sizeof(received_));
+    lastRecvTime_ = 0;
+    memset(&sent_, 0, sizeof(sent_));
+    memset(&received_, 0, sizeof(received_));
 }
 
 void MulticastRpcStats::sentPacket(uint64_t sendTime, uint64_t recvTime, size_t bytes)

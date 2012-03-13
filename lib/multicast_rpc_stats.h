@@ -27,11 +27,11 @@ private:
     struct Packet {
         uint64_t sendTime;
         uint64_t recvTime;
-	size_t bytes;
+        size_t bytes;
     };
 
     struct PacketStat {
-	uint64_t sum_latency;
+        uint64_t sum_latency;
         uint64_t packet_count;
         size_t byte_count;
         std::list<Packet> window;

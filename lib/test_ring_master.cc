@@ -193,7 +193,7 @@ void submitValues(IOManager* ioManager,
     const int64_t kSleepPrecision = 1000;
     const int64_t kSleepInterval = 64;
     sleep(*ioManager, 3500000); // let the ring selection happen
-    const size_t kValuesToSubmit = 4687500; // 60 sec @ 1 Gbps
+    const size_t kValuesToSubmit = 468750; // 60 sec @ 1 Gbps
 
     SleepHelper sleeper(ioManager, kSleepInterval, kSleepPrecision);
     for(size_t i = 0; i < kValuesToSubmit; ++i) {

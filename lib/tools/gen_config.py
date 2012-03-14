@@ -26,7 +26,9 @@ def genHostConfiguration(hosts):
                               addPort("0.0.0.0", MCAST_LISTEN_PORT),
                               addPort(mcastHost(hostname), MCAST_REPLY_PORT),
                               addPort(mcastHost(hostname), MCAST_SRC_PORT),
-                              addPort(mcastHost(hostname), RING_PORT)])
+                              addPort(mcastHost(hostname), RING_PORT),
+                              addPort(mcastHost(hostname), MCAST_LISTEN_PORT)])
+
     return configuration
 
 configuration = {

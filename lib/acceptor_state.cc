@@ -6,10 +6,12 @@
 
 namespace lightning {
 
+using Mordor::AverageMinMaxStatistic;
 using Mordor::CountStatistic;
 using Mordor::FiberMutex;
 using Mordor::Logger;
 using Mordor::Log;
+using Mordor::MaxStatistic;
 using Mordor::Statistics;
 using paxos::AcceptorInstance;
 using paxos::InstanceId;
@@ -25,6 +27,16 @@ static CountStatistic<uint64_t>& g_pendingInstances =
 static CountStatistic<uint64_t>& g_notCommittedInstances =
     Statistics::registerStatistic("acceptor.not_committed_instances",
                                   CountStatistic<uint64_t>());
+static AverageMinMaxStatistic<uint64_t>& g_uncertaintyWindowSize =
+    Statistics::registerStatistic("acceptor.uncertainty_window_size",
+                                  AverageMinMaxStatistic<uint64_t>());
+static MaxStatistic<uint64_t>& g_firstUncommittedInstance =
+    Statistics::registerStatistic("acceptor.first_uncommitted_instance",
+                                  MaxStatistic<uint64_t>());
+static MaxStatistic<uint64_t>& g_lastCommittedInstance =
+    Statistics::registerStatistic("acceptor.last_committed_instance",
+                                  MaxStatistic<uint64_t>());
+
 
 static Logger::ptr g_log = Log::lookup("lightning:acceptor_state");
 
@@ -198,6 +210,7 @@ AcceptorInstance* AcceptorState::lookupInstance(InstanceId instanceId) {
 }
                                                     
 void AcceptorState::addCommittedInstanceId(InstanceId instanceId) {
+    g_lastCommittedInstance.update(instanceId);
     bool freshCommit = false;
     if(instanceId >= afterLastCommittedInstanceId_) {
         for(InstanceId iid = afterLastCommittedInstanceId_;
@@ -217,9 +230,20 @@ void AcceptorState::addCommittedInstanceId(InstanceId instanceId) {
             g_notCommittedInstances.decrement();
             MORDOR_ASSERT(g_notCommittedInstances.count ==
                           notCommittedInstanceIds_.size());
+            uint64_t uncertaintyWindow = 0;
+            if(!notCommittedInstanceIds_.empty()) {
+                uncertaintyWindow = afterLastCommittedInstanceId_ -
+                                    *notCommittedInstanceIds_.begin() - 1;
+            }
+            g_uncertaintyWindowSize.update(uncertaintyWindow);
         }
+
     }
     if(freshCommit) {
+        uint64_t firstUncommittedInstance =
+            (notCommittedInstanceIds_.empty()) ?
+                afterLastCommittedInstanceId_ : *notCommittedInstanceIds_.begin();
+        g_firstUncommittedInstance.update(firstUncommittedInstance);
         --pendingInstanceCount_;
         g_pendingInstances.decrement();
     }

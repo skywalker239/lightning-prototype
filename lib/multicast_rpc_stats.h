@@ -36,7 +36,7 @@ private:
         uint64_t packetCount;
         uint64_t lastTime;
         size_t byteCount;
-	int windowUs;
+        int windowUs;
         std::list<Packet> window;
     };
 

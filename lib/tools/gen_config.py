@@ -34,6 +34,8 @@ configuration = {
     "host_timeout" : 500000,
     "ping_interval" : 200000,
     "ping_window" : 100,
+    "send_window" : 1000000,
+    "recv_window" : 1000000,
     "ring_timeout" : 50000,
     "ring_retry_interval" : 500000,
     "acceptor_max_pending_instances" : 200000,

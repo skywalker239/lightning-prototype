@@ -73,8 +73,7 @@ void MulticastRpcRequester::processReplies() {
             continue;
         }
 
-        const uint64_t recvTime = TimerManager::now();
-        rpcStats_->receivedPacket(recvTime, bytes);
+        rpcStats_->receivedPacket(bytes);
 
         Guid replyGuid = Guid::parse(reply.uuid());
         MulticastRpcRequest::ptr request;
@@ -149,8 +148,6 @@ MulticastRpcRequest::Status MulticastRpcRequester::request(
         pendingRequests_[requestGuid] = request;
     }
 
-    size_t bytes = request->requestData()->ByteSize();
-    const uint64_t sendTime = TimerManager::now();
     udpSender_->send(groupMulticastAddress_,
                      boost::shared_ptr<const RpcMessageData>(
                          request,
@@ -163,8 +160,7 @@ MulticastRpcRequest::Status MulticastRpcRequester::request(
                                  request));
     request->wait();
     request->cancelTimeoutTimer();
-    const uint64_t recvTime = TimerManager::now();
-    rpcStats_->sentPacket(sendTime, recvTime, bytes);
+    rpcStats_->sentPacket(request->requestData()->ByteSize());
 
     {
         FiberMutex::ScopedLock lk(mutex_);

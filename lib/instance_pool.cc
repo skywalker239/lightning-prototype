@@ -37,7 +37,6 @@ InstancePool::InstancePool(uint32_t maxOpenInstancesNumber,
 }
 
 void InstancePool::pushOpenInstance(ProposerInstance::ptr instance) {
-    MORDOR_ASSERT(instance->state() == ProposerInstance::P1_OPEN);
     MORDOR_LOG_TRACE(g_log) << this << " pushing open instance " <<
                                instance->instanceId();
     FiberMutex::ScopedLock lk(mutex_);
@@ -68,7 +67,6 @@ ProposerInstance::ptr InstancePool::popOpenInstance() {
 }
 
 void InstancePool::pushReservedInstance(ProposerInstance::ptr instance) {
-    MORDOR_ASSERT(instance->state() == ProposerInstance::P1_PENDING);
     MORDOR_LOG_TRACE(g_log) << this << " pushing reserved instance " <<
                                instance->instanceId();
     FiberMutex::ScopedLock lk(mutex_);

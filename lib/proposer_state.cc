@@ -105,7 +105,7 @@ void ProposerState::processClientValues() {
         MORDOR_LOG_TRACE(g_log) << this << " submitting value " <<
                                    currentValue->valueId << " to instance " <<
                                    instance->instanceId();
-        instance->phase2PendingWithClientValue(currentValue);
+        instance->phase2Pending(currentValue, true);
         ioManager_->schedule(boost::bind(&ProposerState::doPhase2,
                                          shared_from_this(),
                                          instance));
@@ -148,18 +148,33 @@ void ProposerState::doPhase1(ProposerInstance::ptr instance) {
                     MORDOR_LOG_TRACE(g_log) << this << " iid=" <<
                                                instance->instanceId() <<
                                                " retry with ballot " << newBallot;
-                    instance->phase1Retry(newBallot);
+                    instance->phase1Pending(newBallot);
                     instancePool_->pushReservedInstance(instance);
                 }
                 break;
             case Phase1Request::SUCCESS:
                 if(request->lastVotedBallot() != kInvalidBallotId) {
+                    Value::ptr foundValue = request->lastVotedValue();
                     MORDOR_LOG_TRACE(g_log) << this << " phase1 found " <<
                                                "a value for iid=" <<
                                                instance->instanceId() <<
                                                ", value_id=" <<
-                                               request->lastVotedValue()->valueId;
-                    instance->phase2Pending(request->lastVotedValue());
+                                               foundValue->valueId;
+                    bool foundClientValue = true;
+                    if(instance->hasClientValue()) {
+                        if(instance->value()->valueId != foundValue->valueId) {
+                            MORDOR_LOG_TRACE(g_log) << this <<
+                                                       " returning client " <<
+                                                       " valueId=" <<
+                                                       instance->value()->valueId <<
+                                                       " to the queue";
+                            clientValueQueue_->push_front(
+                                instance->releaseValue());
+                            foundClientValue = false;
+                        }
+                    }
+
+                    instance->phase2Pending(foundValue, foundClientValue);
                     ioManager_->schedule(boost::bind(&ProposerState::doPhase2,
                                                      shared_from_this(),
                                                      instance));
@@ -169,6 +184,10 @@ void ProposerState::doPhase1(ProposerInstance::ptr instance) {
                                                instance->instanceId() <<
                                                " is open at ballot=" <<
                                                instance->ballotId();
+                    if(instance->hasClientValue()) {
+                        clientValueQueue_->push_front(
+                            instance->releaseValue());
+                    }
                     instance->phase1Open(instance->ballotId());
                     instancePool_->pushOpenInstance(instance);
                 }
@@ -181,7 +200,7 @@ void ProposerState::doPhase1(ProposerInstance::ptr instance) {
                                    instance->instanceId();
         BallotId newBallot =
             ballotGenerator_.boostBallotId(instance->ballotId());
-        instance->phase1Retry(newBallot);
+        instance->phase1Pending(newBallot);
         instancePool_->pushReservedInstance(instance);
         g_phase1Timeouts.increment();
     }
@@ -227,9 +246,6 @@ void ProposerState::doPhase2(ProposerInstance::ptr instance) {
     } else {
         MORDOR_LOG_TRACE(g_log) << this << " phase2 for iid=" <<
                                    instance->instanceId() << " timed out";
-        if(instance->state() == ProposerInstance::P2_PENDING_CLIENT_VALUE) {
-            clientValueQueue_->push_front(instance->value());
-        }
         instance->phase1Pending(
             ballotGenerator_.boostBallotId(instance->ballotId()));
         instancePool_->pushReservedInstance(instance);

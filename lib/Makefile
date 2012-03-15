@@ -1,8 +1,8 @@
 CXX = g++ --std=gnu++0x
-OPT ?= 2
+OPT ?= 9
 
 CXXFLAGS= \
-    -g3 -O$(OPT) `pkg-config --cflags libmordor` \
+    -O$(OPT) `pkg-config --cflags libmordor` \
     -Wall -W -Wsign-promo -Wno-deprecated
 LDFLAGS = `pkg-config --libs --static libmordor` -lpthread -lrt -lprotobuf
 

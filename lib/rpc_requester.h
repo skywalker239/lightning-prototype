@@ -3,6 +3,7 @@
 #include "guid.h"
 #include "host_configuration.h"
 #include "rpc_request.h"
+#include "multicast_rpc_stats.h"
 #include "udp_sender.h"
 #include <mordor/atomic.h>
 #include <mordor/fibersynchronization.h>
@@ -64,7 +65,8 @@ public:
                           GuidGenerator::ptr guidGenerator,
                           UdpSender::ptr udpSender,
                           Mordor::Socket::ptr socket,
-                          GroupConfiguration::ptr groupConfiguration);
+                          GroupConfiguration::ptr groupConfiguration,
+                          MulticastRpcStats::ptr rpcStats);
 
     virtual ~RpcRequester()
     {}
@@ -96,6 +98,7 @@ private:
     UdpSender::ptr udpSender_;
     Mordor::Socket::ptr socket_;
     GroupConfiguration::ptr groupConfiguration_;
+    MulticastRpcStats::ptr rpcStats_;
 
     BlockingQueue<RpcRequest::ptr> sendQueue_;
 

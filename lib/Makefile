@@ -23,6 +23,7 @@ LIB_OBJS += \
     guid.o \
     rpc_requester.o \
     rpc_responder.o \
+    multicast_rpc_stats.o \
     set_ring_handler.o \
     ping_stats.o \
     pinger.o \

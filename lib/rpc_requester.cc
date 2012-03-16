@@ -40,12 +40,14 @@ RpcRequester::RpcRequester(
     GuidGenerator::ptr guidGenerator,
     UdpSender::ptr udpSender,
     Socket::ptr socket,
-    GroupConfiguration::ptr groupConfiguration)
+    GroupConfiguration::ptr groupConfiguration,
+    MulticastRpcStats::ptr rpcStats)
     : ioManager_(ioManager),
       guidGenerator_(guidGenerator),
       udpSender_(udpSender),
       socket_(socket),
-      groupConfiguration_(groupConfiguration)
+      groupConfiguration_(groupConfiguration),
+      rpcStats_(rpcStats)
 {
 }
 
@@ -66,6 +68,8 @@ void RpcRequester::processReplies() {
                                          groupConfiguration_->addressToServiceName(currentSourceAddress);
             continue;
         }
+
+        rpcStats_->receivedPacket(bytes);
 
         Guid replyGuid = Guid::parse(reply.uuid());
         RpcRequest::ptr request;
@@ -152,6 +156,8 @@ RpcRequest::Status RpcRequester::request(
                                  request));
     request->wait();
     request->cancelTimeoutTimer();
+    rpcStats_->sentPacket(request->requestData()->ByteSize());
+
     {
         FiberMutex::ScopedLock lk(mutex_);
         pendingRequests_.erase(requestGuid);

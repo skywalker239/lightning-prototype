@@ -118,7 +118,7 @@ AcceptorState::Status AcceptorState::commit(InstanceId instanceId,
 
 
     bool result = instance->commit(valueId);
-    MORDOR_LOG_TRACE(g_log) << this << " commit(" << instanceId << ", " <<
+    MORDOR_LOG_DEBUG(g_log) << this << " commit(" << instanceId << ", " <<
                                valueId << ") = " << result;
     if(result) {
         addCommittedInstanceId(instanceId);

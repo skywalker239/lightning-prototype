@@ -46,6 +46,9 @@ static CountStatistic<uint64_t>& g_committedValues =
 static CountStatistic<uint64_t>& g_committedBytes =
     Statistics::registerStatistic("proposer.committed_bytes",
                                   CountStatistic<uint64_t>());
+static CountStatistic<uint64_t>& g_commitQueueSize =
+    Statistics::registerStatistic("proposer.commmit_queue_size",
+                                  CountStatistic<uint64_t>());
 
 namespace {
 
@@ -218,6 +221,8 @@ void ProposerState::doPhase2(ProposerInstance::ptr instance) {
             commits.push_back(commitQueue_.front());
             commitQueue_.pop_front();
         }
+        g_commitQueueSize.reset();
+        g_commitQueueSize.add(commitQueue_.size());
     }
 
     RingConfiguration::const_ptr ring = acquireRingConfiguration();
@@ -240,8 +245,13 @@ void ProposerState::doPhase2(ProposerInstance::ptr instance) {
         MORDOR_LOG_TRACE(g_log) << this << " phase2 for iid=" <<
                                    instance->instanceId() << " successful";
         instance->close();
-        commitQueue_.push_back(make_pair(instance->instanceId(),
-                                         instance->value()->valueId));
+        {
+            FiberMutex::ScopedLock lk(mutex_);
+            commitQueue_.push_back(make_pair(instance->instanceId(),
+                                             instance->value()->valueId));
+            g_commitQueueSize.reset();
+            g_commitQueueSize.add(commitQueue_.size());
+        }
         onCommit(instance);
     } else {
         MORDOR_LOG_TRACE(g_log) << this << " phase2 for iid=" <<
@@ -254,6 +264,8 @@ void ProposerState::doPhase2(ProposerInstance::ptr instance) {
             for(size_t i = 0; i < commits.size(); ++i) {
                 commitQueue_.push_front(commits[i]);
             }
+            g_commitQueueSize.reset();
+            g_commitQueueSize.add(commitQueue_.size());
         }
         g_phase2Timeouts.increment();
     }
@@ -261,9 +273,9 @@ void ProposerState::doPhase2(ProposerInstance::ptr instance) {
 }
 
 void ProposerState::onCommit(ProposerInstance::ptr instance) {
-    MORDOR_LOG_INFO(g_log) << this << " COMMIT iid=" <<
-                              instance->instanceId() <<
-                              " value id=" << instance->value()->valueId;
+    MORDOR_LOG_DEBUG(g_log) << this << " COMMIT iid=" <<
+                               instance->instanceId() <<
+                               " value id=" << instance->value()->valueId;
     g_committedValues.increment();
     g_committedBytes.add(instance->value()->size);
 }

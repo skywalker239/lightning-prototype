@@ -156,7 +156,7 @@ static Logger::ptr g_log = Log::lookup("lightning:main");
 
 void dumpStats(IOManager* ioManager) {
     while(true) {
-        cout << Statistics::dump() << endl;
+        cerr << Statistics::dump() << endl;
         sleep(*ioManager, 1000000);
     }
 }

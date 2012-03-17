@@ -108,7 +108,8 @@ void ProposerState::processClientValues() {
         MORDOR_LOG_TRACE(g_log) << this << " submitting value " <<
                                    currentValue->valueId << " to instance " <<
                                    instance->instanceId();
-        instance->phase2Pending(currentValue, true);
+        MORDOR_ASSERT(currentValue.get());
+        instance->setValue(currentValue, true);
         ioManager_->schedule(boost::bind(&ProposerState::doPhase2,
                                          shared_from_this(),
                                          instance));
@@ -151,13 +152,14 @@ void ProposerState::doPhase1(ProposerInstance::ptr instance) {
                     MORDOR_LOG_TRACE(g_log) << this << " iid=" <<
                                                instance->instanceId() <<
                                                " retry with ballot " << newBallot;
-                    instance->phase1Pending(newBallot);
+                    instance->setBallotId(newBallot);
                     instancePool_->pushReservedInstance(instance);
                 }
                 break;
             case Phase1Request::SUCCESS:
                 if(request->lastVotedBallot() != kInvalidBallotId) {
                     Value::ptr foundValue = request->lastVotedValue();
+                    MORDOR_ASSERT(foundValue.get());
                     MORDOR_LOG_TRACE(g_log) << this << " phase1 found " <<
                                                "a value for iid=" <<
                                                instance->instanceId() <<
@@ -177,7 +179,7 @@ void ProposerState::doPhase1(ProposerInstance::ptr instance) {
                         }
                     }
 
-                    instance->phase2Pending(foundValue, foundClientValue);
+                    instance->setValue(foundValue, foundClientValue);
                     ioManager_->schedule(boost::bind(&ProposerState::doPhase2,
                                                      shared_from_this(),
                                                      instance));
@@ -191,7 +193,6 @@ void ProposerState::doPhase1(ProposerInstance::ptr instance) {
                         clientValueQueue_->push_front(
                             instance->releaseValue());
                     }
-                    instance->phase1Open(instance->ballotId());
                     instancePool_->pushOpenInstance(instance);
                 }
                 break;
@@ -203,7 +204,7 @@ void ProposerState::doPhase1(ProposerInstance::ptr instance) {
                                    instance->instanceId();
         BallotId newBallot =
             ballotGenerator_.boostBallotId(instance->ballotId());
-        instance->phase1Pending(newBallot);
+        instance->setBallotId(newBallot);
         instancePool_->pushReservedInstance(instance);
         g_phase1Timeouts.increment();
     }
@@ -231,6 +232,7 @@ void ProposerState::doPhase2(ProposerInstance::ptr instance) {
         new RingConfiguration(group_,
                               vector<uint32_t>(1, ring->ringHostIds().back()),
                               kPhase2RingId));
+    MORDOR_ASSERT(instance->value().get());
     Phase2Request::ptr request(new Phase2Request(epoch_,
                                                  ring->ringId(),
                                                  instance->instanceId(),
@@ -244,7 +246,6 @@ void ProposerState::doPhase2(ProposerInstance::ptr instance) {
     {
         MORDOR_LOG_TRACE(g_log) << this << " phase2 for iid=" <<
                                    instance->instanceId() << " successful";
-        instance->close();
         {
             FiberMutex::ScopedLock lk(mutex_);
             commitQueue_.push_back(make_pair(instance->instanceId(),
@@ -256,7 +257,7 @@ void ProposerState::doPhase2(ProposerInstance::ptr instance) {
     } else {
         MORDOR_LOG_TRACE(g_log) << this << " phase2 for iid=" <<
                                    instance->instanceId() << " timed out";
-        instance->phase1Pending(
+        instance->setBallotId(
             ballotGenerator_.boostBallotId(instance->ballotId()));
         instancePool_->pushReservedInstance(instance);
         {

@@ -143,12 +143,16 @@ void Phase1Batcher::openInstances(InstanceId startId,
     for(InstanceId iid = startId; iid < endId; ++iid) {
         ProposerInstance::ptr instance(new ProposerInstance(iid));
         if(reservedInstances.find(iid) == reservedEnd) {
-            instance->phase1Open(ballotId);
+            MORDOR_LOG_TRACE(g_log) << this << " iid=" << iid <<
+                                       " is open with ballot=" <<
+                                       ballotId;
+            instance->setBallotId(ballotId);
             instancePool_->pushOpenInstance(instance);
         } else {
             MORDOR_LOG_TRACE(g_log) << this << " iid=" << iid <<
-                                       " is reserved";
-            instance->phase1Pending(ballotId);
+                                       " is reserved with ballot=" <<
+                                       ballotId;
+            instance->setBallotId(ballotId);
             instancePool_->pushReservedInstance(instance);
         }
     }

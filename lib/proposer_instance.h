@@ -13,13 +13,9 @@ public:
 
     ProposerInstance(InstanceId instance);
 
-    void phase1Open(BallotId ballot);
+    void setBallotId(BallotId ballot);
 
-    void phase1Pending(BallotId ballot);
-
-    void phase2Pending(Value::ptr value, bool isClientValue);
-
-    void close();
+    void setValue(Value::ptr value, bool isClientValue);
 
     InstanceId instanceId() const;
 

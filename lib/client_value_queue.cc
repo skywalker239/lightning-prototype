@@ -1,4 +1,5 @@
 #include "client_value_queue.h"
+#include <mordor/assert.h>
 #include <mordor/log.h>
 #include <mordor/statistics.h>
 
@@ -36,6 +37,7 @@ boost::shared_ptr<Value> ClientValueQueue::pop() {
             continue;
         }
         boost::shared_ptr<Value> value = *values_.begin();
+        MORDOR_ASSERT(value.get());
         values_.pop_front();
         MORDOR_LOG_TRACE(g_log) << this << " pop " << value->valueId;
         g_pops.increment();
@@ -47,6 +49,7 @@ boost::shared_ptr<Value> ClientValueQueue::pop() {
 }
 
 void ClientValueQueue::push(boost::shared_ptr<Value> value) {
+    MORDOR_ASSERT(value.get());
     FiberMutex::ScopedLock lk(mutex_);
     values_.push_back(value);
     g_pushes.increment();
@@ -55,6 +58,7 @@ void ClientValueQueue::push(boost::shared_ptr<Value> value) {
 }
 
 void ClientValueQueue::push_front(boost::shared_ptr<Value> value) {
+    MORDOR_ASSERT(value.get());
     FiberMutex::ScopedLock lk(mutex_);
     values_.push_front(value);
     g_unpops.increment();

@@ -29,11 +29,13 @@ InstancePool::InstancePool(uint32_t maxOpenInstancesNumber,
                            shared_ptr<FiberEvent> pushMoreOpenInstancesEvent)
     : maxOpenInstancesNumber_(maxOpenInstancesNumber),
       maxReservedInstancesNumber_(maxReservedInstancesNumber),
-      pushMoreOpenInstancesEvent_(pushMoreOpenInstancesEvent)
+      pushMoreOpenInstancesEvent_(pushMoreOpenInstancesEvent),
+      canPopOpenInstancesEvent_(false)
 {
     FiberMutex::ScopedLock lk(mutex_);
     //! pushing to an empty pool is allowed
     pushMoreOpenInstancesEvent_->set();
+    canPopOpenInstancesEvent_.set();
 }
 
 void InstancePool::pushOpenInstance(ProposerInstance::ptr instance) {
@@ -43,13 +45,14 @@ void InstancePool::pushOpenInstance(ProposerInstance::ptr instance) {
     openInstances_.push(instance);
     openInstancesNotEmpty_.notify();
     if(openInstances_.size() > maxOpenInstancesNumber_) {
-        MORDOR_LOG_TRACE(g_log) << this << " maxOpenInstancesNumber threshold reached";
+        MORDOR_LOG_DEBUG(g_log) << this << " maxOpenInstancesNumber threshold reached";
         pushMoreOpenInstancesEvent_->reset();
     }
     g_openInstances.increment();
 }
 
 ProposerInstance::ptr InstancePool::popOpenInstance() {
+    canPopOpenInstancesEvent_.wait();
     openInstancesNotEmpty_.wait();
     FiberMutex::ScopedLock lk(mutex_);
     ProposerInstance::ptr instance = openInstances_.top();
@@ -59,7 +62,7 @@ ProposerInstance::ptr InstancePool::popOpenInstance() {
     if(openInstances_.size() <= maxOpenInstancesNumber_ &&
        reservedInstances_.size() <= maxReservedInstancesNumber_)
     {
-        MORDOR_LOG_TRACE(g_log) << this << " signaling to push more open instances";
+        MORDOR_LOG_DEBUG(g_log) << this << " signaling to push more open instances";
         pushMoreOpenInstancesEvent_->set();
     }
     g_openInstances.decrement();
@@ -73,9 +76,10 @@ void InstancePool::pushReservedInstance(ProposerInstance::ptr instance) {
     reservedInstances_.push(instance);
     reservedInstancesNotEmpty_.notify();
     if(reservedInstances_.size() > maxReservedInstancesNumber_) {
-        MORDOR_LOG_TRACE(g_log) << this << " maxReservedInstancesNumber threshold " <<
+        MORDOR_LOG_DEBUG(g_log) << this << " maxReservedInstancesNumber threshold " <<
                                    "reached";
         pushMoreOpenInstancesEvent_->reset();
+        canPopOpenInstancesEvent_.reset();
     }
     g_reservedInstances.increment();
 }
@@ -87,11 +91,14 @@ ProposerInstance::ptr InstancePool::popReservedInstance() {
     reservedInstances_.pop();
     MORDOR_LOG_TRACE(g_log) << this << " popped reserved instance " <<
                                instance->instanceId();
-    if(openInstances_.size() <= maxOpenInstancesNumber_ &&
-       reservedInstances_.size() <= maxReservedInstancesNumber_)
-    {
-        MORDOR_LOG_TRACE(g_log) << this << " signaling to push more open instances";
-        pushMoreOpenInstancesEvent_->set();
+    if(reservedInstances_.size() <= maxReservedInstancesNumber_) {
+        MORDOR_LOG_DEBUG(g_log) << this << " allowing to pop open instances";
+        canPopOpenInstancesEvent_.set();
+        if(openInstances_.size() <= maxOpenInstancesNumber_) {
+            MORDOR_LOG_DEBUG(g_log) << this <<
+                                       " signaling to push more open instances";
+            pushMoreOpenInstancesEvent_->set();
+        }
     }
     g_reservedInstances.decrement();
     return instance;

@@ -79,6 +79,7 @@ private:
     InstanceHeap reservedInstances_;
 
     boost::shared_ptr<Mordor::FiberEvent> pushMoreOpenInstancesEvent_;
+    Mordor::FiberEvent canPopOpenInstancesEvent_;
     Mordor::FiberSemaphore openInstancesNotEmpty_;
     Mordor::FiberSemaphore reservedInstancesNotEmpty_;
     Mordor::FiberMutex mutex_;

@@ -11,6 +11,7 @@ using Mordor::Logger;
 using Mordor::Log;
 using Mordor::Statistics;
 using Mordor::CountStatistic;
+using std::max;
 
 static Logger::ptr g_log = Log::lookup("lightning:acceptor_instance");
 
@@ -33,6 +34,15 @@ static CountStatistic<uint64_t>& g_recoveredVotes =
 AcceptorInstance::AcceptorInstance() {
     reset();
 }
+
+AcceptorInstance::AcceptorInstance(const Value& value,
+                                   BallotId ballot)
+    : highestPromisedBallot_(ballot),
+      highestVotedBallot_(ballot),
+      lastVotedValue_(value),
+      pendingVote_(boost::none),
+      committed_(true)
+{}
 
 void AcceptorInstance::reset() {
     MORDOR_LOG_TRACE(g_log) << this << " reset";
@@ -83,7 +93,7 @@ bool AcceptorInstance::beginBallot(BallotId ballotId,
     } else {
         MORDOR_LOG_TRACE(g_log) << this << " accepting beginBallot id=" <<
                                    ballotId << " with value=" << value.valueId;
-        highestVotedBallot_ = ballotId;
+        highestVotedBallot_ = max(ballotId, highestVotedBallot_);
         lastVotedValue_ = value;
         if(!!pendingVote_) {
             if(pendingVote_->ballot() == ballotId &&
@@ -121,6 +131,7 @@ bool AcceptorInstance::vote(const Vote& vote,
         g_unknownValueVotes.increment();
         return false;
     }
+    highestVotedBallot_ = max(highestVotedBallot_, vote.ballot());
     MORDOR_LOG_TRACE(g_log) << this << " " << vote << " successful";
     return true;
 }
@@ -136,12 +147,13 @@ bool AcceptorInstance::commit(const Guid& valueId) {
     return true;
 }
 
-bool AcceptorInstance::value(Value* value) const {
+bool AcceptorInstance::value(Value* value, BallotId* ballot) const {
     MORDOR_LOG_TRACE(g_log) << this << " get value=" <<
                                lastVotedValue_.valueId <<
                                ", committed=" << committed_;
     if(committed_) { 
         *value = lastVotedValue_;
+        *ballot = highestVotedBallot_;
         return true;
     } else {
         return false;

@@ -16,6 +16,10 @@ public:
     //! Creates an empty instance.
     AcceptorInstance();
 
+    //! Creates a committed instance (recovered elsewhere).
+    AcceptorInstance(const Value& value,
+                     BallotId ballotId);
+
     //! Attempt to start Phase 1 of Paxos on this instance with
     //  ballot ballotId.
     //  On success returns true and sets
@@ -57,9 +61,9 @@ public:
     //  Returns false if we don't have the corresponding value.
     bool commit(const Guid& valueId);
 
-    //! If committed, retrieve value and return true,
-    //  otherwise return false.
-    bool value(Value* value) const;
+    //! If committed, retrieve value and the last voted ballot id
+    //  and return true, otherwise return false.
+    bool value(Value* value, BallotId* ballot) const;
 
     //! Reset this instance to the empty state.
     void reset();

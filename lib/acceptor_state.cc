@@ -126,20 +126,50 @@ AcceptorState::Status AcceptorState::commit(InstanceId instanceId,
     return boolToStatus(result);
 }
 
-AcceptorState::Status AcceptorState::value(
-    InstanceId instanceId,
-    Value* value) const
+bool AcceptorState::getCommittedInstance(InstanceId instanceId,
+                                         Value* value,
+                                         BallotId* ballot) const
 {
     FiberMutex::ScopedLock lk(mutex_);
 
     auto instanceIter = instances_.find(instanceId);
     if(instanceIter == instances_.end()) {
-        MORDOR_LOG_TRACE(g_log) << this << " value(" << instanceId <<
-                                   ") not found";
-        return boolToStatus(false);
+        MORDOR_LOG_TRACE(g_log) << this << " getCommittedInstance: iid " <<
+                                   instanceId << " not found";
+        return false;
     } else {
-        return boolToStatus(instanceIter->second.value(value));
+        return instanceIter->second.value(value, ballot);
     }
+}
+
+void AcceptorState::setInstance(InstanceId instanceId,
+                                const Value& value,
+                                BallotId ballot)
+{
+    FiberMutex::ScopedLock lk(mutex_);
+
+    if(instanceId < firstNotForgottenInstanceId_) {
+        MORDOR_LOG_TRACE(g_log) << this << " setInstance(" << instanceId <<
+                                   ") too old, [0, " <<
+                                   firstNotForgottenInstanceId_ <<
+                                   ") forgotten";
+        return;
+    }
+    MORDOR_LOG_TRACE(g_log) << this << " setInstance(" << instanceId <<
+                               ", " << ballot << ", " << value.valueId << ")";
+    instances_[instanceId] = AcceptorInstance(value, ballot);
+    addCommittedInstanceId(instanceId);
+    // XXX we don't expire anything at this point
+}
+
+bool AcceptorState::needsRecovery(InstanceId instanceId) const {
+    FiberMutex::ScopedLock lk(mutex_);
+
+    if(instanceId >= afterLastCommittedInstanceId_) {
+        return true;
+    }
+    return notCommittedInstanceIds_.find(instanceId) !=
+           notCommittedInstanceIds_.end();
 }
 
 InstanceId AcceptorState::firstNotForgottenInstance() const {

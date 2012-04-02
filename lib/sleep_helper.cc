@@ -11,6 +11,8 @@ using Mordor::TimerManager;
 using Mordor::sleep;
 using std::max;
 
+const int64_t SleepHelper::kEpollSleepPrecision;
+
 SleepHelper::SleepHelper(IOManager* ioManager,
                          int64_t sleepInterval,
                          int64_t sleepPrecision)

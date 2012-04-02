@@ -23,6 +23,9 @@ public:
 
     //! Waits for sleepInterval us using the approximation algorithm above.
     void wait();
+
+    //! sleep precision of epoll_wait(2).
+    static const int64_t kEpollSleepPrecision = 1000;
 private:
     Mordor::IOManager* ioManager_;
 

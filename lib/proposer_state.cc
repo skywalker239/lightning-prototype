@@ -50,12 +50,6 @@ static CountStatistic<uint64_t>& g_commitQueueSize =
     Statistics::registerStatistic("proposer.commmit_queue_size",
                                   CountStatistic<uint64_t>());
 
-namespace {
-
-const int64_t kSleepPrecision = 1000; // 1 ms for epoll
-
-}  // anonymous namespace
-
 ProposerState::ProposerState(GroupConfiguration::ptr group,
                              const Guid& epoch,
                              InstancePool::ptr instancePool,
@@ -82,7 +76,9 @@ ProposerState::ProposerState(GroupConfiguration::ptr group,
 }
 
 void ProposerState::processReservedInstances() {
-    SleepHelper sleeper(ioManager_, phase1IntervalUs_, kSleepPrecision);
+    SleepHelper sleeper(ioManager_,
+                        phase1IntervalUs_,
+                        SleepHelper::kEpollSleepPrecision);
     while(true) {
         sleeper.startWaiting();
         ProposerInstance::ptr instance = instancePool_->popReservedInstance();
@@ -98,7 +94,9 @@ void ProposerState::processReservedInstances() {
 }
 
 void ProposerState::processClientValues() {
-    SleepHelper sleeper(ioManager_, phase2IntervalUs_, kSleepPrecision);
+    SleepHelper sleeper(ioManager_,
+                        phase2IntervalUs_,
+                        SleepHelper::kEpollSleepPrecision);
     while(true) {
         sleeper.startWaiting();
         ProposerInstance::ptr instance = instancePool_->popOpenInstance();

@@ -5,6 +5,9 @@
 #include "paxos_defs.h"
 #include "value.h"
 #include <mordor/fibersynchronization.h>
+#include <mordor/iomanager.h>
+#include <mordor/timer.h>
+#include <boost/enable_shared_from_this.hpp>
 #include <functional>
 #include <map>
 #include <queue>
@@ -12,6 +15,7 @@
 
 namespace lightning {
 
+class RecoveryManager;
 class Vote;
 
 //! The acceptor keeps track of some sliding window of consecutive Paxos
@@ -34,7 +38,7 @@ class Vote;
 //
 //  When a fresh instance cannot be initialized due to these constraints,
 //  the acceptor refuses the corresponding Paxos command.
-class AcceptorState {
+class AcceptorState : public boost::enable_shared_from_this<AcceptorState> {
     typedef paxos::AcceptorInstance AcceptorInstance;
     typedef paxos::InstanceId InstanceId;
     typedef paxos::BallotId   BallotId;
@@ -50,7 +54,10 @@ public:
     };
 
     AcceptorState(uint32_t pendingInstancesLimit,
-                  uint32_t instanceWindowSize);
+                  uint32_t instanceWindowSize,
+                  uint64_t recoveryGracePeriodUs,
+                  Mordor::IOManager* ioManager,
+                  boost::shared_ptr<RecoveryManager> recoveryManager);
 
     Status nextBallot(InstanceId instanceId,
                       BallotId  ballotId,
@@ -121,6 +128,7 @@ private:
 
     const uint32_t pendingInstancesLimit_;
     const uint32_t instanceWindowSize_;
+    const uint64_t recoveryGracePeriodUs_;
 
     //! The last known master epoch.
     Guid epoch_;
@@ -142,6 +150,15 @@ private:
     //! Adjusts pendingInstanceCount and the not committed iid
     //  tracker.
     void addCommittedInstanceId(InstanceId instanceId);
+
+    Mordor::IOManager* ioManager_;
+    boost::shared_ptr<RecoveryManager> recoveryManager_;
+
+    //! Recovery timers.
+    std::map<InstanceId, Mordor::Timer::ptr> recoveryTimers_;
+    //! Callback for recovery timers and also for immediate recovery
+    //  (e.g. failed commits)
+    void startRecovery(const Guid epoch, InstanceId instanceId);
 
     mutable Mordor::FiberMutex mutex_;
 };

@@ -5,6 +5,9 @@
 #include <stdint.h>
 
 namespace lightning {
+
+class ValueData;
+
 namespace paxos {
 
 //! For now, just a fixed-size buffer with
@@ -12,6 +15,8 @@ namespace paxos {
 struct Value {
     static const uint32_t kMaxValueSize = 8000;
     typedef boost::shared_ptr<Value> ptr;
+
+    static Value::ptr parse(const ValueData& data);
 
     Guid valueId;
     uint32_t size;

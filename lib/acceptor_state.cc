@@ -1,4 +1,5 @@
 #include "acceptor_state.h"
+#include "recovery_manager.h"
 #include "ring_voter.h"
 #include <mordor/assert.h>
 #include <mordor/log.h>
@@ -9,10 +10,12 @@ namespace lightning {
 using Mordor::AverageMinMaxStatistic;
 using Mordor::CountStatistic;
 using Mordor::FiberMutex;
+using Mordor::IOManager;
 using Mordor::Logger;
 using Mordor::Log;
 using Mordor::MaxStatistic;
 using Mordor::Statistics;
+using Mordor::Timer;
 using paxos::AcceptorInstance;
 using paxos::InstanceId;
 using paxos::BallotId;
@@ -41,12 +44,18 @@ static MaxStatistic<uint64_t>& g_lastCommittedInstance =
 static Logger::ptr g_log = Log::lookup("lightning:acceptor_state");
 
 AcceptorState::AcceptorState(uint32_t pendingInstancesLimit,
-                             uint32_t instanceWindowSize)
+                             uint32_t instanceWindowSize,
+                             uint64_t recoveryGracePeriodUs,
+                             IOManager* ioManager,
+                             RecoveryManager::ptr recoveryManager)
     : pendingInstancesLimit_(pendingInstancesLimit),
       instanceWindowSize_(instanceWindowSize),
+      recoveryGracePeriodUs_(recoveryGracePeriodUs),
       firstNotForgottenInstanceId_(0),
       pendingInstanceCount_(0),
-      afterLastCommittedInstanceId_(0)
+      afterLastCommittedInstanceId_(0),
+      ioManager_(ioManager),
+      recoveryManager_(recoveryManager)
 {}
 
 AcceptorState::Status AcceptorState::nextBallot(InstanceId instanceId,
@@ -122,6 +131,13 @@ AcceptorState::Status AcceptorState::commit(InstanceId instanceId,
                                valueId << ") = " << result;
     if(result) {
         addCommittedInstanceId(instanceId);
+    } else {
+        MORDOR_LOG_TRACE(g_log) << this << " commit(" << instanceId << ")" <<
+                                   " failed, scheduling recovery";
+        ioManager_->schedule(boost::bind(&AcceptorState::startRecovery,
+                                         shared_from_this(),
+                                         epoch_,
+                                         instanceId));
     }
     return boolToStatus(result);
 }
@@ -250,7 +266,18 @@ void AcceptorState::addCommittedInstanceId(InstanceId instanceId) {
             notCommittedInstanceIds_.insert(iid);
             g_notCommittedInstances.increment();
             MORDOR_ASSERT(g_notCommittedInstances.count ==
-                          notCommittedInstanceIds_.size())
+                          notCommittedInstanceIds_.size());
+
+            auto timer = ioManager_->registerTimer(
+                             recoveryGracePeriodUs_,
+                             boost::bind(
+                                 &AcceptorState::startRecovery,
+                                 shared_from_this(),
+                                 epoch_,
+                                 iid));
+            auto insertResult = recoveryTimers_.insert(
+                                    make_pair(iid, timer));
+            MORDOR_ASSERT(insertResult.second == true);
         }
         afterLastCommittedInstanceId_ = instanceId + 1;
         freshCommit = true;
@@ -266,6 +293,12 @@ void AcceptorState::addCommittedInstanceId(InstanceId instanceId) {
                                     *notCommittedInstanceIds_.begin() - 1;
             }
             g_uncertaintyWindowSize.update(uncertaintyWindow);
+
+            auto timerIter = recoveryTimers_.find(instanceId);
+            if(timerIter != recoveryTimers_.end()) {
+                timerIter->second->cancel();
+                recoveryTimers_.erase(timerIter);
+            }
         }
 
     }
@@ -276,6 +309,22 @@ void AcceptorState::addCommittedInstanceId(InstanceId instanceId) {
         g_firstUncommittedInstance.update(firstUncommittedInstance);
         --pendingInstanceCount_;
         g_pendingInstances.decrement();
+    }
+}
+
+void AcceptorState::startRecovery(const Guid epoch, InstanceId instanceId) {
+    FiberMutex::ScopedLock lk(mutex_);
+
+    if(epoch_ != epoch) {
+        MORDOR_LOG_TRACE(g_log) << this << " startRecovery(" << instanceId <<
+                                   "): stale epoch " << epoch <<
+                                   ", current is " << epoch_;
+        return;
+    } else {
+        recoveryTimers_.erase(instanceId);
+        MORDOR_LOG_TRACE(g_log) << this << " submitting (" << epoch << ", " <<
+                                   instanceId << ") to recovery";
+        recoveryManager_->addInstance(epoch, instanceId, shared_from_this());
     }
 }
 

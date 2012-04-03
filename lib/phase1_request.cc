@@ -103,7 +103,7 @@ void Phase1Request::applyReply(uint32_t hostId,
                                            "from " << group_->host(hostId);
                 if(reply.last_ballot_id() > lastVotedBallotId_) {
                     lastVotedBallotId_ = reply.last_ballot_id();
-                    lastVotedValue_ = parseValue(reply.value());
+                    lastVotedValue_ = Value::parse(reply.value());
                 }
                 MORDOR_LOG_TRACE(g_log) << this << " lastVotedBallot=" <<
                                            lastVotedBallotId_ << "," <<

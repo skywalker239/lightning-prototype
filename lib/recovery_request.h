@@ -25,17 +25,15 @@ public:
 
     Result result() const;
 
-    const paxos::Value& value() const;
+    paxos::Value::ptr value() const;
 
     paxos::BallotId ballot() const;
-
-    bool value(paxos::Value* value, paxos::BallotId* ballot);
 private:
     virtual void applyReply(const RpcMessageData& reply);
 
     virtual std::ostream& output(std::ostream& os) const;
 
-    paxos::Value value_;
+    paxos::Value::ptr value_;
     paxos::BallotId ballotId_;
     Result result_;
 };

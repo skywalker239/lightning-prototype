@@ -55,7 +55,10 @@ LIB_OBJS += \
     sleep_helper.o \
     rpc_request.o \
     unicast_rpc_request.o \
+    recovery_handler.o \
     recovery_manager.o \
+    recovery_request.o \
+    value.o \
 
 TEST_TARGETS = test_ring_master test_ring_responder
 TEST_OBJS = $(addsuffix .o, $(TEST_TARGETS))

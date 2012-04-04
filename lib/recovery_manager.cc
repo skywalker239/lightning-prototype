@@ -57,7 +57,7 @@ RecoveryManager::RecoveryManager(GroupConfiguration::ptr groupConfiguration,
            i != thisHostId)
         {
             ourDcAcceptors.push_back(i);
-        } else {
+        } else if(i != thisHostId) {
             otherAcceptors.push_back(i);
         }
     }

@@ -144,11 +144,11 @@ void RecoveryManager::doRecovery(const RecoveryRecord recoveryRecord) {
                 MORDOR_LOG_TRACE(g_log) << this << " recovered (" <<
                     recoveryRecord.epoch << ", " <<
                     recoveryRecord.instanceId << ") = (" <<
-                    request->value().valueId << ", " << request->ballot() <<
+                    request->value()->valueId << ", " << request->ballot() <<
                     ")";
                 recoveryRecord.acceptor->setInstance(
                     recoveryRecord.instanceId,
-                    request->value(),
+                    *request->value(),
                     request->ballot());
                 g_recoveredInstances.increment();
                 break;

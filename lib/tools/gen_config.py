@@ -50,6 +50,9 @@ configuration = {
     "phase1_interval" : 640, # much more expensive that phase 2
     "phase2_timeout" : 500000,
     "phase2_interval" : 64, # 15625 * 8000 bytes = 1 Gbit/s
+    "recovery_interval" : 640,
+    "recovery_timeout" : 250000,
+    "recovery_grace_period" : 1500000,
     "mcast_group" : "239.3.0.1" + ":" + str(MCAST_LISTEN_PORT)
 }
 

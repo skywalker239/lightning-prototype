@@ -2,8 +2,10 @@
 #include "batch_phase1_handler.h"
 #include "phase1_handler.h"
 #include "phase2_handler.h"
+#include "recovery_handler.h"
 #include "guid.h"
 #include "host_configuration.h"
+#include "recovery_manager.h"
 #include "rpc_responder.h"
 #include "ring_holder.h"
 #include "ring_voter.h"
@@ -86,26 +88,65 @@ void serveStats(IOManager* ioManager) {
     }
 }
 
+RpcRequester::ptr setupRequester(IOManager* ioManager,
+                                 GuidGenerator::ptr guidGenerator,
+                                 GroupConfiguration::ptr groupConfiguration,
+                                 MulticastRpcStats::ptr rpcStats)
+{
+    Address::ptr bindAddr = groupConfiguration->host(groupConfiguration->thisHostId()).multicastSourceAddress;
+    Socket::ptr s = bindAddr->createSocket(*ioManager, SOCK_DGRAM);
+    s->bind(bindAddr);
+    UdpSender::ptr sender(new UdpSender("rpc_requester", s));
+    ioManager->schedule(boost::bind(&UdpSender::run, sender));
+    return RpcRequester::ptr(new RpcRequester(ioManager, guidGenerator, sender, s, groupConfiguration, rpcStats));
+}
+
 void setupEverything(IOManager* ioManager, 
                      const Guid& configHash,
                      const JSON::Value& config,
                      uint32_t ourId,
-                     AcceptorState::ptr acceptorState,
                      RpcResponder::ptr* responder,
                      RingVoter::ptr* ringVoter)
 {
     Address::ptr multicastGroup = Address::lookup(config["mcast_group"].get<string>(), AF_INET).front();
     GroupConfiguration::ptr groupConfig = parseGroupConfiguration(config["hosts"], ourId, multicastGroup);
 
+    //-------------------------------------------------------------------------
+    // rpc requester
+    GuidGenerator::ptr guidGenerator(new GuidGenerator);
+    const uint64_t sendWindowUs = config["send_window"].get<long long>();
+    const uint64_t recvWindowUs = config["recv_window"].get<long long>();
+    MulticastRpcStats::ptr rpcStats(new MulticastRpcStats(sendWindowUs, recvWindowUs));
+    RpcRequester::ptr requester = setupRequester(ioManager, guidGenerator, groupConfig, rpcStats);
+
+    //-------------------------------------------------------------------------
+    // recovery manager
+    const uint64_t recoveryInterval = config["recovery_interval"].get<long long>();
+    const uint64_t recoveryTimeout  = config["recovery_timeout"].get<long long>();
+    RecoveryManager::ptr recoveryManager(new RecoveryManager(groupConfig, requester, ioManager, recoveryInterval, recoveryTimeout));
+    ioManager->schedule(boost::bind(&RecoveryManager::recoverInstances, recoveryManager));
+
+    //-------------------------------------------------------------------------
+    // acceptor state
+    uint64_t pendingLimit = config["acceptor_max_pending_instances"].get<long long>();
+    uint64_t committedLimit = config["acceptor_instance_window_size"].get<long long>();
+    uint64_t recoveryGracePeriod = config["recovery_grace_period"].get<long long>();
+    AcceptorState::ptr acceptorState(new AcceptorState(pendingLimit, committedLimit, recoveryGracePeriod, ioManager, recoveryManager));
+
+    //-------------------------------------------------------------------------
+    // ring voter
     Socket::ptr ringSocket = bindSocket(groupConfig->host(groupConfig->thisHostId()).ringAddress, ioManager);
     UdpSender::ptr udpSender(new UdpSender("ring_voter", ringSocket));
     ioManager->schedule(boost::bind(&UdpSender::run, udpSender));
     *ringVoter = RingVoter::ptr(new RingVoter(ringSocket, udpSender, acceptorState));
 
+    //-------------------------------------------------------------------------
+    // RPC handlers
     RpcHandler::ptr ponger(new Ponger);
     boost::shared_ptr<BatchPhase1Handler> batchPhase1Handler(new BatchPhase1Handler(acceptorState));
     boost::shared_ptr<Phase1Handler> phase1Handler(new Phase1Handler(acceptorState));
     boost::shared_ptr<Phase2Handler> phase2Handler(new Phase2Handler(acceptorState, *ringVoter));
+    boost::shared_ptr<RecoveryHandler> recoveryHandler(new RecoveryHandler(acceptorState));
 
     vector<RingHolder::ptr> holders;
     holders.push_back(batchPhase1Handler);
@@ -126,12 +167,7 @@ void setupEverything(IOManager* ioManager,
     (*responder)->addHandler(RpcMessageData::PAXOS_BATCH_PHASE1, batchPhase1Handler);
     (*responder)->addHandler(RpcMessageData::PAXOS_PHASE1, phase1Handler);
     (*responder)->addHandler(RpcMessageData::PAXOS_PHASE2, phase2Handler);
-}
-
-AcceptorState::ptr createAcceptor(const JSON::Value& config) {
-    uint64_t pendingLimit = config["acceptor_max_pending_instances"].get<long long>();
-    uint64_t committedLimit = config["acceptor_instance_window_size"].get<long long>();
-    return AcceptorState::ptr(new AcceptorState(pendingLimit, committedLimit));
+    (*responder)->addHandler(RpcMessageData::RECOVERY, recoveryHandler);
 }
 
 int main(int argc, char** argv) {
@@ -146,10 +182,9 @@ int main(int argc, char** argv) {
     const uint32_t id = lexical_cast<uint32_t>(argv[2]);
     IOManager ioManager;
 
-    AcceptorState::ptr acceptorState = createAcceptor(config);
     RpcResponder::ptr responder;
     RingVoter::ptr ringVoter;
-    setupEverything(&ioManager, configGuid, config, id, acceptorState, &responder, &ringVoter);
+    setupEverything(&ioManager, configGuid, config, id, &responder, &ringVoter);
     ioManager.schedule(boost::bind(&RpcResponder::run, responder));
     ioManager.schedule(boost::bind(&RingVoter::run, ringVoter));
     ioManager.schedule(boost::bind(serveStats, &ioManager));

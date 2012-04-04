@@ -15,6 +15,7 @@ UnicastRpcRequest::UnicastRpcRequest(GroupConfiguration::ptr groupConfiguration,
                                      uint64_t timeoutUs)
     : RpcRequest(groupConfiguration->host(destinationHostId).unicastAddress,
                  timeoutUs),
+      groupConfiguration_(groupConfiguration),
       destinationHostId_(destinationHostId),
       acked_(false)
 {}

@@ -2,12 +2,15 @@
 #include "paxos_defs.h"
 #include "value.h"
 #include <mordor/log.h>
+#include <mordor/statistics.h>
 
 namespace lightning {
 
 using Mordor::Address;
+using Mordor::CountStatistic;
 using Mordor::Log;
 using Mordor::Logger;
+using Mordor::Statistics;
 using paxos::BallotId;
 using paxos::InstanceId;
 using paxos::kInvalidBallotId;

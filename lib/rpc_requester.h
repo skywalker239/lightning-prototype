@@ -74,9 +74,6 @@ public:
     //! Collects reply datagrams.
     void processReplies();
 
-    //! Sends pending requests.
-    void sendRequests();
-
     //! Blocks until request is completed or until the timeout expires;
     RpcRequest::Status request(RpcRequest::ptr request);
 

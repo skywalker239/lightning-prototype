@@ -118,6 +118,7 @@ void setupEverything(IOManager* ioManager,
     const uint64_t recvWindowUs = config["recv_window"].get<long long>();
     MulticastRpcStats::ptr rpcStats(new MulticastRpcStats(sendWindowUs, recvWindowUs));
     RpcRequester::ptr requester = setupRequester(ioManager, guidGenerator, groupConfig, rpcStats);
+    ioManager->schedule(boost::bind(&RpcRequester::processReplies, requester));
 
     //-------------------------------------------------------------------------
     // recovery manager

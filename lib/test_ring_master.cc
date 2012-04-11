@@ -135,6 +135,8 @@ void setupEverything(uint32_t hostId,
         config["phase2_timeout"].get<long long>();
     const uint64_t phase2IntervalUs =
         config["phase2_interval"].get<long long>();
+    const uint64_t commitFlushIntervalUs =
+        config["commit_flush_interval"].get<long long>();
 
     *valueQueue = ClientValueQueue::ptr(new ClientValueQueue);
     *proposerState =
@@ -147,7 +149,8 @@ void setupEverything(uint32_t hostId,
                                              phase1TimeoutUs,
                                              phase1IntervalUs,
                                              phase2TimeoutUs,
-                                             phase2IntervalUs));
+                                             phase2IntervalUs,
+                                             commitFlushIntervalUs));
 
     vector<RingHolder::ptr> ringHolders;
     ringHolders.push_back(*phase1Batcher);
@@ -237,6 +240,7 @@ int main(int argc, char** argv) {
         ioManager.schedule(boost::bind(&Phase1Batcher::run, phase1Batcher));
         ioManager.schedule(boost::bind(&ProposerState::processReservedInstances, proposerState));
         ioManager.schedule(boost::bind(&ProposerState::processClientValues, proposerState));
+        ioManager.schedule(boost::bind(&ProposerState::flushCommits, proposerState));
         ioManager.schedule(boost::bind(submitValues, &submitManager, clientValueQueue, guidGenerator));
         ioManager.schedule(boost::bind(dumpStats, &ioManager));
         ioManager.dispatch();

@@ -34,11 +34,14 @@ public:
                   uint64_t phase1TimeoutUs,
                   uint64_t phase1IntervalUs,
                   uint64_t phase2TimeoutUs,
-                  uint64_t phase2IntervalUs);
+                  uint64_t phase2IntervalUs,
+                  uint64_t commitFlushIntervalUs);
     
     void processReservedInstances();
 
     void processClientValues();
+
+    void flushCommits();
 
     //! Perform complete Paxos phase 1. On success it is scheduled
     //  for phase 2, on failure it is returned to the instance pool.
@@ -60,6 +63,7 @@ private:
     const uint64_t phase1IntervalUs_;
     const uint64_t phase2TimeoutUs_;
     const uint64_t phase2IntervalUs_;
+    const uint64_t commitFlushIntervalUs_;
 
     BallotGenerator ballotGenerator_;
 

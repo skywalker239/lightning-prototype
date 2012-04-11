@@ -124,7 +124,9 @@ void setupEverything(IOManager* ioManager,
     // recovery manager
     const uint64_t recoveryInterval = config["recovery_interval"].get<long long>();
     const uint64_t recoveryTimeout  = config["recovery_timeout"].get<long long>();
-    RecoveryManager::ptr recoveryManager(new RecoveryManager(groupConfig, requester, ioManager, recoveryInterval, recoveryTimeout));
+    const uint64_t initialBackoff   = config["initial_backoff"].get<long long>();
+    const uint64_t maxBackoff       = config["max_backoff"].get<long long>();
+    RecoveryManager::ptr recoveryManager(new RecoveryManager(groupConfig, requester, ioManager, recoveryInterval, recoveryTimeout, initialBackoff, maxBackoff));
     ioManager->schedule(boost::bind(&RecoveryManager::recoverInstances, recoveryManager));
 
     //-------------------------------------------------------------------------

@@ -4,6 +4,7 @@
 #include "sleep_helper.h"
 #include <mordor/assert.h>
 #include <mordor/log.h>
+#include <mordor/sleep.h>
 #include <mordor/statistics.h>
 #include <algorithm>
 #include <string>
@@ -40,12 +41,16 @@ RecoveryManager::RecoveryManager(GroupConfiguration::ptr groupConfiguration,
                                  RpcRequester::ptr requester,
                                  IOManager* ioManager,
                                  uint64_t recoveryIntervalUs,
-                                 uint64_t recoveryTimeoutUs)
+                                 uint64_t recoveryTimeoutUs,
+                                 uint64_t initialBackoffUs,
+                                 uint64_t maxBackoffUs)
     : groupConfiguration_(groupConfiguration),
       requester_(requester),
       ioManager_(ioManager),
       recoveryIntervalUs_(recoveryIntervalUs),
-      recoveryTimeoutUs_(recoveryTimeoutUs)
+      recoveryTimeoutUs_(recoveryTimeoutUs),
+      initialBackoffUs_(initialBackoffUs),
+      maxBackoffUs_(maxBackoffUs)
 {
     vector<uint32_t> ourDcAcceptors;
     vector<uint32_t> otherAcceptors;
@@ -54,10 +59,13 @@ RecoveryManager::RecoveryManager(GroupConfiguration::ptr groupConfiguration,
         groupConfiguration_->host(thisHostId).datacenter;
     for(size_t i = 0; i < groupConfiguration_->size(); ++i) {
         if(groupConfiguration_->host(i).datacenter == thisHostDc &&
-           i != thisHostId)
+           i != thisHostId &&
+           i != groupConfiguration_->masterId())  // no acceptor on master yet
         {
             ourDcAcceptors.push_back(i);
-        } else if(i != thisHostId) {
+        } else if(i != thisHostId &&
+                  i != groupConfiguration_->masterId())  // ditto
+        {
             otherAcceptors.push_back(i);
         }
     }
@@ -77,7 +85,7 @@ void RecoveryManager::addInstance(const Guid& epoch,
 {
     MORDOR_LOG_TRACE(g_log) << this << " addInstance(" << epoch << ", " <<
                                instanceId << ")";
-    recoveryQueue_.push(RecoveryRecord(epoch, instanceId, acceptor, 0));
+    recoveryQueue_.push(RecoveryRecord(epoch, instanceId, acceptor, 0, initialBackoffUs_));
     g_recoveryAttempts.increment();
 }
 
@@ -102,7 +110,7 @@ void RecoveryManager::recoverInstances() {
     }
 }
 
-void RecoveryManager::doRecovery(const RecoveryRecord recoveryRecord) {
+void RecoveryManager::doRecovery(RecoveryRecord recoveryRecord) {
     RecoveryRequest::ptr request(
         new RecoveryRequest(
             groupConfiguration_,
@@ -114,61 +122,101 @@ void RecoveryManager::doRecovery(const RecoveryRecord recoveryRecord) {
     if(status == RpcRequest::COMPLETED) {
         switch(request->result()) {
             case RecoveryRequest::NOT_COMMITTED:
-                MORDOR_LOG_TRACE(g_log) << this <<  " (" <<
-                    recoveryRecord.epoch << ", " <<
-                    recoveryRecord.instanceId << ") not committed on " <<
-                    groupConfiguration_->host(recoveryHostIds_[recoveryRecord.recoveryHostIndex]);
-                if(recoveryRecord.acceptor->needsRecovery(
-                   recoveryRecord.instanceId))
-                {
-                    MORDOR_LOG_TRACE(g_log) << this << " pushing " <<
-                        recoveryRecord.epoch << ", " <<
-                        recoveryRecord.instanceId << ") back to queue";
-                    recoveryQueue_.push(recoveryRecord);
-                    g_recoveryAttempts.increment();
-                } else {
-                    MORDOR_LOG_TRACE(g_log) << this << " (" <<
-                        recoveryRecord.epoch << ", " <<
-                        recoveryRecord.instanceId << ") already recovered";
-                }
+                handleNotCommitted(recoveryRecord);
                 break;
             case RecoveryRequest::FORGOTTEN:
-                // XXX what to do here?
-                MORDOR_LOG_ERROR(g_log) << this << " (" <<
-                    recoveryRecord.epoch << ", " <<
-                    recoveryRecord.instanceId << ") forgotten on" <<
-                    groupConfiguration_->host(recoveryHostIds_[recoveryRecord.recoveryHostIndex]);
-                g_recoveryFailures.increment();
+                handleForgotten(recoveryRecord);
                 break;
             case RecoveryRequest::OK:
-                MORDOR_LOG_TRACE(g_log) << this << " recovered (" <<
-                    recoveryRecord.epoch << ", " <<
-                    recoveryRecord.instanceId << ") = (" <<
-                    request->value()->valueId << ", " << request->ballot() <<
-                    ")";
-                recoveryRecord.acceptor->setInstance(
-                    recoveryRecord.instanceId,
-                    *request->value(),
-                    request->ballot());
-                g_recoveredInstances.increment();
+                handleSuccess(request, recoveryRecord);
                 break;
         }
     } else {
-        const uint32_t newIndex =
-            (recoveryRecord.recoveryHostIndex + 1) % recoveryHostIds_.size();
-        MORDOR_LOG_TRACE(g_log) << this << " recovery of (" <<
-            recoveryRecord.epoch << ", " << recoveryRecord.instanceId <<
-            ") from " <<
-            groupConfiguration_->host(recoveryHostIds_[recoveryRecord.recoveryHostIndex]) << " timed out, retrying with host " <<
-            groupConfiguration_->host(recoveryHostIds_[newIndex]);
-        recoveryQueue_.push(
-            RecoveryRecord(
-                recoveryRecord.epoch,
-                recoveryRecord.instanceId,
-                recoveryRecord.acceptor,
-                newIndex));
-        g_recoveryTimeouts.increment();
+        handleTimeout(recoveryRecord);
     }
+}
+
+void RecoveryManager::handleTimeout(RecoveryRecord& recoveryRecord) {
+    g_recoveryTimeouts.increment();
+    const HostConfiguration& host =
+        groupConfiguration_->host(
+            recoveryHostIds_[recoveryRecord.recoveryHostIndex]);
+    MORDOR_LOG_TRACE(g_log) << this << " (" << recoveryRecord.epoch << ", " <<
+                               recoveryRecord.instanceId <<
+                               ") timed out on " << host << ", " <<
+                               " sleeping for " <<
+                               recoveryRecord.backoffUs << "us";
+    sleep(*ioManager_, recoveryRecord.backoffUs);
+    recoveryRecord.backoffUs = boostBackoff(recoveryRecord.backoffUs);
+    recoveryRecord.recoveryHostIndex =
+        nextHostIndex(recoveryRecord.recoveryHostIndex);
+    if(recoveryRecord.acceptor->needsRecovery(recoveryRecord.instanceId)) {
+        MORDOR_LOG_TRACE(g_log) << this << " pushing " <<
+                                   recoveryRecord.epoch << ", " <<
+                                   recoveryRecord.instanceId <<
+                                   ") back to queue";
+        recoveryQueue_.push(recoveryRecord);
+        g_recoveryAttempts.increment();
+    }
+}
+
+void RecoveryManager::handleSuccess(const RecoveryRequest::ptr& request,
+                                    RecoveryRecord& recoveryRecord)
+{
+    MORDOR_LOG_TRACE(g_log) << this << " recovered (" <<
+                               recoveryRecord.epoch << ", " <<
+                               recoveryRecord.instanceId << ") = (" <<
+                               request->value()->valueId << ", " <<
+                               request->ballot() <<
+                               ")";
+    recoveryRecord.acceptor->setInstance(
+        recoveryRecord.instanceId,
+        *request->value(),
+        request->ballot());
+    g_recoveredInstances.increment();
+}
+
+void RecoveryManager::handleForgotten(RecoveryRecord& recoveryRecord) {
+    // XXX do something clever
+    const HostConfiguration& host =
+        groupConfiguration_->host(
+            recoveryHostIds_[recoveryRecord.recoveryHostIndex]);
+    MORDOR_LOG_ERROR(g_log) << this << " (" << recoveryRecord.epoch << ", " <<
+                               recoveryRecord.instanceId <<
+                               ") forgotten on " << host;
+    g_recoveryFailures.increment();
+}
+
+
+void RecoveryManager::handleNotCommitted(RecoveryRecord& recoveryRecord) {
+    const HostConfiguration& host =
+        groupConfiguration_->host(
+            recoveryHostIds_[recoveryRecord.recoveryHostIndex]);
+    MORDOR_LOG_TRACE(g_log) << this << " (" << recoveryRecord.epoch << ", " <<
+                               recoveryRecord.instanceId <<
+                               ") not committed on " << host << ", " <<
+                               " sleeping for " <<
+                               recoveryRecord.backoffUs << "us";
+    sleep(*ioManager_, recoveryRecord.backoffUs);
+    recoveryRecord.backoffUs = boostBackoff(recoveryRecord.backoffUs);
+    recoveryRecord.recoveryHostIndex =
+        nextHostIndex(recoveryRecord.recoveryHostIndex);
+    if(recoveryRecord.acceptor->needsRecovery(recoveryRecord.instanceId)) {
+        MORDOR_LOG_TRACE(g_log) << this << " pushing " <<
+                                   recoveryRecord.epoch << ", " <<
+                                   recoveryRecord.instanceId <<
+                                   ") back to queue";
+        recoveryQueue_.push(recoveryRecord);
+        g_recoveryAttempts.increment();
+    }
+}
+
+uint64_t RecoveryManager::boostBackoff(uint64_t backoff) const {
+    return (backoff > (maxBackoffUs_ >> 1)) ? maxBackoffUs_ : (backoff << 1);
+}
+
+uint32_t RecoveryManager::nextHostIndex(uint32_t hostIndex) const {
+    return (hostIndex + 1) % recoveryHostIds_.size();
 }
 
 }  // namespace lightning

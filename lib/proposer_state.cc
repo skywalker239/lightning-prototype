@@ -59,7 +59,8 @@ ProposerState::ProposerState(GroupConfiguration::ptr group,
                              uint64_t phase1TimeoutUs,
                              uint64_t phase1IntervalUs,
                              uint64_t phase2TimeoutUs,
-                             uint64_t phase2IntervalUs)
+                             uint64_t phase2IntervalUs,
+                             uint64_t commitFlushIntervalUs)
     : group_(group),
       epoch_(epoch),
       instancePool_(instancePool),
@@ -70,6 +71,7 @@ ProposerState::ProposerState(GroupConfiguration::ptr group,
       phase1IntervalUs_(phase1IntervalUs),
       phase2TimeoutUs_(phase2TimeoutUs),
       phase2IntervalUs_(phase2IntervalUs),
+      commitFlushIntervalUs_(commitFlushIntervalUs),
       ballotGenerator_(group_)
 {
     MORDOR_ASSERT(group_->thisHostId() == 0);
@@ -112,6 +114,19 @@ void ProposerState::processClientValues() {
                                          shared_from_this(),
                                          instance));
         g_pendingPhase2.increment();
+    }
+}
+
+// XXX HACK, push a dummy value for now
+void ProposerState::flushCommits() {
+    SleepHelper sleeper(ioManager_,
+                        commitFlushIntervalUs_,
+                        SleepHelper::kEpollSleepPrecision);
+    while(true) {
+        sleeper.wait();
+        Value::ptr value(new Value);
+        value->size = 0;
+        clientValueQueue_->push(value);
     }
 }
 

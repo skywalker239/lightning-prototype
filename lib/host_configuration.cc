@@ -6,6 +6,7 @@ namespace lightning {
 
 const size_t GroupConfiguration::kMaxGroupSize;
 const uint32_t GroupConfiguration::kInvalidHostId;
+const uint32_t GroupConfiguration::kLearnerHostId;
 const uint32_t GroupConfiguration::kMasterId;
 
 using Mordor::Address;
@@ -79,6 +80,24 @@ GroupConfiguration::GroupConfiguration(Address::ptr groupMulticastAddress,
 {
     MORDOR_ASSERT(hosts.size() <= kMaxGroupSize);
     MORDOR_ASSERT(thisHostId < hosts.size());
+    datacenter_ = hosts_[thisHostId_].datacenter;
+    populateAddressMaps();
+}
+
+GroupConfiguration::GroupConfiguration(Address::ptr groupMulticastAddress,
+                                       const vector<HostConfiguration>& hosts,
+                                       const string& datacenter)
+    : groupMulticastAddress_(groupMulticastAddress),
+      hosts_(hosts),
+      thisHostId_(kLearnerHostId),
+      datacenter_(datacenter)
+{
+    MORDOR_ASSERT(hosts.size() <= kMaxGroupSize);
+    populateAddressMaps();
+}
+
+void GroupConfiguration::populateAddressMaps()
+{
     for(size_t i = 0; i < hosts_.size(); ++i) {
         auto hostIdResult = replyAddressToHostId_.insert(
             make_pair(hosts_[i].multicastReplyAddress, i));

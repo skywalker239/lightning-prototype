@@ -48,10 +48,17 @@ public:
     static const size_t kMaxGroupSize = 64;
 
     static const uint32_t kInvalidHostId = ~0;
+    static const uint32_t kLearnerHostId = kInvalidHostId - 1;
 
+    //! Constructs a configuration on an acceptor.
     GroupConfiguration(const Mordor::Address::ptr groupMulticastAddress,
                        const std::vector<HostConfiguration>& hosts,
                        uint32_t thisHostId);
+
+    //! Constructs a configuration on a learner.
+    GroupConfiguration(const Mordor::Address::ptr groupMulticastAddress,
+                       const std::vector<HostConfiguration>& hosts,
+                       const std::string& datacenter);
 
     //! Number of hosts in the group
     size_t size() const;
@@ -72,13 +79,20 @@ public:
     uint32_t masterId() const { return kMasterId; }
 
     uint32_t thisHostId() const { return thisHostId_; }
+
+    bool isLearner() const { return thisHostId_ == kLearnerHostId; }
+
+    const std::string& datacenter() const { return datacenter_; }
 private:
     friend std::ostream& operator<<(std::ostream&,
                                     const GroupConfiguration&);
 
+    void populateAddressMaps();
+
     const Mordor::Address::ptr groupMulticastAddress_;
     const std::vector<HostConfiguration> hosts_;
     const uint32_t thisHostId_;
+    std::string datacenter_;
 
     struct AddressCompare {
         bool operator()(const Mordor::Address::ptr& a,

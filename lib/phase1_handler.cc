@@ -73,13 +73,11 @@ bool Phase1Handler::handleRequest(Address::ptr,
         MORDOR_LOG_TRACE(g_log) << this << " phase1 request (" << instance <<
                                    ", " << ballot << ") successful, " <<
                                    "highestVoted=" << highestVoted << ", " <<
-                                   "lastVote=" << lastVote.valueId;
+                                   "lastVote=" << lastVote;
         replyData->set_type(PaxosPhase1ReplyData::OK);
         if(highestVoted != kInvalidBallotId) {
             replyData->set_last_ballot_id(highestVoted);
-            lastVote.valueId.serialize(
-                replyData->mutable_value()->mutable_id());
-            replyData->mutable_value()->set_data(lastVote.data, lastVote.size);
+            lastVote.serialize(replyData->mutable_value());
         }
         return ring->isInRing();
     }

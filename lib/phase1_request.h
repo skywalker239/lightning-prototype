@@ -33,7 +33,7 @@ public:
 
     paxos::BallotId lastVotedBallot() const;
 
-    paxos::Value::ptr lastVotedValue() const;
+    paxos::Value lastVotedValue() const;
 
 private:
     std::ostream& output(std::ostream& os) const;
@@ -41,14 +41,12 @@ private:
     void applyReply(uint32_t hostId,
                     const RpcMessageData& reply);
 
-    paxos::Value::ptr parseValue(const ValueData& valueData) const;
-
     const GroupConfiguration::ptr& group_;
     Result result_;
 
     paxos::BallotId lastPromisedBallotId_;
     paxos::BallotId lastVotedBallotId_;
-    paxos::Value::ptr lastVotedValue_;
+    paxos::Value lastVotedValue_;
 };
 
 } // namespace lightning

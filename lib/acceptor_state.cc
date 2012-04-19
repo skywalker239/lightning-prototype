@@ -47,7 +47,8 @@ AcceptorState::AcceptorState(uint32_t pendingInstancesLimit,
                              uint32_t instanceWindowSize,
                              uint64_t recoveryGracePeriodUs,
                              IOManager* ioManager,
-                             RecoveryManager::ptr recoveryManager)
+                             RecoveryManager::ptr recoveryManager,
+                             boost::shared_ptr<InstanceSink> instanceSink)
     : pendingInstancesLimit_(pendingInstancesLimit),
       instanceWindowSize_(instanceWindowSize),
       recoveryGracePeriodUs_(recoveryGracePeriodUs),
@@ -55,7 +56,8 @@ AcceptorState::AcceptorState(uint32_t pendingInstancesLimit,
       pendingInstanceCount_(0),
       afterLastCommittedInstanceId_(0),
       ioManager_(ioManager),
-      recoveryManager_(recoveryManager)
+      recoveryManager_(recoveryManager),
+      instanceSink_(instanceSink)
 {}
 
 AcceptorState::Status AcceptorState::nextBallot(InstanceId instanceId,
@@ -96,7 +98,7 @@ AcceptorState::Status AcceptorState::beginBallot(InstanceId instanceId,
                                         value);
     MORDOR_LOG_TRACE(g_log) << this << " beginBallot(" << instanceId <<
                                ", " << ballotId << ", " <<
-                               value.valueId << ") = " << result;
+                               value << ") = " << result;
     return boolToStatus(result);
 }
 
@@ -127,10 +129,16 @@ AcceptorState::Status AcceptorState::commit(InstanceId instanceId,
 
 
     bool result = instance->commit(valueId);
-    MORDOR_LOG_DEBUG(g_log) << this << " commit(" << instanceId << ", " <<
+    MORDOR_LOG_TRACE(g_log) << this << " commit(" << instanceId << ", " <<
                                valueId << ") = " << result;
     if(result) {
         addCommittedInstanceId(instanceId);
+        Value value;
+        BallotId ballot;
+        if(!instance->value(&value, &ballot)) {
+            MORDOR_ASSERT(1 == 0);
+        }
+        instanceSink_->push(epoch_, instanceId, ballot, value);
     } else {
         MORDOR_LOG_TRACE(g_log) << this << " commit(" << instanceId << ")" <<
                                    " failed, scheduling recovery";
@@ -172,7 +180,7 @@ void AcceptorState::setInstance(InstanceId instanceId,
         return;
     }
     MORDOR_LOG_TRACE(g_log) << this << " setInstance(" << instanceId <<
-                               ", " << ballot << ", " << value.valueId << ")";
+                               ", " << ballot << ", " << value << ")";
     instances_[instanceId] = AcceptorInstance(value, ballot);
     addCommittedInstanceId(instanceId);
     // XXX we don't expire anything at this point

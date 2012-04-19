@@ -5,6 +5,7 @@
 #include "recovery_handler.h"
 #include "guid.h"
 #include "host_configuration.h"
+#include "instance_sink.h"
 #include "recovery_manager.h"
 #include "rpc_responder.h"
 #include "ring_holder.h"
@@ -34,6 +35,12 @@ using namespace std;
 using namespace Mordor;
 using namespace lightning;
 using boost::lexical_cast;
+
+class DummySink : public InstanceSink {
+public:
+    void push(const Guid&, paxos::InstanceId, paxos::BallotId, paxos::Value)
+    {}
+};
 
 void readConfig(const string& filename,
                 Guid* configHash,
@@ -134,7 +141,8 @@ void setupEverything(IOManager* ioManager,
     uint64_t pendingLimit = config["acceptor_max_pending_instances"].get<long long>();
     uint64_t committedLimit = config["acceptor_instance_window_size"].get<long long>();
     uint64_t recoveryGracePeriod = config["recovery_grace_period"].get<long long>();
-    AcceptorState::ptr acceptorState(new AcceptorState(pendingLimit, committedLimit, recoveryGracePeriod, ioManager, recoveryManager));
+    boost::shared_ptr<InstanceSink> sink(new DummySink);
+    AcceptorState::ptr acceptorState(new AcceptorState(pendingLimit, committedLimit, recoveryGracePeriod, ioManager, recoveryManager, sink));
 
     //-------------------------------------------------------------------------
     // ring voter

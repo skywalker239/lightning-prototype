@@ -1,5 +1,5 @@
-CXX = g++ --std=gnu++0x
-OPT ?= 9
+CXX = clang++ # g++ --std=gnu++0x
+OPT ?= 3
 
 CXXFLAGS= \
     -O$(OPT) `pkg-config --cflags libmordor` \
@@ -17,6 +17,7 @@ LIB_OBJS = $(PROTO_GENSRCS:.cc=.o)
 LIB_OBJS += \
     acceptor_state.o \
     ballot_generator.o \
+    blocking_abcast.o \
     host_configuration.o \
     ring_configuration.o \
     MurmurHash3.o \
@@ -43,7 +44,6 @@ LIB_OBJS += \
     phase1_handler.o \
     phase2_handler.o \
     ring_voter.o \
-    client_value_queue.o \
     batch_phase1_request.o \
     phase1_request.o \
     phase2_request.o \

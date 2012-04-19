@@ -15,24 +15,24 @@ public:
 
     void setBallotId(BallotId ballot);
 
-    void setValue(Value::ptr value, bool isClientValue);
+    void setValue(Value value, bool isClientValue);
 
     InstanceId instanceId() const;
 
     BallotId ballotId() const;
 
-    Value::ptr value() const;
+    const Value& value() const;
 
     bool hasClientValue() const;
 
-    Value::ptr releaseValue();
+    Value releaseValue();
 
     bool operator<(const ProposerInstance& rhs) const;
 private:
     const InstanceId instanceId_;
 
     BallotId ballotId_;
-    Value::ptr value_;
+    Value value_;
     bool isClientValue_;
 };
 

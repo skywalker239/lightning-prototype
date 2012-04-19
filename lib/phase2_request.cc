@@ -48,12 +48,12 @@ Phase2Request::Phase2Request(
     uint32_t ringId,
     InstanceId instance,
     BallotId ballot,
-    Value::ptr value,
+    const Value& value,
     const vector<pair<InstanceId, Guid> >& commits,
     RingConfiguration::const_ptr ring,
     uint64_t timeoutUs)
     : MulticastRpcRequest(ring, timeoutUs),
-      valueId_(value->valueId),
+      valueId_(value.valueId()),
       group_(ring->group()),
       result_(PENDING)
 {
@@ -64,12 +64,12 @@ Phase2Request::Phase2Request(
     request->set_ring_id(ringId);
     request->set_instance(instance);
     request->set_ballot(ballot);
-    serializeValue(value, request->mutable_value());
+    value.serialize(request->mutable_value());
     serializeCommits(commits, request);
 
     MORDOR_LOG_TRACE(g_log) << this << " P2(" << epoch << ", " <<
                                ringId << ", " << instance << ", " <<
-                               ballot << ", " << value->valueId << ", " <<
+                               ballot << ", " << valueId_ << ", " <<
                                commits << ") ring=" << *ring;
 }
 
@@ -106,13 +106,6 @@ void Phase2Request::applyReply(uint32_t /* hostId */,
                                requestData_.phase2_request().instance() <<
                                ", valueId=" << valueId_;
     result_ = SUCCESS;
-}
-
-void Phase2Request::serializeValue(Value::ptr value,
-                                   ValueData* valueData) const
-{
-    value->valueId.serialize(valueData->mutable_id());
-    valueData->set_data(value->data, value->size);
 }
 
 void Phase2Request::serializeCommits(

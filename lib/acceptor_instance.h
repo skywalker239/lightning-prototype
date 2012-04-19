@@ -17,7 +17,7 @@ public:
     AcceptorInstance();
 
     //! Creates a committed instance (recovered elsewhere).
-    AcceptorInstance(const Value& value,
+    AcceptorInstance(Value value,
                      BallotId ballotId);
 
     //! Attempt to start Phase 1 of Paxos on this instance with
@@ -31,7 +31,7 @@ public:
     bool nextBallot(BallotId ballotId,
                     BallotId* highestBallotParticipated,
                     BallotId* highestBallotVoted,
-                    Value*    lastVote);
+                    Value* lastVote);
     
     //! Attempt to start Phase 2 of Paxos for ballot ballotId
     //  and value id valueId.
@@ -41,7 +41,7 @@ public:
     //  acceptor in the ring can NACK, so don't bother NACKing at
     //  all. It will be done during the ring vote.
     bool beginBallot(BallotId ballotId,
-                     const Value& value);
+                     Value value);
 
     //! Vote in ballotId for valueId.
     //  Returns true on success and false on failure.
@@ -70,7 +70,7 @@ public:
 private:
     BallotId highestPromisedBallot_;
     BallotId highestVotedBallot_;
-    Value    lastVotedValue_;
+    Value lastVotedValue_;
     boost::optional<Vote> pendingVote_;
     bool     committed_;
 };

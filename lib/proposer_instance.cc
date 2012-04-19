@@ -22,11 +22,9 @@ void ProposerInstance::setBallotId(BallotId ballot) {
     ballotId_ = ballot;
 }
 
-void ProposerInstance::setValue(Value::ptr value, bool isClientValue) {
-    MORDOR_ASSERT(!value_.get() || (value_->valueId == value->valueId));
-
+void ProposerInstance::setValue(Value value, bool isClientValue) {
     MORDOR_LOG_TRACE(g_log) << this << " iid=" << instanceId_ <<
-                               " set value=" << value->valueId <<
+                               " set value=" << value <<
                                ", client=" << isClientValue;
     value_ = value;
     isClientValue_ = isClientValue;
@@ -40,7 +38,7 @@ BallotId ProposerInstance::ballotId() const {
     return ballotId_;
 }
 
-Value::ptr ProposerInstance::value() const {
+const Value& ProposerInstance::value() const {
     return value_;
 }
 
@@ -48,12 +46,11 @@ bool ProposerInstance::hasClientValue() const {
     return isClientValue_;
 }
 
-Value::ptr ProposerInstance::releaseValue() {
-    MORDOR_ASSERT(value_.get());
+Value ProposerInstance::releaseValue() {
     MORDOR_LOG_TRACE(g_log) << this << " iid=" << instanceId_ <<
-                               " release value=" << value_->valueId <<
+                               " release value=" << value_ <<
                                ", client=" << isClientValue_;
-    Value::ptr value = value_;
+    Value value = value_;
     value_.reset();
     isClientValue_ = false;
     return value;

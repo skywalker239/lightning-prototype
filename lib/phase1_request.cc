@@ -68,7 +68,7 @@ BallotId Phase1Request::lastPromisedBallot() const {
     return lastPromisedBallotId_;
 }
 
-Value::ptr Phase1Request::lastVotedValue() const {
+Value Phase1Request::lastVotedValue() const {
     return lastVotedValue_;
 }
 
@@ -108,21 +108,10 @@ void Phase1Request::applyReply(uint32_t hostId,
                 MORDOR_LOG_TRACE(g_log) << this << " lastVotedBallot=" <<
                                            lastVotedBallotId_ << "," <<
                                            " lastVotedValueId=" <<
-                                           lastVotedValue_->valueId;
+                                           lastVotedValue_;
             }
             break;
     }
-}
-
-Value::ptr Phase1Request::parseValue(const ValueData& valueData) const {
-    Value::ptr value(new Value);
-    value->valueId = Guid::parse(valueData.id());
-    value->size = valueData.data().length();
-    MORDOR_ASSERT(valueData.data().length() <= Value::kMaxValueSize);
-    memcpy(value->data, valueData.data().c_str(), valueData.data().length());
-    MORDOR_LOG_TRACE(g_log) << this << " parsed value id=" << value->valueId <<
-                               ", size=" << value->size;
-    return value;
 }
 
 }  // namespace lightning

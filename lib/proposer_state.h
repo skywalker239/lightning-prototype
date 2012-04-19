@@ -1,11 +1,11 @@
 #pragma once
 
 #include "ballot_generator.h"
+#include "blocking_queue.h"
 #include "guid.h"
 #include "host_configuration.h"
 #include "instance_pool.h"
 #include "rpc_requester.h"
-#include "client_value_queue.h"
 #include "proposer_instance.h"
 #include "ring_holder.h"
 #include <mordor/fibersynchronization.h>
@@ -29,7 +29,7 @@ public:
                   const Guid& epoch,
                   InstancePool::ptr instancePool,
                   RpcRequester::ptr requester,
-                  ClientValueQueue::ptr clientValueQueue,
+                  BlockingQueue<paxos::Value>::ptr clientValueQueue,
                   Mordor::IOManager* ioManager,
                   uint64_t phase1TimeoutUs,
                   uint64_t phase1IntervalUs,
@@ -57,7 +57,7 @@ private:
     const Guid epoch_;
     InstancePool::ptr instancePool_;
     RpcRequester::ptr requester_;
-    ClientValueQueue::ptr clientValueQueue_;
+    BlockingQueue<paxos::Value>::ptr clientValueQueue_;
     Mordor::IOManager* ioManager_;
     const uint64_t phase1TimeoutUs_;
     const uint64_t phase1IntervalUs_;

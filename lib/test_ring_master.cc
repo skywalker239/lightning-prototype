@@ -35,6 +35,7 @@ using namespace Mordor;
 using namespace lightning;
 using namespace paxos;
 using boost::lexical_cast;
+using boost::shared_ptr;
 
 
 void readConfig(const string& filename,
@@ -78,7 +79,7 @@ void setupEverything(uint32_t hostId,
                      RingManager::ptr* ringManager,
                      Phase1Batcher::ptr* phase1Batcher,
                      ProposerState::ptr* proposerState,
-                     ClientValueQueue::ptr* valueQueue)
+                     BlockingQueue<Value>::ptr* valueQueue)
 {
     Address::ptr groupMcastAddress =
         Address::lookup(config["mcast_group"].get<string>(), AF_INET).front();;
@@ -138,7 +139,7 @@ void setupEverything(uint32_t hostId,
     const uint64_t commitFlushIntervalUs =
         config["commit_flush_interval"].get<long long>();
 
-    *valueQueue = ClientValueQueue::ptr(new ClientValueQueue);
+    valueQueue->reset(new BlockingQueue<Value>("client_value_queue"));
     *proposerState =
         ProposerState::ptr(new ProposerState(groupConfiguration,
                                              epoch,
@@ -194,7 +195,7 @@ void serveStats(IOManager* ioManager) {
 }
 
 void submitValues(IOManager* ioManager,
-                  ClientValueQueue::ptr valueQueue,
+                  BlockingQueue<Value>::ptr valueQueue,
                   GuidGenerator::ptr guidGenerator)
 {
     const int64_t kSleepPrecision = 1000;
@@ -204,11 +205,11 @@ void submitValues(IOManager* ioManager,
 
     SleepHelper sleeper(ioManager, kSleepInterval, kSleepPrecision);
     for(size_t i = 0; i < kValuesToSubmit; ++i) {
-        Value::ptr v(new Value);
-        v->size = Value::kMaxValueSize;
-        v->valueId = guidGenerator->generate();
+        shared_ptr<string> data(new string(8000, ' '));
+        auto valueId = guidGenerator->generate();
+        Value v(valueId, data);
         valueQueue->push(v);
-        MORDOR_LOG_DEBUG(g_log) << " pushed value id=" << v->valueId << " size=" << v->size;
+        MORDOR_LOG_DEBUG(g_log) << " pushed value " << v;
         sleeper.wait();
     }
 }
@@ -231,7 +232,7 @@ int main(int argc, char** argv) {
         RingManager::ptr ringManager;
         Phase1Batcher::ptr phase1Batcher;
         ProposerState::ptr proposerState;
-        ClientValueQueue::ptr clientValueQueue;
+        BlockingQueue<Value>::ptr clientValueQueue;
         setupEverything(hostId, configHash, config, &ioManager, &pinger, &ringManager, &phase1Batcher, &proposerState, &clientValueQueue);
         GuidGenerator::ptr guidGenerator(new GuidGenerator);
         ioManager.schedule(boost::bind(&serveStats, &ioManager));

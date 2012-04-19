@@ -22,8 +22,10 @@ using paxos::BallotId;
 using paxos::kInvalidBallotId;
 using paxos::InstanceId;
 using paxos::Value;
+using boost::shared_ptr;
 using std::make_pair;
 using std::min;
+using std::string;
 using std::vector;
 
 static Logger::ptr g_log = Log::lookup("lightning:proposer_state");
@@ -54,7 +56,7 @@ ProposerState::ProposerState(GroupConfiguration::ptr group,
                              const Guid& epoch,
                              InstancePool::ptr instancePool,
                              RpcRequester::ptr requester,
-                             ClientValueQueue::ptr clientValueQueue,
+                             BlockingQueue<Value>::ptr clientValueQueue,
                              IOManager* ioManager,
                              uint64_t phase1TimeoutUs,
                              uint64_t phase1IntervalUs,
@@ -102,13 +104,12 @@ void ProposerState::processClientValues() {
     while(true) {
         sleeper.startWaiting();
         ProposerInstance::ptr instance = instancePool_->popOpenInstance();
-        Value::ptr currentValue = clientValueQueue_->pop();
+        auto currentValue = clientValueQueue_->pop();
         sleeper.stopWaiting();
         sleeper.wait();
         MORDOR_LOG_TRACE(g_log) << this << " submitting value " <<
-                                   currentValue->valueId << " to instance " <<
+                                   currentValue << " to instance " <<
                                    instance->instanceId();
-        MORDOR_ASSERT(currentValue.get());
         instance->setValue(currentValue, true);
         ioManager_->schedule(boost::bind(&ProposerState::doPhase2,
                                          shared_from_this(),
@@ -124,8 +125,7 @@ void ProposerState::flushCommits() {
                         SleepHelper::kEpollSleepPrecision);
     while(true) {
         sleeper.wait();
-        Value::ptr value(new Value);
-        value->size = 0;
+        Value value(Guid(), shared_ptr<string>(new string));
         clientValueQueue_->push(value);
     }
 }
@@ -171,20 +171,20 @@ void ProposerState::doPhase1(ProposerInstance::ptr instance) {
                 break;
             case Phase1Request::SUCCESS:
                 if(request->lastVotedBallot() != kInvalidBallotId) {
-                    Value::ptr foundValue = request->lastVotedValue();
-                    MORDOR_ASSERT(foundValue.get());
+                    Value foundValue = request->lastVotedValue();
                     MORDOR_LOG_TRACE(g_log) << this << " phase1 found " <<
                                                "a value for iid=" <<
                                                instance->instanceId() <<
                                                ", value_id=" <<
-                                               foundValue->valueId;
+                                               foundValue;
                     bool foundClientValue = true;
                     if(instance->hasClientValue()) {
-                        if(instance->value()->valueId != foundValue->valueId) {
+                        if(instance->value().valueId() !=
+                           foundValue.valueId())
+                        {
                             MORDOR_LOG_TRACE(g_log) << this <<
                                                        " returning client " <<
-                                                       " valueId=" <<
-                                                       instance->value()->valueId <<
+                                                       instance->value() <<
                                                        " to the queue";
                             clientValueQueue_->push_front(
                                 instance->releaseValue());
@@ -245,7 +245,6 @@ void ProposerState::doPhase2(ProposerInstance::ptr instance) {
         new RingConfiguration(group_,
                               vector<uint32_t>(1, ring->ringHostIds().back()),
                               kPhase2RingId));
-    MORDOR_ASSERT(instance->value().get());
     Phase2Request::ptr request(new Phase2Request(epoch_,
                                                  ring->ringId(),
                                                  instance->instanceId(),
@@ -262,7 +261,7 @@ void ProposerState::doPhase2(ProposerInstance::ptr instance) {
         {
             FiberMutex::ScopedLock lk(mutex_);
             commitQueue_.push_back(make_pair(instance->instanceId(),
-                                             instance->value()->valueId));
+                                             instance->value().valueId()));
             g_commitQueueSize.reset();
             g_commitQueueSize.add(commitQueue_.size());
         }
@@ -289,9 +288,9 @@ void ProposerState::doPhase2(ProposerInstance::ptr instance) {
 void ProposerState::onCommit(ProposerInstance::ptr instance) {
     MORDOR_LOG_DEBUG(g_log) << this << " COMMIT iid=" <<
                                instance->instanceId() <<
-                               " value id=" << instance->value()->valueId;
+                               " value=" << instance->value();
     g_committedValues.increment();
-    g_committedBytes.add(instance->value()->size);
+    g_committedBytes.add(instance->value().size());
 }
 
 }  // namespace lightning

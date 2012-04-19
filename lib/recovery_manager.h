@@ -80,6 +80,18 @@ private:
     std::vector<uint32_t> recoveryHostIds_;
 
     BlockingQueue<RecoveryRecord> recoveryQueue_;
+
+    friend std::ostream& operator<<(std::ostream&, const RecoveryRecord&);
 };
+
+inline
+std::ostream& operator<<(std::ostream& os,
+                         const RecoveryManager::RecoveryRecord& r)
+{
+    os << "RecoveryRecord(epoch=" << r.epoch << ", iid=" << r.instanceId <<
+          ", hostIndex=" << r.recoveryHostIndex << ", backoff=" <<
+          r.backoffUs << ")";
+    return os;
+}
 
 }  // namespace lightning

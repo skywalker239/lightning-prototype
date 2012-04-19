@@ -18,6 +18,7 @@ UdpSender::UdpSender(const std::string& name,
                      Socket::ptr socket)
     : name_(name),
       socket_(socket),
+      queue_(name + "_queue"),
       outPackets_(Statistics::registerStatistic(name_ + ".out_packets",
                                                 CountStatistic<uint64_t>())),
       outBytes_(Statistics::registerStatistic(name_ + ".out_bytes",

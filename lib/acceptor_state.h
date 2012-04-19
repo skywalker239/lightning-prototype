@@ -2,6 +2,7 @@
 
 #include "guid.h"
 #include "acceptor_instance.h"
+#include "instance_sink.h"
 #include "paxos_defs.h"
 #include "value.h"
 #include <mordor/fibersynchronization.h>
@@ -57,7 +58,8 @@ public:
                   uint32_t instanceWindowSize,
                   uint64_t recoveryGracePeriodUs,
                   Mordor::IOManager* ioManager,
-                  boost::shared_ptr<RecoveryManager> recoveryManager);
+                  boost::shared_ptr<RecoveryManager> recoveryManager,
+                  boost::shared_ptr<InstanceSink> instanceSink);
 
     Status nextBallot(InstanceId instanceId,
                       BallotId  ballotId,
@@ -153,6 +155,7 @@ private:
 
     Mordor::IOManager* ioManager_;
     boost::shared_ptr<RecoveryManager> recoveryManager_;
+    boost::shared_ptr<InstanceSink> instanceSink_;
 
     //! Recovery timers.
     std::map<InstanceId, Mordor::Timer::ptr> recoveryTimers_;

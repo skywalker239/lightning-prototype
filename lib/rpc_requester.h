@@ -62,11 +62,11 @@ public:
     typedef boost::shared_ptr<RpcRequester> ptr;
 
     RpcRequester(Mordor::IOManager* ioManager,
-                          GuidGenerator::ptr guidGenerator,
-                          UdpSender::ptr udpSender,
-                          Mordor::Socket::ptr socket,
-                          GroupConfiguration::ptr groupConfiguration,
-                          MulticastRpcStats::ptr rpcStats);
+                 GuidGenerator::ptr guidGenerator,
+                 UdpSender::ptr udpSender,
+                 Mordor::Socket::ptr socket,
+                 GroupConfiguration::ptr groupConfiguration,
+                 MulticastRpcStats::ptr rpcStats);
 
     virtual ~RpcRequester()
     {}
@@ -96,8 +96,6 @@ private:
     Mordor::Socket::ptr socket_;
     GroupConfiguration::ptr groupConfiguration_;
     MulticastRpcStats::ptr rpcStats_;
-
-    BlockingQueue<RpcRequest::ptr> sendQueue_;
 
     mutable Mordor::FiberMutex mutex_;
     std::map<Guid, RpcRequest::ptr> pendingRequests_;

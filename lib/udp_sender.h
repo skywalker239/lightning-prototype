@@ -5,6 +5,7 @@
 #include <mordor/socket.h>
 #include <mordor/statistics.h>
 #include <boost/bind.hpp>
+#include <iostream>
 #include <string>
 #include <utility>
 
@@ -64,6 +65,18 @@ private:
     BlockingQueue<PendingMessage> queue_;
     Mordor::CountStatistic<uint64_t>& outPackets_;
     Mordor::CountStatistic<uint64_t>& outBytes_;
+
+    friend std::ostream& operator<<(std::ostream&, const PendingMessage&);
 };
+
+inline
+std::ostream& operator<<(std::ostream& os, 
+                         const UdpSender::PendingMessage& message)
+{
+    os << "Message(" << *message.destination << ", size=" <<
+          message.message->ByteSize() << ")";
+    return os;
+}
+
 
 }  // namespace lightning

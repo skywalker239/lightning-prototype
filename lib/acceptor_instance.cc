@@ -3,6 +3,7 @@
 #include <mordor/assert.h>
 #include <mordor/log.h>
 #include <mordor/statistics.h>
+#include <sstream>
 
 namespace lightning {
 namespace paxos {
@@ -12,6 +13,8 @@ using Mordor::Log;
 using Mordor::Statistics;
 using Mordor::CountStatistic;
 using std::max;
+using std::ostringstream;
+using std::string;
 
 static Logger::ptr g_log = Log::lookup("lightning:acceptor_instance");
 
@@ -35,7 +38,7 @@ AcceptorInstance::AcceptorInstance() {
     reset();
 }
 
-AcceptorInstance::AcceptorInstance(const Value& value,
+AcceptorInstance::AcceptorInstance(Value value,
                                    BallotId ballot)
     : highestPromisedBallot_(ballot),
       highestVotedBallot_(ballot),
@@ -48,7 +51,7 @@ void AcceptorInstance::reset() {
     MORDOR_LOG_TRACE(g_log) << this << " reset";
     highestPromisedBallot_ = kInvalidBallotId;
     highestVotedBallot_ = kInvalidBallotId;
-    lastVotedValue_ = Value();
+    lastVotedValue_.reset();
     pendingVote_ = boost::none;
     committed_ = false;
 }
@@ -63,8 +66,8 @@ bool AcceptorInstance::nextBallot(BallotId  ballotId,
     if(ballotId > highestPromisedBallot_) {
         MORDOR_LOG_TRACE(g_log) << this << " accepting nextBallot id=" <<
                                    ballotId << ", highestVotedBallot=" <<
-                                   highestVotedBallot_ << ", lastVotedValue=" <<
-                                   lastVotedValue_.valueId;
+                                   highestVotedBallot_ <<
+                                   ", lastVotedValue=" << lastVotedValue_;
         highestPromisedBallot_ = ballotId;
         *highestPromisedBallot = highestPromisedBallot_;
         *highestVotedBallot = highestVotedBallot_;
@@ -82,7 +85,7 @@ bool AcceptorInstance::nextBallot(BallotId  ballotId,
 }
 
 bool AcceptorInstance::beginBallot(BallotId ballotId,
-                                   const Value& value)
+                                   Value value)
 {
     if(ballotId < highestPromisedBallot_) {
         MORDOR_LOG_TRACE(g_log) << this << " rejecting beginBallot id=" <<
@@ -92,12 +95,12 @@ bool AcceptorInstance::beginBallot(BallotId ballotId,
         return false;
     } else {
         MORDOR_LOG_TRACE(g_log) << this << " accepting beginBallot id=" <<
-                                   ballotId << " with value=" << value.valueId;
+                                   ballotId << " with value=" << value;
         highestVotedBallot_ = max(ballotId, highestVotedBallot_);
         lastVotedValue_ = value;
         if(!!pendingVote_) {
             if(pendingVote_->ballot() == ballotId &&
-               pendingVote_->valueId() == lastVotedValue_.valueId)
+               pendingVote_->valueId() == lastVotedValue_.valueId())
             {
                 g_recoveredVotes.increment();
                 MORDOR_LOG_TRACE(g_log) << this << " recovered " <<
@@ -123,7 +126,8 @@ bool AcceptorInstance::vote(const Vote& vote,
         g_voteFails.increment();
         return false;
     }
-    if(lastVotedValue_.valueId != vote.valueId()) {
+    if(lastVotedValue_.valueId() != vote.valueId())
+    {
         MORDOR_LOG_TRACE(g_log) << this << " value unknown for " <<
                                    vote;
         pendingVote_ = vote;
@@ -137,7 +141,7 @@ bool AcceptorInstance::vote(const Vote& vote,
 }
 
 bool AcceptorInstance::commit(const Guid& valueId) {
-    if(lastVotedValue_.valueId != valueId) {
+    if(lastVotedValue_.valueId() != valueId) {
         MORDOR_LOG_TRACE(g_log) << this << " cannot commit " << valueId <<
                                    ", value unknown";
         return false;
@@ -148,8 +152,7 @@ bool AcceptorInstance::commit(const Guid& valueId) {
 }
 
 bool AcceptorInstance::value(Value* value, BallotId* ballot) const {
-    MORDOR_LOG_TRACE(g_log) << this << " get value=" <<
-                               lastVotedValue_.valueId <<
+    MORDOR_LOG_TRACE(g_log) << this << " get value=" << lastVotedValue_ <<
                                ", committed=" << committed_;
     if(committed_) { 
         *value = lastVotedValue_;

@@ -26,7 +26,7 @@ RecoveryRequest::Result RecoveryRequest::result() const {
     return result_;
 }
 
-Value::ptr RecoveryRequest::value() const {
+const Value& RecoveryRequest::value() const {
     return value_;
 }
 

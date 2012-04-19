@@ -50,15 +50,15 @@ RecoveryManager::RecoveryManager(GroupConfiguration::ptr groupConfiguration,
       recoveryIntervalUs_(recoveryIntervalUs),
       recoveryTimeoutUs_(recoveryTimeoutUs),
       initialBackoffUs_(initialBackoffUs),
-      maxBackoffUs_(maxBackoffUs)
+      maxBackoffUs_(maxBackoffUs),
+      recoveryQueue_("recovery_queue")
 {
     vector<uint32_t> ourDcAcceptors;
     vector<uint32_t> otherAcceptors;
     const uint32_t thisHostId = groupConfiguration_->thisHostId();
-    const string& thisHostDc =
-        groupConfiguration_->host(thisHostId).datacenter;
+    const string& datacenter = groupConfiguration_->datacenter();
     for(size_t i = 0; i < groupConfiguration_->size(); ++i) {
-        if(groupConfiguration_->host(i).datacenter == thisHostDc &&
+        if(groupConfiguration_->host(i).datacenter == datacenter &&
            i != thisHostId &&
            i != groupConfiguration_->masterId())  // no acceptor on master yet
         {
@@ -73,9 +73,11 @@ RecoveryManager::RecoveryManager(GroupConfiguration::ptr groupConfiguration,
     copy(ourDcAcceptors.begin(),
          ourDcAcceptors.end(),
          back_inserter(recoveryHostIds_));
-    copy(otherAcceptors.begin(),
-         otherAcceptors.end(),
-         back_inserter(recoveryHostIds_));
+    if(!groupConfiguration_->isLearner()) {
+        copy(otherAcceptors.begin(),
+             otherAcceptors.end(),
+             back_inserter(recoveryHostIds_));
+    }
     MORDOR_ASSERT(recoveryHostIds_.size() > 0);
 }
 
@@ -166,12 +168,12 @@ void RecoveryManager::handleSuccess(const RecoveryRequest::ptr& request,
     MORDOR_LOG_TRACE(g_log) << this << " recovered (" <<
                                recoveryRecord.epoch << ", " <<
                                recoveryRecord.instanceId << ") = (" <<
-                               request->value()->valueId << ", " <<
+                               request->value() << ", " <<
                                request->ballot() <<
                                ")";
     recoveryRecord.acceptor->setInstance(
         recoveryRecord.instanceId,
-        *request->value(),
+        request->value(),
         request->ballot());
     g_recoveredInstances.increment();
 }

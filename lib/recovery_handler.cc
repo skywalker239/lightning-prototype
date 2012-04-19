@@ -51,11 +51,10 @@ bool RecoveryHandler::handleRequest(Address::ptr sourceAddress,
         }
     } else {
         MORDOR_LOG_TRACE(g_log) << this << " recover : iid " <<
-                                   instanceId << " -> (" << value.valueId <<
+                                   instanceId << " -> (" << value <<
                                    ", " << ballotId << ")";
         recoveryReply->set_type(RecoveryReplyData::OK);
-        value.valueId.serialize(recoveryReply->mutable_value()->mutable_id());
-        recoveryReply->mutable_value()->set_data(value.data, value.size);
+        value.serialize(recoveryReply->mutable_value());
     }
     return true;
 }

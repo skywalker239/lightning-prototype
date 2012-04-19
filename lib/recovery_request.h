@@ -25,7 +25,7 @@ public:
 
     Result result() const;
 
-    paxos::Value::ptr value() const;
+    const paxos::Value& value() const;
 
     paxos::BallotId ballot() const;
 private:
@@ -33,7 +33,7 @@ private:
 
     virtual std::ostream& output(std::ostream& os) const;
 
-    paxos::Value::ptr value_;
+    paxos::Value value_;
     paxos::BallotId ballotId_;
     Result result_;
 };

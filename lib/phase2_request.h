@@ -20,7 +20,7 @@ public:
                   uint32_t ringId,
                   paxos::InstanceId instance,
                   paxos::BallotId ballot,
-                  paxos::Value::ptr value,
+                  const paxos::Value& value,
                   const std::vector<std::pair<paxos::InstanceId, Guid> >&
                       commits,
                   RingConfiguration::const_ptr ring,
@@ -38,8 +38,6 @@ private:
 
     void applyReply(uint32_t hostId,
                     const RpcMessageData& reply);
-
-    void serializeValue(paxos::Value::ptr value, ValueData* valueData) const;
 
     void serializeCommits(
         const std::vector<std::pair<paxos::InstanceId, Guid> >& commits,

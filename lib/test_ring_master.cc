@@ -82,9 +82,9 @@ void setupEverything(uint32_t hostId,
 {
     Address::ptr groupMcastAddress =
         Address::lookup(config["mcast_group"].get<string>(), AF_INET).front();;
-    GroupConfiguration::ptr groupConfiguration = parseGroupConfiguration(config["hosts"],
-                                                                    hostId,
-                                                                    groupMcastAddress);
+    GroupConfiguration::ptr groupConfiguration = GroupConfiguration::parseAcceptorConfig(config["hosts"],
+                                                                                         hostId,
+                                                                                         groupMcastAddress);
     const uint64_t pingWindow = config["ping_window"].get<long long>();
     const uint64_t pingTimeout = config["ping_timeout"].get<long long>();
     const uint64_t pingInterval = config["ping_interval"].get<long long>();

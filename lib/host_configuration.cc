@@ -32,11 +32,10 @@ string makeHostnameWithId(uint32_t hostId, const string& hostname) {
 
 }  // anonymous namespace
 
-GroupConfiguration::ptr parseGroupConfiguration(const JSON::Value& json,
-                                                uint32_t thisHostId,
-                                                Address::ptr groupMulticastAddress)
+void GroupConfiguration::parseHostConfigurations(
+    const Mordor::JSON::Value& json,
+    vector<HostConfiguration>* destination)
 {
-    vector<HostConfiguration> configuration;
     const JSON::Array hosts = json.get<JSON::Array>();
 
     for(size_t i = 0; i < hosts.size(); ++i) {
@@ -55,7 +54,7 @@ GroupConfiguration::ptr parseGroupConfiguration(const JSON::Value& json,
         auto unicastAddress =
             lookupAddress(hostData[6].get<string>());
 
-        configuration.push_back(
+        destination->push_back(
             HostConfiguration(
                 name,
                 datacenter,
@@ -65,10 +64,32 @@ GroupConfiguration::ptr parseGroupConfiguration(const JSON::Value& json,
                 ringAddress,
                 unicastAddress));
     }
+}
+
+GroupConfiguration::ptr GroupConfiguration::parseAcceptorConfig(
+    const Mordor::JSON::Value& json,
+    uint32_t thisHostId,
+    Address::ptr groupMulticastAddress)
+{
+    vector<HostConfiguration> hostConfigurations;
+    parseHostConfigurations(json, &hostConfigurations);
     return GroupConfiguration::ptr(
                new GroupConfiguration(groupMulticastAddress,
-                                      configuration,
+                                      hostConfigurations,
                                       thisHostId));
+}
+
+GroupConfiguration::ptr GroupConfiguration::parseLearnerConfig(
+    const Mordor::JSON::Value& json,
+    const string& datacenter,
+    Address::ptr groupMulticastAddress)
+{
+    vector<HostConfiguration> hostConfigurations;
+    parseHostConfigurations(json, &hostConfigurations);
+    return GroupConfiguration::ptr(
+               new GroupConfiguration(groupMulticastAddress,
+                                      hostConfigurations,
+                                      datacenter));
 }
 
 GroupConfiguration::GroupConfiguration(Address::ptr groupMulticastAddress,

@@ -38,8 +38,10 @@ using boost::lexical_cast;
 
 class DummySink : public InstanceSink {
 public:
-    void push(const Guid&, paxos::InstanceId, paxos::BallotId, paxos::Value)
-    {}
+    void push(const Guid&, paxos::InstanceId iid, paxos::BallotId, paxos::Value v)
+    {
+        cout << "Committed iid " << iid << ": " << v << endl;
+    }
 };
 
 void readConfig(const string& filename,
@@ -111,12 +113,12 @@ RpcRequester::ptr setupRequester(IOManager* ioManager,
 void setupEverything(IOManager* ioManager, 
                      const Guid& configHash,
                      const JSON::Value& config,
-                     uint32_t ourId,
+                     const string& datacenter, 
                      RpcResponder::ptr* responder,
                      RingVoter::ptr* ringVoter)
 {
     Address::ptr multicastGroup = Address::lookup(config["mcast_group"].get<string>(), AF_INET).front();
-    GroupConfiguration::ptr groupConfig = GroupConfiguration::parseAcceptorConfig(config["hosts"], ourId, multicastGroup);
+    GroupConfiguration::ptr groupConfig = GroupConfiguration::parseLearnerConfig(config["hosts"], datacenter, multicastGroup);
 
     //-------------------------------------------------------------------------
     // rpc requester
@@ -184,18 +186,18 @@ void setupEverything(IOManager* ioManager,
 int main(int argc, char** argv) {
     Config::loadFromEnvironment();
     if(argc != 3) {
-        cout << "Usage: slave config.json id" << endl;
+        cout << "Usage: learner config.json datacenter" << endl;
         return 1;
     }
     Guid configGuid;
     JSON::Value config;
     readConfig(argv[1], &configGuid, &config);
-    const uint32_t id = lexical_cast<uint32_t>(argv[2]);
+    const string datacenter(argv[2]);
     IOManager ioManager;
 
     RpcResponder::ptr responder;
     RingVoter::ptr ringVoter;
-    setupEverything(&ioManager, configGuid, config, id, &responder, &ringVoter);
+    setupEverything(&ioManager, configGuid, config, datacenter, &responder, &ringVoter);
     ioManager.schedule(boost::bind(&RpcResponder::run, responder));
     ioManager.schedule(boost::bind(&RingVoter::run, ringVoter));
     ioManager.schedule(boost::bind(serveStats, &ioManager));

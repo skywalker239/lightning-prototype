@@ -83,7 +83,20 @@ public:
     bool isLearner() const { return thisHostId_ == kLearnerHostId; }
 
     const std::string& datacenter() const { return datacenter_; }
+
+    static ptr parseAcceptorConfig(const Mordor::JSON::Value& json,
+                                   uint32_t thisHostId,
+                                   Mordor::Address::ptr groupMulticastAddress);
+
+    static ptr parseLearnerConfig(const Mordor::JSON::Value& json,
+                                  const std::string& datacenter,
+                                  Mordor::Address::ptr groupMulticastAddress);
+
 private:
+    static void parseHostConfigurations(
+        const Mordor::JSON::Value& json,
+        std::vector<HostConfiguration>* destination);
+
     friend std::ostream& operator<<(std::ostream&,
                                     const GroupConfiguration&);
 
@@ -111,10 +124,5 @@ private:
     //! XXX fixed master for now
     static const uint32_t kMasterId = 0;
 };
-
-GroupConfiguration::ptr parseGroupConfiguration(
-    const Mordor::JSON::Value& json,
-    uint32_t thisHostId,
-    Mordor::Address::ptr groupMulticastAddress);
 
 }  // namespace lightning

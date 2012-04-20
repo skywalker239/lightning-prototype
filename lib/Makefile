@@ -60,7 +60,7 @@ LIB_OBJS += \
     recovery_request.o \
     value.o \
 
-TEST_TARGETS = test_ring_master test_ring_responder
+TEST_TARGETS = test_ring_master test_ring_acceptor
 TEST_OBJS = $(addsuffix .o, $(TEST_TARGETS))
 
 UT_LIB_OBJS = \

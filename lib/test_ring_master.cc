@@ -1,7 +1,6 @@
 #include "guid.h"
 #include "ballot_generator.h"
 #include "proposer_state.h"
-#include "client_value_queue.h"
 #include "phase1_batcher.h"
 #include "sleep_helper.h"
 #include "udp_sender.h"

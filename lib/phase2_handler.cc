@@ -33,12 +33,8 @@ bool Phase2Handler::handleRequest(Address::ptr,
     const uint32_t requestRingId = paxosRequest.ring_id();
     const InstanceId instance = paxosRequest.instance();
     const BallotId ballot = paxosRequest.ballot();
-    Value value;
-    value.valueId = Guid::parse(paxosRequest.value().id());
-    const string& valueData = paxosRequest.value().data();
-    MORDOR_ASSERT(valueData.length() <= Value::kMaxValueSize);
-    memcpy(value.data, valueData.c_str(), valueData.length());
-    value.size = valueData.length();
+    Value value = Value::parse(paxosRequest.value());
+    MORDOR_ASSERT(value.size() <= Value::kMaxValueSize);
 
     RingConfiguration::const_ptr ringConfiguration =
         tryAcquireRingConfiguration();
@@ -62,18 +58,18 @@ bool Phase2Handler::handleRequest(Address::ptr,
                                        ballot,
                                        value);
     MORDOR_LOG_TRACE(g_log) << this << " phase2(" << instance << ", " <<
-                               ballot << ", " << value.valueId << ") = " <<
+                               ballot << ", " << value << ") = " <<
                                uint32_t(status);
     if(status == AcceptorState::OK && canInitiateVote(ringConfiguration)) {
         MORDOR_LOG_TRACE(g_log) << this << " initiating vote (" <<
                                    instance << ", " << ballot << ", " <<
-                                   value.valueId << ")";
+                                   value << ")";
         ringVoter_->send(Vote(rpcGuid,
                               requestEpoch,
                               ringConfiguration->ringId(),
                               instance,
                               ballot,
-                              value.valueId,
+                              value.valueId(),
                               ringVoter_));
     }
 

@@ -30,9 +30,12 @@ public:
                 RingOracle::ptr ringOracle,
                 RingChangeNotifier::ptr ringChangeNotifier,
                 uint64_t setRingTimeoutUs,
-                uint64_t lookupRingRetryUs);
+                uint64_t lookupRingRetryUs,
+                uint64_t ringBroadcastIntervalUs);
 
     void run();
+
+    void broadcastRing();
 private:
     void lookupRing();
 
@@ -53,6 +56,7 @@ private:
     const Guid hostGroupGuid_;
     const uint64_t setRingTimeoutUs_;
     const uint64_t lookupRingRetryUs_;
+    const uint64_t ringBroadcastIntervalUs_;
 
     Mordor::IOManager* ioManager_;
     boost::shared_ptr<Mordor::FiberEvent> hostDownEvent_;

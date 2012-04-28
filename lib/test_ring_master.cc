@@ -60,7 +60,7 @@ RpcRequester::ptr setupRequester(IOManager* ioManager,
                                           GroupConfiguration::ptr groupConfiguration,
                                           MulticastRpcStats::ptr rpcStats)
 {
-    Address::ptr bindAddr = groupConfiguration->host(groupConfiguration->thisHostId()).multicastSourceAddress;
+    Address::ptr bindAddr = groupConfiguration->thisHostConfiguration().multicastSourceAddress;
     Socket::ptr s = bindAddr->createSocket(*ioManager, SOCK_DGRAM);
     s->bind(bindAddr);
     UdpSender::ptr sender(new UdpSender("rpc_requester", s));
@@ -91,6 +91,7 @@ void setupEverything(uint32_t hostId,
     const uint64_t hostTimeout = config["host_timeout"].get<long long>();
     const uint64_t ringTimeout = config["ring_timeout"].get<long long>();
     const uint64_t ringRetryInterval = config["ring_retry_interval"].get<long long>();
+    const uint64_t ringBroadcastInterval = config["ring_broadcast_interval"].get<long long>();
 
     GuidGenerator::ptr guidGenerator(new GuidGenerator);
     boost::shared_ptr<FiberEvent> event(new FiberEvent);
@@ -156,7 +157,7 @@ void setupEverything(uint32_t hostId,
     ringHolders.push_back(*phase1Batcher);
     ringHolders.push_back(*proposerState);
     RingChangeNotifier::ptr notifier(new RingChangeNotifier(ringHolders));
-    *ringManager = RingManager::ptr(new RingManager(groupConfiguration, configHash, ioManager, event, requester, pingTracker, oracle, notifier, ringTimeout, ringRetryInterval));
+    *ringManager = RingManager::ptr(new RingManager(groupConfiguration, configHash, ioManager, event, requester, pingTracker, oracle, notifier, ringTimeout, ringRetryInterval, ringBroadcastInterval));
 }
 
 static Logger::ptr g_log = Log::lookup("lightning:main");
@@ -198,7 +199,7 @@ void submitValues(IOManager* ioManager,
                   GuidGenerator::ptr guidGenerator)
 {
     const int64_t kSleepPrecision = 1000;
-    const int64_t kSleepInterval = 64;
+    const int64_t kSleepInterval = 64; // 64;
     sleep(*ioManager, 3500000); // let the ring selection happen
     const size_t kValuesToSubmit = 468750; // 60 sec @ 1 Gbps
 
@@ -237,6 +238,7 @@ int main(int argc, char** argv) {
         ioManager.schedule(boost::bind(&serveStats, &ioManager));
         ioManager.schedule(boost::bind(&Pinger::run, pinger));
         ioManager.schedule(boost::bind(&RingManager::run, ringManager));
+        ioManager.schedule(boost::bind(&RingManager::broadcastRing, ringManager));
         ioManager.schedule(boost::bind(&Phase1Batcher::run, phase1Batcher));
         ioManager.schedule(boost::bind(&ProposerState::processReservedInstances, proposerState));
         ioManager.schedule(boost::bind(&ProposerState::processClientValues, proposerState));

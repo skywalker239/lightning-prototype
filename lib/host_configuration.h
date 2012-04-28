@@ -18,6 +18,8 @@ struct HostConfiguration {
     Mordor::Address::ptr ringAddress;
     Mordor::Address::ptr unicastAddress;
 
+    HostConfiguration() {}
+
     HostConfiguration(const std::string& _name,
                       const std::string& _datacenter,
                       Mordor::Address::ptr _multicastListenAddress,
@@ -52,12 +54,15 @@ public:
 
     //! Constructs a configuration on an acceptor.
     GroupConfiguration(const Mordor::Address::ptr groupMulticastAddress,
-                       const std::vector<HostConfiguration>& hosts,
+                       const std::vector<HostConfiguration>&
+                           acceptorConfigurations,
                        uint32_t thisHostId);
 
     //! Constructs a configuration on a learner.
     GroupConfiguration(const Mordor::Address::ptr groupMulticastAddress,
-                       const std::vector<HostConfiguration>& hosts,
+                       const std::vector<HostConfiguration>&
+                           acceptorConfigurations,
+                       const HostConfiguration& learnerConfiguration,
                        const std::string& datacenter);
 
     //! Number of hosts in the group
@@ -80,6 +85,10 @@ public:
 
     uint32_t thisHostId() const { return thisHostId_; }
 
+    const HostConfiguration& thisHostConfiguration() const {
+        return thisHostConfiguration_;
+    }
+
     bool isLearner() const { return thisHostId_ == kLearnerHostId; }
 
     const std::string& datacenter() const { return datacenter_; }
@@ -95,7 +104,8 @@ public:
 private:
     static void parseHostConfigurations(
         const Mordor::JSON::Value& json,
-        std::vector<HostConfiguration>* destination);
+        std::vector<HostConfiguration>* acceptorConfigurations,
+        HostConfiguration* learnerConfiguration);
 
     friend std::ostream& operator<<(std::ostream&,
                                     const GroupConfiguration&);
@@ -103,9 +113,11 @@ private:
     void populateAddressMaps();
 
     const Mordor::Address::ptr groupMulticastAddress_;
-    const std::vector<HostConfiguration> hosts_;
+    const std::vector<HostConfiguration> acceptorConfigurations_;
     const uint32_t thisHostId_;
+
     std::string datacenter_;
+    HostConfiguration thisHostConfiguration_;
 
     struct AddressCompare {
         bool operator()(const Mordor::Address::ptr& a,

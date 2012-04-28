@@ -50,10 +50,10 @@ void RpcResponder::run() {
 
         auto handlerIter = handlers_.find(requestData.type());
         if(handlerIter == handlers_.end()) {
-            MORDOR_LOG_WARNING(g_log) << this << " handler for type " <<
-                                         uint32_t(requestData.type()) <<
-                                         " at " <<  requestGuid <<
-                                         " not found";
+            MORDOR_LOG_TRACE(g_log) << this << " handler for type " <<
+                                       uint32_t(requestData.type()) <<
+                                       " at " <<  requestGuid <<
+                                       " not found";
             continue;
         }
 

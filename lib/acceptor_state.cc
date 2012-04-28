@@ -181,6 +181,11 @@ void AcceptorState::setInstance(InstanceId instanceId,
     }
     MORDOR_LOG_TRACE(g_log) << this << " setInstance(" << instanceId <<
                                ", " << ballot << ", " << value << ")";
+
+    if(instances_.find(instanceId) == instances_.end()) {
+        ++pendingInstanceCount_;
+        g_pendingInstances.increment();
+    }
     instances_[instanceId] = AcceptorInstance(value, ballot);
     addCommittedInstanceId(instanceId);
     // XXX we don't expire anything at this point
@@ -244,11 +249,19 @@ AcceptorInstance* AcceptorState::lookupInstance(InstanceId instanceId) {
         return &instanceIter->second;
     } else {
         if(pendingInstanceCount_ >= pendingInstancesLimit_) {
+            MORDOR_LOG_WARNING(g_log) << this << " " <<
+                                         pendingInstanceCount_ <<
+                                         " pending instances > " <<
+                                         pendingInstancesLimit_ <<
+                                         " pending limit";
+
             return NULL;
         }
         if(instanceId - firstNotForgottenInstanceId_ > instanceWindowSize_) {
             const InstanceId newWindowStart = instanceId - instanceWindowSize_;
             if(!tryForgetInstances(newWindowStart)) {
+                MORDOR_LOG_WARNING(g_log) << this << " cannot forget up to " <<
+                                             newWindowStart;
                 return NULL;
             }
         }

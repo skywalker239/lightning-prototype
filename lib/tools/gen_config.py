@@ -28,7 +28,13 @@ def genHostConfiguration(hosts):
                               addPort(mcastHost(hostname), MCAST_SRC_PORT),
                               addPort(mcastHost(hostname), RING_PORT),
                               addPort(mcastHost(hostname), MCAST_LISTEN_PORT)])
-
+    configuration.append(["LEARNER",
+                          "ANY",
+                          addPort("0.0.0.0", MCAST_LISTEN_PORT),
+                          addPort("0.0.0.0", MCAST_REPLY_PORT),
+                          addPort("0.0.0.0", MCAST_SRC_PORT),
+                          addPort("0.0.0.0", RING_PORT),
+                          addPort("0.0.0.0", MCAST_LISTEN_PORT)])
     return configuration
 
 configuration = {
@@ -40,6 +46,7 @@ configuration = {
     "recv_window" : 1000000,
     "ring_timeout" : 50000,
     "ring_retry_interval" : 500000,
+    "ring_broadcast_interval" : 500000,
     "acceptor_max_pending_instances" : 200000,
     "acceptor_instance_window_size" : 1000000,
     "batch_phase1_timeout" : 300000,

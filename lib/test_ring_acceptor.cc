@@ -100,7 +100,7 @@ RpcRequester::ptr setupRequester(IOManager* ioManager,
                                  GroupConfiguration::ptr groupConfiguration,
                                  MulticastRpcStats::ptr rpcStats)
 {
-    Address::ptr bindAddr = groupConfiguration->host(groupConfiguration->thisHostId()).multicastSourceAddress;
+    Address::ptr bindAddr = groupConfiguration->thisHostConfiguration().multicastSourceAddress;
     Socket::ptr s = bindAddr->createSocket(*ioManager, SOCK_DGRAM);
     s->bind(bindAddr);
     UdpSender::ptr sender(new UdpSender("rpc_requester", s));
@@ -146,7 +146,7 @@ void setupEverything(IOManager* ioManager,
 
     //-------------------------------------------------------------------------
     // ring voter
-    Socket::ptr ringSocket = bindSocket(groupConfig->host(groupConfig->thisHostId()).ringAddress, ioManager);
+    Socket::ptr ringSocket = bindSocket(groupConfig->thisHostConfiguration().ringAddress, ioManager);
     UdpSender::ptr udpSender(new UdpSender("ring_voter", ringSocket));
     ioManager->schedule(boost::bind(&UdpSender::run, udpSender));
     *ringVoter = RingVoter::ptr(new RingVoter(ringSocket, udpSender, acceptorState));
@@ -167,7 +167,7 @@ void setupEverything(IOManager* ioManager,
     RingChangeNotifier::ptr notifier(new RingChangeNotifier(holders));
     RpcHandler::ptr setRingHandler(new SetRingHandler(configHash, notifier, groupConfig));
 
-    const HostConfiguration& hostConfig = groupConfig->host(groupConfig->thisHostId());
+    const HostConfiguration& hostConfig = groupConfig->thisHostConfiguration();
 
     Socket::ptr listenSocket = bindSocket(hostConfig.multicastListenAddress, ioManager);
     Socket::ptr replySocket = bindSocket(hostConfig.multicastReplyAddress, ioManager);

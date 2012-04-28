@@ -76,7 +76,7 @@ ProposerState::ProposerState(GroupConfiguration::ptr group,
       commitFlushIntervalUs_(commitFlushIntervalUs),
       ballotGenerator_(group_)
 {
-    MORDOR_ASSERT(group_->thisHostId() == 0);
+    MORDOR_ASSERT(group_->thisHostId() == group_->masterId());
 }
 
 void ProposerState::processReservedInstances() {

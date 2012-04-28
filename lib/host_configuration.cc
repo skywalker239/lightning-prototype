@@ -34,11 +34,14 @@ string makeHostnameWithId(uint32_t hostId, const string& hostname) {
 
 void GroupConfiguration::parseHostConfigurations(
     const Mordor::JSON::Value& json,
-    vector<HostConfiguration>* destination)
+    vector<HostConfiguration>* acceptorConfigurations,
+    HostConfiguration* learnerConfiguration)
 {
     const JSON::Array hosts = json.get<JSON::Array>();
+    // at least one acceptor and learner configuration
+    MORDOR_ASSERT(hosts.size() >= 2);
 
-    for(size_t i = 0; i < hosts.size(); ++i) {
+    for(size_t i = 0; i + 1 < hosts.size(); ++i) {
         const JSON::Array& hostData = hosts[i].get<JSON::Array>();
         MORDOR_ASSERT(hostData.size() == 7);
         const string& name = makeHostnameWithId(i, hostData[0].get<string>());
@@ -54,7 +57,7 @@ void GroupConfiguration::parseHostConfigurations(
         auto unicastAddress =
             lookupAddress(hostData[6].get<string>());
 
-        destination->push_back(
+        acceptorConfigurations->push_back(
             HostConfiguration(
                 name,
                 datacenter,
@@ -64,6 +67,21 @@ void GroupConfiguration::parseHostConfigurations(
                 ringAddress,
                 unicastAddress));
     }
+
+    const JSON::Array& learnerData = hosts.back().get<JSON::Array>();
+    MORDOR_ASSERT(learnerData.size() == 7);
+    learnerConfiguration->name = "LEARNER";
+    learnerConfiguration->datacenter = "UNK";
+    learnerConfiguration->multicastListenAddress =
+        lookupAddress(learnerData[2].get<string>());
+    learnerConfiguration->multicastReplyAddress =
+        lookupAddress(learnerData[3].get<string>());
+    learnerConfiguration->multicastSourceAddress =
+        lookupAddress(learnerData[4].get<string>());
+    learnerConfiguration->ringAddress =
+        lookupAddress(learnerData[5].get<string>());
+    learnerConfiguration->unicastAddress =
+        lookupAddress(learnerData[6].get<string>());
 }
 
 GroupConfiguration::ptr GroupConfiguration::parseAcceptorConfig(
@@ -71,11 +89,14 @@ GroupConfiguration::ptr GroupConfiguration::parseAcceptorConfig(
     uint32_t thisHostId,
     Address::ptr groupMulticastAddress)
 {
-    vector<HostConfiguration> hostConfigurations;
-    parseHostConfigurations(json, &hostConfigurations);
+    vector<HostConfiguration> acceptorConfigurations;
+    HostConfiguration learnerConfiguration;
+    parseHostConfigurations(json,
+                            &acceptorConfigurations,
+                            &learnerConfiguration);
     return GroupConfiguration::ptr(
                new GroupConfiguration(groupMulticastAddress,
-                                      hostConfigurations,
+                                      acceptorConfigurations,
                                       thisHostId));
 }
 
@@ -84,64 +105,76 @@ GroupConfiguration::ptr GroupConfiguration::parseLearnerConfig(
     const string& datacenter,
     Address::ptr groupMulticastAddress)
 {
-    vector<HostConfiguration> hostConfigurations;
-    parseHostConfigurations(json, &hostConfigurations);
+    vector<HostConfiguration> acceptorConfigurations;
+    HostConfiguration learnerConfiguration;
+    parseHostConfigurations(json,
+                            &acceptorConfigurations,
+                            &learnerConfiguration);
     return GroupConfiguration::ptr(
                new GroupConfiguration(groupMulticastAddress,
-                                      hostConfigurations,
+                                      acceptorConfigurations,
+                                      learnerConfiguration,
                                       datacenter));
 }
 
 GroupConfiguration::GroupConfiguration(Address::ptr groupMulticastAddress,
-                                       const vector<HostConfiguration>& hosts,
+                                       const vector<HostConfiguration>& 
+                                           acceptorConfigurations,
                                        uint32_t thisHostId)
     : groupMulticastAddress_(groupMulticastAddress),
-      hosts_(hosts),
+      acceptorConfigurations_(acceptorConfigurations),
       thisHostId_(thisHostId)
 {
-    MORDOR_ASSERT(hosts.size() <= kMaxGroupSize);
-    MORDOR_ASSERT(thisHostId < hosts.size());
-    datacenter_ = hosts_[thisHostId_].datacenter;
+    MORDOR_ASSERT(acceptorConfigurations.size() <= kMaxGroupSize);
+    MORDOR_ASSERT(thisHostId < acceptorConfigurations.size());
+    datacenter_ = acceptorConfigurations_[thisHostId_].datacenter;
+    thisHostConfiguration_ = acceptorConfigurations_[thisHostId_];
     populateAddressMaps();
 }
 
 GroupConfiguration::GroupConfiguration(Address::ptr groupMulticastAddress,
-                                       const vector<HostConfiguration>& hosts,
+                                       const vector<HostConfiguration>&
+                                           acceptorConfigurations,
+                                       const HostConfiguration&
+                                           learnerConfiguration,
                                        const string& datacenter)
     : groupMulticastAddress_(groupMulticastAddress),
-      hosts_(hosts),
+      acceptorConfigurations_(acceptorConfigurations),
       thisHostId_(kLearnerHostId),
       datacenter_(datacenter)
 {
-    MORDOR_ASSERT(hosts.size() <= kMaxGroupSize);
+    MORDOR_ASSERT(acceptorConfigurations.size() <= kMaxGroupSize);
+    thisHostConfiguration_ = learnerConfiguration;
+    // TODO(skywalker): Ugly.
+    thisHostConfiguration_.datacenter = datacenter_;
     populateAddressMaps();
 }
 
 void GroupConfiguration::populateAddressMaps()
 {
-    for(size_t i = 0; i < hosts_.size(); ++i) {
+    for(size_t i = 0; i < acceptorConfigurations_.size(); ++i) {
         auto hostIdResult = replyAddressToHostId_.insert(
-            make_pair(hosts_[i].multicastReplyAddress, i));
+            make_pair(acceptorConfigurations_[i].multicastReplyAddress, i));
         MORDOR_ASSERT(hostIdResult.second);
         // XXX HACK to allow ersatz ring for phase 2 to work
         auto ringResult = replyAddressToHostId_.insert(
-            make_pair(hosts_[i].ringAddress, i));
+            make_pair(acceptorConfigurations_[i].ringAddress, i));
         MORDOR_ASSERT(ringResult.second);
         auto rpcNameResult = addressToServiceName_.insert(
-            make_pair(hosts_[i].multicastReplyAddress,
-                      hosts_[i].name + ":MRPC"));
+            make_pair(acceptorConfigurations_[i].multicastReplyAddress,
+                      acceptorConfigurations_[i].name + ":MRPC"));
         MORDOR_ASSERT(rpcNameResult.second);
         auto ringNameResult = addressToServiceName_.insert(
-            make_pair(hosts_[i].ringAddress,
-                      hosts_[i].name + ":RING"));
+            make_pair(acceptorConfigurations_[i].ringAddress,
+                      acceptorConfigurations_[i].name + ":RING"));
         MORDOR_ASSERT(ringNameResult.second);
         auto rpcSrcResult = addressToServiceName_.insert(
-            make_pair(hosts_[i].multicastSourceAddress,
-                      hosts_[i].name + ":SRC"));
+            make_pair(acceptorConfigurations_[i].multicastSourceAddress,
+                      acceptorConfigurations_[i].name + ":SRC"));
         MORDOR_ASSERT(rpcSrcResult.second);
         auto unicastResult = addressToServiceName_.insert(
-            make_pair(hosts_[i].unicastAddress,
-                      hosts_[i].name + ":URPC"));
+            make_pair(acceptorConfigurations_[i].unicastAddress,
+                      acceptorConfigurations_[i].name + ":URPC"));
         MORDOR_ASSERT(unicastResult.second);
     }
 }
@@ -160,12 +193,12 @@ string GroupConfiguration::addressToServiceName(
 }
 
 size_t GroupConfiguration::size() const {
-    return hosts_.size();
+    return acceptorConfigurations_.size();
 }
 
 const HostConfiguration& GroupConfiguration::host(size_t index) const {
-    MORDOR_ASSERT(index < hosts_.size());
-    return hosts_[index];
+    MORDOR_ASSERT(index < acceptorConfigurations_.size());
+    return acceptorConfigurations_[index];
 }
 
 uint32_t GroupConfiguration::replyAddressToId(const Address::ptr& address) const {

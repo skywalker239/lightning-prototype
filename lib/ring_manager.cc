@@ -38,11 +38,13 @@ RingManager::RingManager(GroupConfiguration::ptr groupConfiguration,
                          RingOracle::ptr ringOracle,
                          RingChangeNotifier::ptr ringChangeNotifier,
                          uint64_t setRingTimeoutUs,
-                         uint64_t lookupRingRetryUs)
+                         uint64_t lookupRingRetryUs,
+                         uint64_t ringBroadcastIntervalUs)
     : groupConfiguration_(groupConfiguration),
       hostGroupGuid_(hostGroupGuid),
       setRingTimeoutUs_(setRingTimeoutUs),
       lookupRingRetryUs_(lookupRingRetryUs),
+      ringBroadcastIntervalUs_(ringBroadcastIntervalUs),
       ioManager_(ioManager),
       hostDownEvent_(hostDownEvent),
       requester_(requester),
@@ -114,7 +116,28 @@ void RingManager::lookupRing() {
     }
 }
 
+void RingManager::broadcastRing() {
+    while(true) {
+        {
+            FiberMutex::ScopedLock lk(mutex_);
+
+            if(currentState_ == OK) {
+                MulticastRpcRequest::ptr request(
+                    new SetRingRequest(hostGroupGuid_,
+                                       currentRing_,
+                                       setRingTimeoutUs_));
+                MORDOR_LOG_TRACE(g_log) << this <<
+                                           " broadcasting current ring " <<
+                                           *currentRing_;
+                requester_->request(request);
+            }
+        }
+        Mordor::sleep(*ioManager_, ringBroadcastIntervalUs_);
+    }
+}
+
 bool RingManager::trySetRing() {
+    FiberMutex::ScopedLock lk(mutex_);
     MORDOR_ASSERT(nextRing_.get());
 
     MulticastRpcRequest::ptr request(
@@ -127,7 +150,6 @@ bool RingManager::trySetRing() {
                                    " failed";
         return false;
     } else {
-        FiberMutex::ScopedLock lk(mutex_);
         currentRing_ = nextRing_;
         nextRing_.reset();
         ringChangeNotifier_->onRingChange(currentRing_);

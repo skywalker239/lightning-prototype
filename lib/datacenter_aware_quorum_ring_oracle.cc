@@ -38,7 +38,7 @@ DatacenterAwareQuorumRingOracle::DatacenterAwareQuorumRingOracle(
         MORDOR_LOG_TRACE(g_log) << this << " host " << i << " is in dc " << dcId;
     }
     thisHostDatacenterId_ =
-        datacenterId(group->host(group->thisHostId()).datacenter);
+        datacenterId(group->datacenter());
 }
 
 uint32_t DatacenterAwareQuorumRingOracle::datacenterId(

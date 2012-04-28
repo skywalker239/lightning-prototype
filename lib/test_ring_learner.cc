@@ -40,7 +40,9 @@ class DummySink : public InstanceSink {
 public:
     void push(const Guid&, paxos::InstanceId iid, paxos::BallotId, paxos::Value v)
     {
-        cout << "Committed iid " << iid << ": " << v << endl;
+        if(iid % 1000 == 0) {
+            cout << "Committed iid " << iid << ": " << v << endl;
+        }
     }
 };
 
@@ -102,7 +104,7 @@ RpcRequester::ptr setupRequester(IOManager* ioManager,
                                  GroupConfiguration::ptr groupConfiguration,
                                  MulticastRpcStats::ptr rpcStats)
 {
-    Address::ptr bindAddr = groupConfiguration->host(groupConfiguration->thisHostId()).multicastSourceAddress;
+    Address::ptr bindAddr = groupConfiguration->thisHostConfiguration().multicastSourceAddress;
     Socket::ptr s = bindAddr->createSocket(*ioManager, SOCK_DGRAM);
     s->bind(bindAddr);
     UdpSender::ptr sender(new UdpSender("rpc_requester", s));
@@ -148,7 +150,7 @@ void setupEverything(IOManager* ioManager,
 
     //-------------------------------------------------------------------------
     // ring voter
-    Socket::ptr ringSocket = bindSocket(groupConfig->host(groupConfig->thisHostId()).ringAddress, ioManager);
+    Socket::ptr ringSocket = bindSocket(groupConfig->thisHostConfiguration().ringAddress, ioManager);
     UdpSender::ptr udpSender(new UdpSender("ring_voter", ringSocket));
     ioManager->schedule(boost::bind(&UdpSender::run, udpSender));
     *ringVoter = RingVoter::ptr(new RingVoter(ringSocket, udpSender, acceptorState));
@@ -169,13 +171,15 @@ void setupEverything(IOManager* ioManager,
     RingChangeNotifier::ptr notifier(new RingChangeNotifier(holders));
     RpcHandler::ptr setRingHandler(new SetRingHandler(configHash, notifier, groupConfig));
 
-    const HostConfiguration& hostConfig = groupConfig->host(groupConfig->thisHostId());
+    const HostConfiguration& hostConfig = groupConfig->thisHostConfiguration();
+    cout << hostConfig << endl;
 
     Socket::ptr listenSocket = bindSocket(hostConfig.multicastListenAddress, ioManager);
     Socket::ptr replySocket = bindSocket(hostConfig.multicastReplyAddress, ioManager);
 
     *responder = RpcResponder::ptr(new RpcResponder(listenSocket, multicastGroup, replySocket));
-    (*responder)->addHandler(RpcMessageData::PING, ponger);
+//  Learners don't have to respond to pings
+//    (*responder)->addHandler(RpcMessageData::PING, ponger);
     (*responder)->addHandler(RpcMessageData::SET_RING, setRingHandler);
     (*responder)->addHandler(RpcMessageData::PAXOS_BATCH_PHASE1, batchPhase1Handler);
     (*responder)->addHandler(RpcMessageData::PAXOS_PHASE1, phase1Handler);

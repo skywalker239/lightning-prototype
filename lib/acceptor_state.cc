@@ -150,11 +150,18 @@ AcceptorState::Status AcceptorState::commit(InstanceId instanceId,
     return boolToStatus(result);
 }
 
-bool AcceptorState::getCommittedInstance(InstanceId instanceId,
+bool AcceptorState::getCommittedInstance(const Guid& epoch,
+                                         InstanceId instanceId,
                                          Value* value,
                                          BallotId* ballot) const
 {
     FiberMutex::ScopedLock lk(mutex_);
+
+    if(epoch != epoch_) {
+        MORDOR_LOG_TRACE(g_log) << this << " getCommittedInstance: " <<
+            "wrong epoch " << epoch << ", current is " << epoch_;
+        return false;
+    }
 
     auto instanceIter = instances_.find(instanceId);
     if(instanceIter == instances_.end()) {
@@ -166,11 +173,18 @@ bool AcceptorState::getCommittedInstance(InstanceId instanceId,
     }
 }
 
-void AcceptorState::setInstance(InstanceId instanceId,
+void AcceptorState::setInstance(const Guid& epoch,
+                                InstanceId instanceId,
                                 const Value& value,
                                 BallotId ballot)
 {
     FiberMutex::ScopedLock lk(mutex_);
+
+    if(epoch != epoch_) {
+        MORDOR_LOG_TRACE(g_log) << this << " setInstance( " << instanceId <<
+            "): wrong epoch " << epoch << ", current is " << epoch_;
+        return;
+    }
 
     if(instanceId < firstNotForgottenInstanceId_) {
         MORDOR_LOG_TRACE(g_log) << this << " setInstance(" << instanceId <<
@@ -191,8 +205,15 @@ void AcceptorState::setInstance(InstanceId instanceId,
     // XXX we don't expire anything at this point
 }
 
-bool AcceptorState::needsRecovery(InstanceId instanceId) const {
+bool AcceptorState::needsRecovery(
+    const Guid& epoch,
+    InstanceId instanceId) const
+{
     FiberMutex::ScopedLock lk(mutex_);
+
+    if(epoch != epoch_) {
+        return false;
+    }
 
     if(instanceId >= afterLastCommittedInstanceId_) {
         return true;
@@ -345,7 +366,7 @@ void AcceptorState::startRecovery(const Guid epoch, InstanceId instanceId) {
         recoveryTimers_.erase(instanceId);
         MORDOR_LOG_TRACE(g_log) << this << " submitting (" << epoch << ", " <<
                                    instanceId << ") to recovery";
-        recoveryManager_->addInstance(epoch, instanceId, shared_from_this());
+        recoveryManager_->addInstance(epoch, instanceId);
     }
 }
 

@@ -38,9 +38,13 @@ message PaxosPhase1RequestData {
     required uint32 ballot = 4;
 }
 
-message RecoveryRequestData {
+message FixedSizeHeaderData {
+    required fixed32 size = 1;
+}
+
+message BatchRecoveryRequestData {
     required bytes epoch = 1;
-    required uint64 instance = 2;
+    repeated uint64 instances = 2;
 }
 
 message ValueData {
@@ -48,15 +52,17 @@ message ValueData {
     required bytes data = 2;
 }
 
-message RecoveryReplyData {
-    enum Type {
-        OK = 1;
-        NOT_COMMITTED = 2;
-        FORGOTTEN = 3;
-    }
-    required Type type = 1;
-    optional uint32 ballot = 2;
-    optional ValueData value = 3;
+message InstanceData {
+    required uint64 instance_id = 1;
+    required uint32 ballot = 2;
+    required ValueData value = 3;
+}
+
+message BatchRecoveryReplyData {
+    required bytes epoch = 1;
+    repeated InstanceData recovered_instances = 2;
+    repeated uint64 not_committed_instances = 3;
+    repeated uint64 forgotten_instances = 4;
 }
 
 message PaxosPhase1ReplyData {
@@ -99,7 +105,6 @@ message RpcMessageData {
         PAXOS_BATCH_PHASE1 = 2;
         PAXOS_PHASE1 = 3;
         PAXOS_PHASE2 = 4;
-        RECOVERY = 5;
     }
     required Type type = 1;
     required bytes uuid = 2;
@@ -111,6 +116,4 @@ message RpcMessageData {
     optional PaxosPhase1ReplyData phase1_reply = 8;
     optional PaxosPhase2RequestData phase2_request = 9;
     optional VoteData vote = 10;
-    optional RecoveryRequestData recovery_request = 11;
-    optional RecoveryReplyData recovery_reply = 12;
 }

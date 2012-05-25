@@ -53,12 +53,13 @@ LIB_OBJS += \
     udp_sender.o \
     vote.o \
     sleep_helper.o \
+    tcp_recovery_service.o \
     rpc_request.o \
     unicast_rpc_request.o \
-    recovery_handler.o \
     recovery_manager.o \
-    recovery_request.o \
     value.o \
+    recovery_record.o \
+    recovery_connection.o \
 
 TEST_TARGETS = test_ring_master test_ring_acceptor test_ring_learner
 TEST_OBJS = $(addsuffix .o, $(TEST_TARGETS))

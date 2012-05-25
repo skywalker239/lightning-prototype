@@ -2,7 +2,6 @@
 #include "batch_phase1_handler.h"
 #include "phase1_handler.h"
 #include "phase2_handler.h"
-#include "recovery_handler.h"
 #include "guid.h"
 #include "host_configuration.h"
 #include "instance_sink.h"
@@ -99,19 +98,6 @@ void serveStats(IOManager* ioManager) {
     }
 }
 
-RpcRequester::ptr setupRequester(IOManager* ioManager,
-                                 GuidGenerator::ptr guidGenerator,
-                                 GroupConfiguration::ptr groupConfiguration,
-                                 MulticastRpcStats::ptr rpcStats)
-{
-    Address::ptr bindAddr = groupConfiguration->thisHostConfiguration().multicastSourceAddress;
-    Socket::ptr s = bindAddr->createSocket(*ioManager, SOCK_DGRAM);
-    s->bind(bindAddr);
-    UdpSender::ptr sender(new UdpSender("rpc_requester", s));
-    ioManager->schedule(boost::bind(&UdpSender::run, sender));
-    return RpcRequester::ptr(new RpcRequester(ioManager, guidGenerator, sender, s, groupConfiguration, rpcStats));
-}
-
 void setupEverything(IOManager* ioManager, 
                      const Guid& configHash,
                      const JSON::Value& config,
@@ -123,22 +109,23 @@ void setupEverything(IOManager* ioManager,
     GroupConfiguration::ptr groupConfig = GroupConfiguration::parseLearnerConfig(config["hosts"], datacenter, multicastGroup);
 
     //-------------------------------------------------------------------------
-    // rpc requester
-    GuidGenerator::ptr guidGenerator(new GuidGenerator);
-    const uint64_t sendWindowUs = config["send_window"].get<long long>();
-    const uint64_t recvWindowUs = config["recv_window"].get<long long>();
-    MulticastRpcStats::ptr rpcStats(new MulticastRpcStats(sendWindowUs, recvWindowUs));
-    RpcRequester::ptr requester = setupRequester(ioManager, guidGenerator, groupConfig, rpcStats);
-    ioManager->schedule(boost::bind(&RpcRequester::processReplies, requester));
-
-    //-------------------------------------------------------------------------
     // recovery manager
-    const uint64_t recoveryInterval = config["recovery_interval"].get<long long>();
-    const uint64_t recoveryTimeout  = config["recovery_timeout"].get<long long>();
-    const uint64_t initialBackoff   = config["initial_backoff"].get<long long>();
-    const uint64_t maxBackoff       = config["max_backoff"].get<long long>();
-    RecoveryManager::ptr recoveryManager(new RecoveryManager(groupConfig, requester, ioManager, recoveryInterval, recoveryTimeout, initialBackoff, maxBackoff));
-    ioManager->schedule(boost::bind(&RecoveryManager::recoverInstances, recoveryManager));
+    const uint32_t localMetric      = config["recovery_local_metric"].get<long long>();
+    const uint32_t remoteMetric     = config["recovery_remote_metric"].get<long long>();
+    const uint64_t queuePollIntervalUs = config["recovery_queue_poll_interval"].get<long long>();
+    const uint64_t reconnectDelayUs = config["recovery_reconnect_delay"].get<long long>();
+    const uint64_t socketTimeoutUs  = config["recovery_socket_timeout"].get<long long>();
+    const uint64_t retryDelayUs     = config["recovery_retry_delay"].get<long long>();
+    RecoveryManager::ptr recoveryManager(new RecoveryManager);
+    ioManager->schedule(boost::bind(&RecoveryManager::run, recoveryManager));
+    recoveryManager->setupConnections(groupConfig,
+                                      ioManager,
+                                      localMetric,
+                                      remoteMetric,
+                                      queuePollIntervalUs,
+                                      reconnectDelayUs,
+                                      socketTimeoutUs,
+                                      retryDelayUs);
 
     //-------------------------------------------------------------------------
     // acceptor state
@@ -161,7 +148,6 @@ void setupEverything(IOManager* ioManager,
     boost::shared_ptr<BatchPhase1Handler> batchPhase1Handler(new BatchPhase1Handler(acceptorState));
     boost::shared_ptr<Phase1Handler> phase1Handler(new Phase1Handler(acceptorState));
     boost::shared_ptr<Phase2Handler> phase2Handler(new Phase2Handler(acceptorState, *ringVoter));
-    boost::shared_ptr<RecoveryHandler> recoveryHandler(new RecoveryHandler(acceptorState));
 
     vector<RingHolder::ptr> holders;
     holders.push_back(batchPhase1Handler);
@@ -184,7 +170,6 @@ void setupEverything(IOManager* ioManager,
     (*responder)->addHandler(RpcMessageData::PAXOS_BATCH_PHASE1, batchPhase1Handler);
     (*responder)->addHandler(RpcMessageData::PAXOS_PHASE1, phase1Handler);
     (*responder)->addHandler(RpcMessageData::PAXOS_PHASE2, phase2Handler);
-    (*responder)->addHandler(RpcMessageData::RECOVERY, recoveryHandler);
 }
 
 int main(int argc, char** argv) {

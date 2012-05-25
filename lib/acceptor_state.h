@@ -95,15 +95,17 @@ public:
     //  update the last seen one.
     void updateEpoch(const Guid& epoch);
 
-    bool getCommittedInstance(InstanceId instanceId,
+    bool getCommittedInstance(const Guid& epoch,
+                              InstanceId instanceId,
                               Value* value,
                               BallotId* ballot) const;
 
-    void setInstance(InstanceId instanceId,
+    void setInstance(const Guid& epoch,
+                     InstanceId instanceId,
                      const Value& value,
                      BallotId ballot);
 
-    bool needsRecovery(InstanceId instanceId) const;
+    bool needsRecovery(const Guid& epoch, InstanceId instanceId) const;
 
 private:
     //! Reset the state to empty. Called on master epoch change.

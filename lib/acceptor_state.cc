@@ -366,6 +366,7 @@ void AcceptorState::startRecovery(const Guid epoch, InstanceId instanceId) {
         recoveryTimers_.erase(instanceId);
         MORDOR_LOG_TRACE(g_log) << this << " submitting (" << epoch << ", " <<
                                    instanceId << ") to recovery";
+        lk.unlock();
         recoveryManager_->addInstance(epoch, instanceId);
     }
 }

@@ -134,6 +134,7 @@ void setupEverything(IOManager* ioManager,
     uint64_t recoveryGracePeriod = config["recovery_grace_period"].get<long long>();
     boost::shared_ptr<InstanceSink> sink(new DummySink);
     AcceptorState::ptr acceptorState(new AcceptorState(pendingLimit, committedLimit, recoveryGracePeriod, ioManager, recoveryManager, sink));
+    recoveryManager->setAcceptor(acceptorState);
 
     //-------------------------------------------------------------------------
     // ring voter

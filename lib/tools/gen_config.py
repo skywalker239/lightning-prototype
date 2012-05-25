@@ -58,6 +58,7 @@ configuration = {
     "phase1_interval" : 640, # much more expensive that phase 2
     "phase2_timeout" : 500000,
     "phase2_interval" : 64, # 15625 * 8000 bytes = 1 Gbit/s
+    "recovery_grace_period" : 1500000,
     "recovery_local_metric" : 1,
     "recovery_remote_metric" : 10,
     "recovery_queue_poll_interval" : 500000,

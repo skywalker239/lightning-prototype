@@ -74,6 +74,7 @@ bool RecoveryConnection::addInstance(RecoveryRecord::ptr record) {
         return false;
     }
     recoveryQueue_.push(record);
+    queueSize_.increment();
     return true;
 }
 
@@ -167,6 +168,7 @@ bool RecoveryConnection::getCurrentBatch(
             recoveryQueue_.front()->instanceId() << ")";
         currentBatch->push_back(recoveryQueue_.front());
         recoveryQueue_.pop();
+        queueSize_.decrement();
     }
     return true;
 }
@@ -218,6 +220,7 @@ void RecoveryConnection::processReply(
                                             instanceId,
                                             value,
                                             ballotId);
+        recoveredInstances_.increment();
     }
     for(int i = 0; i < replyData.not_committed_instances_size(); ++i) {
         InstanceId instanceId = replyData.not_committed_instances(i);
@@ -230,11 +233,13 @@ void RecoveryConnection::processReply(
                                                 new RecoveryRecord(
                                                     epoch,
                                                     instanceId))));
+        recoveryRetries_.increment();
     }
     for(int i = 0; i < replyData.forgotten_instances_size(); ++i) {
         InstanceId instanceId = replyData.forgotten_instances(i);
         MORDOR_LOG_WARNING(g_log) << this << " (" << epoch << ", " <<
             instanceId << ") forgotten!";
+        recoveryFailures_.increment();
     }
 }
 
@@ -283,7 +288,14 @@ void RecoveryConnection::doSend(const char* data, uint64_t length) {
 void RecoveryConnection::doReceive(char* data, uint64_t length) {
     uint64_t received = 0;
     while(received < length) {
-        received += socket_->receive(data + received, length - received);
+        uint64_t currentReceived =
+            socket_->receive(data + received, length - received);
+        if(currentReceived == 0) {
+            MORDOR_LOG_TRACE(g_log) << this << " connection to " <<
+                *(socket_->remoteAddress()) << " went down.";
+            MORDOR_THROW_EXCEPTION_FROM_LAST_ERROR_API("recv");
+        }
+        received += currentReceived;
     }
 }
 

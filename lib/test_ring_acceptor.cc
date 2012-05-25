@@ -64,6 +64,8 @@ class DummyRingHolder : public RingHolder {};
 
 Socket::ptr bindSocket(Address::ptr bindAddress, IOManager* ioManager, int protocol = SOCK_DGRAM) {
     Socket::ptr s = bindAddress->createSocket(*ioManager, protocol);
+    int option = 1;
+    s->setOption(SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
     s->bind(bindAddress);
     return s;
 }
@@ -131,6 +133,7 @@ void setupEverything(IOManager* ioManager,
     uint64_t recoveryGracePeriod = config["recovery_grace_period"].get<long long>();
     boost::shared_ptr<InstanceSink> sink(new DummySink);
     AcceptorState::ptr acceptorState(new AcceptorState(pendingLimit, committedLimit, recoveryGracePeriod, ioManager, recoveryManager, sink));
+    recoveryManager->setAcceptor(acceptorState);
 
     //-------------------------------------------------------------------------
     // recovery service

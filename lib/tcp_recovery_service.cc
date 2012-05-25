@@ -117,8 +117,14 @@ void TcpRecoveryService::readFromSocket(Socket::ptr socket,
 {
     size_t bytesRead = 0;
     while(bytesRead < bytes) {
-        bytesRead +=
+        size_t currentRead =
             socket->receive(destination + bytesRead, bytes - bytesRead);
+        if(currentRead == 0) {
+            MORDOR_LOG_TRACE(g_log) << this << " connection to " <<
+                *(socket->remoteAddress()) << " went down";
+            MORDOR_THROW_EXCEPTION_FROM_LAST_ERROR_API("recv");
+        }
+        bytesRead += currentRead;
     }
 }
 
@@ -159,6 +165,7 @@ void TcpRecoveryService::handleRequest(Socket::ptr socket,
             value.serialize(instanceData->mutable_value());
         }
     }
+    requestEpoch.serialize(reply->mutable_epoch());
 }
 
 }  // namespace lightning

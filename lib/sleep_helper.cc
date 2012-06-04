@@ -18,7 +18,9 @@ SleepHelper::SleepHelper(IOManager* ioManager,
                          int64_t sleepPrecision)
     : ioManager_(ioManager),
       sleepInterval_(sleepInterval),
-      sleepPrecision_(sleepPrecision)
+      sleepPrecision_(sleepPrecision),
+      accumulatedSleepTime_(0),
+      waitStartTime_(0)
 {}
 
 void SleepHelper::startWaiting() {

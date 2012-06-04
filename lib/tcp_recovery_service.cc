@@ -41,7 +41,7 @@ void TcpRecoveryService::run() {
                                        boost::current_exception_diagnostic_information();
         }
 
-        MORDOR_LOG_TRACE(g_log) << this << " new recovery connection from " <<
+        MORDOR_LOG_DEBUG(g_log) << this << " new recovery connection from " <<
                                    *(connectionSocket->remoteAddress());
         ioManager_->schedule(
             boost::bind(
@@ -67,7 +67,8 @@ void TcpRecoveryService::handleRecoveryConnection(Socket::ptr socket) {
             sendReply(socket, reply);
         } catch(Exception& e) {
             MORDOR_LOG_ERROR(g_log) << this << " socket exception on [" <<
-                                       *(socket->remoteAddress()) << "]";
+                                       *(socket->remoteAddress()) << "]: " <<
+                                       e.what();
             return;
         }
     }
@@ -120,7 +121,7 @@ void TcpRecoveryService::readFromSocket(Socket::ptr socket,
         size_t currentRead =
             socket->receive(destination + bytesRead, bytes - bytesRead);
         if(currentRead == 0) {
-            MORDOR_LOG_TRACE(g_log) << this << " connection to " <<
+            MORDOR_LOG_DEBUG(g_log) << this << " connection to " <<
                 *(socket->remoteAddress()) << " went down";
             MORDOR_THROW_EXCEPTION_FROM_LAST_ERROR_API("recv");
         }

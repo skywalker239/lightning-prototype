@@ -116,7 +116,8 @@ void setupEverything(IOManager* ioManager,
     const uint64_t socketTimeoutUs  = config["recovery_socket_timeout"].get<long long>();
     const uint64_t retryDelayUs     = config["recovery_retry_delay"].get<long long>();
     RecoveryManager::ptr recoveryManager(new RecoveryManager);
-    ioManager->schedule(boost::bind(&RecoveryManager::run, recoveryManager));
+    ioManager->schedule(boost::bind(&RecoveryManager::processMainQueue, recoveryManager));
+    ioManager->schedule(boost::bind(&RecoveryManager::processRandomDestinationQueue, recoveryManager));
     recoveryManager->setupConnections(groupConfig,
                                       ioManager,
                                       localMetric,

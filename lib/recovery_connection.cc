@@ -1,5 +1,6 @@
 #include "recovery_connection.h"
 #include "recovery_manager.h"
+#include "sleep_helper.h"
 #include "value.h"
 #include "proto/rpc_messages.pb.h"
 #include <stdexcept>
@@ -106,9 +107,12 @@ void RecoveryConnection::openConnection() {
 }
 
 void RecoveryConnection::processQueue() {
+    SleepHelper sleeper(ioManager_,
+                        queuePollIntervalUs_,
+                        SleepHelper::kEpollSleepPrecision);
     while(true) {
-        sleep(*ioManager_, queuePollIntervalUs_);
-
+        sleeper.wait();
+        sleeper.startWaiting();
         {
             FiberMutex::ScopedLock lk(mutex_);
             MORDOR_ASSERT(connected_ == true);
@@ -120,6 +124,7 @@ void RecoveryConnection::processQueue() {
         Guid batchEpoch;
         vector<RecoveryRecord::ptr> currentBatch;
         if(!getCurrentBatch(&batchEpoch, &currentBatch)) {
+            sleeper.stopWaiting();
             continue;
         }
 
@@ -145,6 +150,7 @@ void RecoveryConnection::processQueue() {
             return;
         }
         processReply(replyData);
+        sleeper.stopWaiting();
     }
 }
 
@@ -273,9 +279,15 @@ void RecoveryConnection::handoffInstance(const RecoveryRecord::ptr& record) {
 }
 
 void RecoveryConnection::retryInstance(RecoveryRecord::ptr record) {
-    if(!addInstance(record)) {
-        handoffInstance(record);
-    }
+    const Guid& epoch = record->epoch();
+    const InstanceId& instanceId = record->instanceId();
+    MORDOR_LOG_TRACE(g_log) << this << " returning (" << epoch << ", " <<
+        instanceId << ") to recovery manager with random retry";
+        recoveryManager_->addInstance(epoch,
+                                      instanceId, false);
+//    if(!addInstance(record)) {
+//        handoffInstance(record);
+//    }
 }
 
 void RecoveryConnection::doSend(const char* data, uint64_t length) {
@@ -291,7 +303,7 @@ void RecoveryConnection::doReceive(char* data, uint64_t length) {
         uint64_t currentReceived =
             socket_->receive(data + received, length - received);
         if(currentReceived == 0) {
-            MORDOR_LOG_TRACE(g_log) << this << " connection to " <<
+            MORDOR_LOG_DEBUG(g_log) << this << " connection to " <<
                 *(socket_->remoteAddress()) << " went down.";
             MORDOR_THROW_EXCEPTION_FROM_LAST_ERROR_API("recv");
         }

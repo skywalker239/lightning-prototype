@@ -83,7 +83,8 @@ private:
 
     mutable Mordor::FiberMutex mutex_;
 
-    static const size_t kMaxBatchSize = 1000;
+    // about 50M, 60 is the protobuf limit for a single message
+    static const size_t kMaxBatchSize = 6000;
 };
 
 }  // namespace lightning

@@ -28,12 +28,15 @@ public:
 
     void disableConnection(RecoveryConnection::ptr connection);
 
-    //! Main task, processes the recovery queue.
-    void run();
+    //! Main task, processes the main queue.
+    void processMainQueue();
+    //! Processes the random destination retry queue.
+    void processRandomDestinationQueue();
 
     //! Adds an instance to the recovery queue.
     void addInstance(const Guid& epoch,
-                     paxos::InstanceId instanceId);
+                     paxos::InstanceId instanceId,
+                     bool tryBestConnection = true);
 
     //! Creates the connections to other acceptors with suitable metrics.
     void setupConnections(GroupConfiguration::ptr groupConfiguration,
@@ -54,7 +57,8 @@ public:
                            const paxos::Value& value,
                            paxos::BallotId ballot);
 private:
-    RecoveryConnection::ptr getActiveConnection();
+    RecoveryConnection::ptr getBestConnection();
+    RecoveryConnection::ptr getRandomConnection();
 
     //! Compares connections by their metric.
     struct ConnectionCompare {
@@ -67,11 +71,16 @@ private:
 
     std::set<RecoveryConnection::ptr,
              ConnectionCompare> connections_;
+    std::vector<RecoveryConnection::ptr>
+        connectionVector_;
+    unsigned int randSeed_;
+
     Mordor::FiberEvent hasActiveConnection_;
 
     boost::shared_ptr<AcceptorState> acceptor_;
 
     BlockingQueue<RecoveryRecord::ptr> recoveryQueue_;
+    BlockingQueue<RecoveryRecord::ptr> randomDestinationQueue_;
 
     mutable Mordor::FiberMutex mutex_;
 };

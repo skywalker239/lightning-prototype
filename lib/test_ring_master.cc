@@ -3,6 +3,7 @@
 #include "proposer_state.h"
 #include "phase1_batcher.h"
 #include "sleep_helper.h"
+#include "tcp_value_receiver.h"
 #include "udp_sender.h"
 #include <iostream>
 #include <string>
@@ -78,7 +79,8 @@ void setupEverything(uint32_t hostId,
                      RingManager::ptr* ringManager,
                      Phase1Batcher::ptr* phase1Batcher,
                      ProposerState::ptr* proposerState,
-                     BlockingQueue<Value>::ptr* valueQueue)
+                     BlockingQueue<Value>::ptr* valueQueue,
+                     TcpValueReceiver::ptr* tcpValueReceiver)
 {
     Address::ptr groupMcastAddress =
         Address::lookup(config["mcast_group"].get<string>(), AF_INET).front();;
@@ -153,6 +155,15 @@ void setupEverything(uint32_t hostId,
                                              phase2IntervalUs,
                                              commitFlushIntervalUs));
 
+    const uint16_t masterValuePort = config["master_value_port"].get<long long>();
+    const uint64_t valueBufferSize = config["value_buffer_size"].get<long long>();
+    Socket::ptr valueSocket(new Socket(*ioManager, AF_INET, SOCK_STREAM));
+    IPv4Address valueAddress(INADDR_ANY, masterValuePort);
+    valueSocket->bind(valueAddress);
+    valueSocket->listen();
+
+    tcpValueReceiver->reset(new TcpValueReceiver(valueBufferSize, *proposerState, *valueQueue, ioManager, valueSocket));
+
     vector<RingHolder::ptr> ringHolders;
     ringHolders.push_back(*phase1Batcher);
     ringHolders.push_back(*proposerState);
@@ -194,25 +205,25 @@ void serveStats(IOManager* ioManager) {
     }
 }
 
-void submitValues(IOManager* ioManager,
-                  BlockingQueue<Value>::ptr valueQueue,
-                  GuidGenerator::ptr guidGenerator)
-{
-    const int64_t kSleepPrecision = 1000;
-    const int64_t kSleepInterval = 64; // 64;
-    sleep(*ioManager, 3500000); // let the ring selection happen
-    const size_t kValuesToSubmit = 468750; // 60 sec @ 1 Gbps
-
-    SleepHelper sleeper(ioManager, kSleepInterval, kSleepPrecision);
-    for(size_t i = 0; i < kValuesToSubmit; ++i) {
-        shared_ptr<string> data(new string(8000, ' '));
-        auto valueId = guidGenerator->generate();
-        Value v(valueId, data);
-        valueQueue->push(v);
-        MORDOR_LOG_DEBUG(g_log) << " pushed value " << v;
-        sleeper.wait();
-    }
-}
+//void submitValues(IOManager* ioManager,
+//                  BlockingQueue<Value>::ptr valueQueue,
+//                  GuidGenerator::ptr guidGenerator)
+//{
+//    const int64_t kSleepPrecision = 1000;
+//    const int64_t kSleepInterval = 64; // 64;
+//    sleep(*ioManager, 3500000); // let the ring selection happen
+//    const size_t kValuesToSubmit = 468750; // 60 sec @ 1 Gbps
+//
+//    SleepHelper sleeper(ioManager, kSleepInterval, kSleepPrecision);
+//    for(size_t i = 0; i < kValuesToSubmit; ++i) {
+//        shared_ptr<string> data(new string(8000, ' '));
+//        auto valueId = guidGenerator->generate();
+//        Value v(valueId, data);
+//        valueQueue->push(v);
+//        MORDOR_LOG_DEBUG(g_log) << " pushed value " << v;
+//        sleeper.wait();
+//    }
+//}
 
 int main(int argc, char** argv) {
     Config::loadFromEnvironment();
@@ -227,13 +238,13 @@ int main(int argc, char** argv) {
 
     try {
         IOManager ioManager;
-        IOManager submitManager(1, false);
         Pinger::ptr pinger;
         RingManager::ptr ringManager;
         Phase1Batcher::ptr phase1Batcher;
         ProposerState::ptr proposerState;
         BlockingQueue<Value>::ptr clientValueQueue;
-        setupEverything(hostId, configHash, config, &ioManager, &pinger, &ringManager, &phase1Batcher, &proposerState, &clientValueQueue);
+        TcpValueReceiver::ptr tcpValueReceiver;
+        setupEverything(hostId, configHash, config, &ioManager, &pinger, &ringManager, &phase1Batcher, &proposerState, &clientValueQueue, &tcpValueReceiver);
         GuidGenerator::ptr guidGenerator(new GuidGenerator);
         ioManager.schedule(boost::bind(&serveStats, &ioManager));
         ioManager.schedule(boost::bind(&Pinger::run, pinger));
@@ -243,7 +254,7 @@ int main(int argc, char** argv) {
         ioManager.schedule(boost::bind(&ProposerState::processReservedInstances, proposerState));
         ioManager.schedule(boost::bind(&ProposerState::processClientValues, proposerState));
         ioManager.schedule(boost::bind(&ProposerState::flushCommits, proposerState));
-        ioManager.schedule(boost::bind(submitValues, &submitManager, clientValueQueue, guidGenerator));
+        ioManager.schedule(boost::bind(&TcpValueReceiver::run, tcpValueReceiver));
         ioManager.schedule(boost::bind(dumpStats, &ioManager));
         ioManager.dispatch();
         return 0;

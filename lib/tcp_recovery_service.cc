@@ -15,6 +15,7 @@ using Mordor::Log;
 using Mordor::Logger;
 using Mordor::Socket;
 using Mordor::Statistics;
+using Mordor::TimerManager;
 using paxos::BallotId;
 using paxos::InstanceId;
 using paxos::kInvalidBallotId;
@@ -77,6 +78,7 @@ void TcpRecoveryService::handleRecoveryConnection(Socket::ptr socket) {
 bool TcpRecoveryService::readRequest(Socket::ptr socket,
                                      BatchRecoveryRequestData* request)
 {
+    uint64_t startTime = TimerManager::now();
     FixedSizeHeaderData header;
     header.set_size(0);
     char messageHeaderData[header.ByteSize()];
@@ -94,11 +96,15 @@ bool TcpRecoveryService::readRequest(Socket::ptr socket,
         return false;
     }
     return true;
+    MORDOR_LOG_DEBUG(g_log) << this << " read request: " <<
+        (TimerManager::now() - startTime) << " us, " <<
+        header.size() << " bytes";
 }
 
 void TcpRecoveryService::sendReply(Socket::ptr socket,
                                    const BatchRecoveryReplyData& reply)
 {
+    uint64_t startTime = TimerManager::now();
     FixedSizeHeaderData header;
     header.set_size(reply.ByteSize());
     const size_t messageSize = header.ByteSize() + reply.ByteSize();
@@ -110,6 +116,9 @@ void TcpRecoveryService::sendReply(Socket::ptr socket,
     while(sent < messageSize) {
         sent += socket->send(&messageData[sent], messageSize - sent);
     }
+    MORDOR_LOG_DEBUG(g_log) << this << " write reply: " <<
+        (TimerManager::now() - startTime) << " us, " <<
+        messageSize << " bytes";
 }
 
 void TcpRecoveryService::readFromSocket(Socket::ptr socket,
@@ -133,7 +142,11 @@ void TcpRecoveryService::handleRequest(Socket::ptr socket,
                                        const BatchRecoveryRequestData& request,
                                        BatchRecoveryReplyData* reply)
 {
+    uint64_t startTime = TimerManager::now();
     const Guid& requestEpoch = Guid::parse(request.epoch());
+    MORDOR_LOG_DEBUG(g_log) << this << " recover " <<
+        request.instances_size() << " instances for epoch " <<
+        requestEpoch << " from " << *(socket->remoteAddress());
     for(int i = 0; i < request.instances_size(); ++i) {
         InstanceId instanceId = request.instances(i);
         MORDOR_LOG_TRACE(g_log) << this << " recover(" << requestEpoch <<
@@ -167,6 +180,8 @@ void TcpRecoveryService::handleRequest(Socket::ptr socket,
         }
     }
     requestEpoch.serialize(reply->mutable_epoch());
+    MORDOR_LOG_DEBUG(g_log) << this << " handle request: " <<
+        (TimerManager::now() - startTime) << " us";
 }
 
 }  // namespace lightning

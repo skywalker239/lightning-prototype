@@ -5,6 +5,7 @@
 #include "guid.h"
 #include "host_configuration.h"
 #include "instance_pool.h"
+#include "notifier.h"
 #include "rpc_requester.h"
 #include "proposer_instance.h"
 #include "ring_holder.h"
@@ -12,6 +13,7 @@
 #include <mordor/iomanager.h>
 #include <boost/enable_shared_from_this.hpp>
 #include <deque>
+#include <list>
 
 namespace lightning {
 
@@ -49,6 +51,17 @@ public:
 
     //! Perform Paxos phase 2.
     void doPhase2(ProposerInstance::ptr instance);
+
+    //! Adds an on-commit notifier.
+    void addNotifier(
+        boost::shared_ptr<Notifier<ProposerInstance::ptr> >
+            notifier);
+
+    //! Removes an on-commit notifier.
+    /// Slow (O(#notifiers)).
+    void removeNotifier(
+        boost::shared_ptr<Notifier<ProposerInstance::ptr> >
+            notifier);
 private:
     // XXX stub
     void onCommit(ProposerInstance::ptr instance);
@@ -70,6 +83,8 @@ private:
     typedef std::pair<paxos::InstanceId, Guid> Commit;
     std::deque<Commit> commitQueue_;
     static const size_t kCommitBatchLimit = 10;
+
+    std::list<boost::shared_ptr<Notifier<ProposerInstance::ptr> > > notifiers_;
 
     //! Dummy ring id for the phase 2 one-host 'ring'.
     static const size_t kPhase2RingId = 239239;

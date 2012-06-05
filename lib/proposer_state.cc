@@ -5,6 +5,7 @@
 #include <mordor/assert.h>
 #include <mordor/log.h>
 #include <mordor/statistics.h>
+#include <algorithm>
 
 namespace lightning {
 
@@ -23,6 +24,8 @@ using paxos::kInvalidBallotId;
 using paxos::InstanceId;
 using paxos::Value;
 using boost::shared_ptr;
+using std::find;
+using std::list;
 using std::make_pair;
 using std::min;
 using std::string;
@@ -285,12 +288,34 @@ void ProposerState::doPhase2(ProposerInstance::ptr instance) {
     g_pendingPhase2.decrement();
 }
 
+void ProposerState::addNotifier(
+    boost::shared_ptr<Notifier<ProposerInstance::ptr> > notifier)
+{
+    FiberMutex::ScopedLock lk(mutex_);
+
+    notifiers_.push_back(notifier);
+}
+
+void ProposerState::removeNotifier(
+    boost::shared_ptr<Notifier<ProposerInstance::ptr> > notifier)
+{
+    FiberMutex::ScopedLock lk(mutex_);
+
+    auto iter = find(notifiers_.begin(), notifiers_.end(), notifier);
+    if(iter != notifiers_.end()) {
+        notifiers_.erase(iter);
+    }
+}
+
 void ProposerState::onCommit(ProposerInstance::ptr instance) {
     MORDOR_LOG_DEBUG(g_log) << this << " COMMIT iid=" <<
                                instance->instanceId() <<
                                " value=" << instance->value();
     g_committedValues.increment();
     g_committedBytes.add(instance->value().size());
+    for(auto i = notifiers_.begin(); i != notifiers_.end(); ++i) {
+        (*i)->notify(instance);
+    }
 }
 
 }  // namespace lightning

@@ -21,12 +21,12 @@ ValueBuffer::ValueBuffer(size_t uncommittedLimit,
       submitQueue_(submitQueue),
       canPush_(false)
 {
-    proposerState->addNotifier(shared_from_this());
+    proposerState->addNotifier(this);
     canPush_.set();
 }
 
 ValueBuffer::~ValueBuffer() {
-    proposerState_->removeNotifier(shared_from_this());
+    proposerState_->removeNotifier(this);
 }
 
 void ValueBuffer::pushValue(const paxos::Value& value) {

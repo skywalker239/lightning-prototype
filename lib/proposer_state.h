@@ -53,14 +53,12 @@ public:
     void doPhase2(ProposerInstance::ptr instance);
 
     //! Adds an on-commit notifier.
-    void addNotifier(
-        boost::shared_ptr<Notifier<ProposerInstance::ptr> >
+    void addNotifier(Notifier<ProposerInstance::ptr>*
             notifier);
 
     //! Removes an on-commit notifier.
     /// Slow (O(#notifiers)).
-    void removeNotifier(
-        boost::shared_ptr<Notifier<ProposerInstance::ptr> >
+    void removeNotifier(Notifier<ProposerInstance::ptr>*
             notifier);
 private:
     // XXX stub
@@ -84,7 +82,7 @@ private:
     std::deque<Commit> commitQueue_;
     static const size_t kCommitBatchLimit = 10;
 
-    std::list<boost::shared_ptr<Notifier<ProposerInstance::ptr> > > notifiers_;
+    std::list<Notifier<ProposerInstance::ptr>* > notifiers_;
 
     //! Dummy ring id for the phase 2 one-host 'ring'.
     static const size_t kPhase2RingId = 239239;

@@ -11,8 +11,7 @@
 
 namespace lightning {
 
-class ValueBuffer : public Notifier<paxos::ProposerInstance::ptr>,
-                    public boost::enable_shared_from_this<ValueBuffer>
+class ValueBuffer : public Notifier<paxos::ProposerInstance::ptr>
 {
 public:
     typedef boost::shared_ptr<ValueBuffer> ptr;

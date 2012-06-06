@@ -69,7 +69,7 @@ configuration = {
     "initial_backoff" : 10000,
     "max_backoff" : 2000000,
     "mcast_group" : "239.3.0.1" + ":" + str(MCAST_LISTEN_PORT),
-    "master_value_port" : "30000",
+    "master_value_port" : 30000,
     "value_buffer_size" : 30000
 }
 

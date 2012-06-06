@@ -53,10 +53,11 @@ void TcpValueReceiver::run() {
 }
 
 void TcpValueReceiver::handleValueStream(Socket::ptr socket) {
-    ValueBuffer::ptr valueBuffer(
-        new ValueBuffer(valueBufferSize_,
-                        proposer_,
-                        submitQueue_));
+    MORDOR_LOG_DEBUG(g_log) << this << " handling value stream from " <<
+        *socket->remoteAddress();
+    ValueBuffer valueBuffer(valueBufferSize_,
+                            proposer_,
+                            submitQueue_);
     while(true) {
         Value value;
         try {
@@ -74,7 +75,7 @@ void TcpValueReceiver::handleValueStream(Socket::ptr socket) {
         MORDOR_LOG_TRACE(g_log) << this << " read Value(" <<
             value.valueId() << ", " << value.size() << ") from " <<
             *(socket->remoteAddress());
-        valueBuffer->pushValue(value);
+        valueBuffer.pushValue(value);
     }
 }
 

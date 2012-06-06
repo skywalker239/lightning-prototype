@@ -289,7 +289,7 @@ void ProposerState::doPhase2(ProposerInstance::ptr instance) {
 }
 
 void ProposerState::addNotifier(
-    boost::shared_ptr<Notifier<ProposerInstance::ptr> > notifier)
+    Notifier<ProposerInstance::ptr>* notifier)
 {
     FiberMutex::ScopedLock lk(mutex_);
 
@@ -297,7 +297,7 @@ void ProposerState::addNotifier(
 }
 
 void ProposerState::removeNotifier(
-    boost::shared_ptr<Notifier<ProposerInstance::ptr> > notifier)
+    Notifier<ProposerInstance::ptr>* notifier)
 {
     FiberMutex::ScopedLock lk(mutex_);
 

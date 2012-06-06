@@ -95,10 +95,10 @@ bool TcpRecoveryService::readRequest(Socket::ptr socket,
                                      *(socket->remoteAddress()) << "]";
         return false;
     }
-    return true;
     MORDOR_LOG_DEBUG(g_log) << this << " read request: " <<
         (TimerManager::now() - startTime) << " us, " <<
         header.size() << " bytes";
+    return true;
 }
 
 void TcpRecoveryService::sendReply(Socket::ptr socket,

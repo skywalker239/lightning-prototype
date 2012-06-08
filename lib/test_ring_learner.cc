@@ -11,6 +11,7 @@
 #include "ring_voter.h"
 #include "ring_change_notifier.h"
 #include "set_ring_handler.h"
+#include "stream_reassembler.h"
 #include "ponger.h"
 #include "udp_sender.h"
 #include <iostream>
@@ -27,24 +28,48 @@
 #include <mordor/sleep.h>
 #include <mordor/socket.h>
 #include <mordor/statistics.h>
+#include <mordor/streams/std.h>
 #include <mordor/iomanager.h>
 #include <mordor/timer.h>
+#include <stdlib.h>
 
 using namespace std;
 using namespace Mordor;
 using namespace lightning;
 using boost::lexical_cast;
 
-class DummySink : public InstanceSink {
+class SnapshotLearnerSink : public InstanceSink {
 public:
-    void push(const Guid&, paxos::InstanceId iid, paxos::BallotId, paxos::Value v)
-    {
-        if(iid % 1000 == 0) {
-            cout << "Committed iid " << iid << ": " << v << endl;
+    SnapshotLearnerSink(uint64_t snapshotId,
+                        StreamReassembler::ptr streamReassembler)
+        : snapshotId_(snapshotId),
+          streamReassembler_(streamReassembler)
+    {}
+
+    void push(const Guid&, paxos::InstanceId, paxos::BallotId, paxos::Value v) {
+        if(v.valueId().empty()) {
+            return;
+        }
+        Guid valueId;
+        boost::shared_ptr<string> valueData;
+        v.release(&valueId, &valueData);
+        SnapshotStreamData snapshotStreamData;
+        if(snapshotStreamData.ParseFromString(*valueData.get())) {
+            if(snapshotStreamData.snapshot_id() == snapshotId_) {
+                if(!snapshotStreamData.has_data()) {
+                    streamReassembler_->setEnd(snapshotStreamData.position());
+                } else {
+                    boost::shared_ptr<string> chunkData(new string(snapshotStreamData.data()));
+                    streamReassembler_->addChunk(snapshotStreamData.position(), chunkData);
+                }
+            }
         }
     }
+private:
+    const uint64_t snapshotId_;
+    StreamReassembler::ptr streamReassembler_;
 };
-
+    
 void readConfig(const string& filename,
                 Guid* configHash,
                 JSON::Value* config)
@@ -59,8 +84,8 @@ void readConfig(const string& filename,
     *configHash = Guid::fromData(fileData.c_str(), fileData.length());
     *config = JSON::parse(fileData);
 
-    cout << *config << endl;
-    cout << *configHash << endl;
+   // cout << *config << endl;
+   // cout << *configHash << endl;
 }
 
 class DummyRingHolder : public RingHolder {};
@@ -98,10 +123,27 @@ void serveStats(IOManager* ioManager) {
     }
 }
 
+void dumpStream(IOManager* ioManager,
+                StreamReassembler::ptr streamReassembler)
+{
+    StdoutStream outputStream(*ioManager);
+    while(true) {
+        boost::shared_ptr<string> chunk = streamReassembler->nextChunk();
+        if(!chunk) {
+            ioManager->stop();
+            exit(0); // HACK
+        }
+        outputStream.write(chunk->c_str(), chunk->length());
+    }
+}
+
+
 void setupEverything(IOManager* ioManager, 
                      const Guid& configHash,
                      const JSON::Value& config,
-                     const string& datacenter, 
+                     const string& datacenter,
+                     uint64_t snapshotId,
+                     StreamReassembler::ptr streamReassembler,
                      RpcResponder::ptr* responder,
                      RingVoter::ptr* ringVoter)
 {
@@ -133,7 +175,7 @@ void setupEverything(IOManager* ioManager,
     uint64_t pendingLimit = config["acceptor_max_pending_instances"].get<long long>();
     uint64_t committedLimit = config["acceptor_instance_window_size"].get<long long>();
     uint64_t recoveryGracePeriod = config["recovery_grace_period"].get<long long>();
-    boost::shared_ptr<InstanceSink> sink(new DummySink);
+    boost::shared_ptr<InstanceSink> sink(new SnapshotLearnerSink(snapshotId, streamReassembler));
     AcceptorState::ptr acceptorState(new AcceptorState(pendingLimit, committedLimit, recoveryGracePeriod, ioManager, recoveryManager, sink));
     recoveryManager->setAcceptor(acceptorState);
 
@@ -160,7 +202,7 @@ void setupEverything(IOManager* ioManager,
     RpcHandler::ptr setRingHandler(new SetRingHandler(configHash, notifier, groupConfig));
 
     const HostConfiguration& hostConfig = groupConfig->thisHostConfiguration();
-    cout << hostConfig << endl;
+    //cout << hostConfig << endl;
 
     Socket::ptr listenSocket = bindSocket(hostConfig.multicastListenAddress, ioManager);
     Socket::ptr replySocket = bindSocket(hostConfig.multicastReplyAddress, ioManager);
@@ -176,21 +218,24 @@ void setupEverything(IOManager* ioManager,
 
 int main(int argc, char** argv) {
     Config::loadFromEnvironment();
-    if(argc != 3) {
-        cout << "Usage: learner config.json datacenter" << endl;
+    if(argc != 4) {
+        cout << "Usage: learner config.json datacenter snapshot_id" << endl;
         return 1;
     }
     Guid configGuid;
     JSON::Value config;
     readConfig(argv[1], &configGuid, &config);
     const string datacenter(argv[2]);
+    const uint64_t snapshotId = boost::lexical_cast<uint64_t>(argv[3]);
     IOManager ioManager;
 
+    StreamReassembler::ptr streamReassembler(new StreamReassembler);
     RpcResponder::ptr responder;
     RingVoter::ptr ringVoter;
-    setupEverything(&ioManager, configGuid, config, datacenter, &responder, &ringVoter);
+    setupEverything(&ioManager, configGuid, config, datacenter, snapshotId, streamReassembler, &responder, &ringVoter);
     ioManager.schedule(boost::bind(&RpcResponder::run, responder));
     ioManager.schedule(boost::bind(&RingVoter::run, ringVoter));
     ioManager.schedule(boost::bind(serveStats, &ioManager));
+    ioManager.schedule(boost::bind(dumpStream, &ioManager, streamReassembler));
     ioManager.dispatch();
 }

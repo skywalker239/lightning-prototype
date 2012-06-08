@@ -117,3 +117,9 @@ message RpcMessageData {
     optional PaxosPhase2RequestData phase2_request = 9;
     optional VoteData vote = 10;
 }
+
+message SnapshotStreamData {
+    required uint64 snapshot_id = 1;
+    required uint64 position    = 2;
+    optional bytes  data        = 3;
+}

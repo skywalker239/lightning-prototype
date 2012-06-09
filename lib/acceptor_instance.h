@@ -5,6 +5,7 @@
 #include "value.h"
 #include "vote.h"
 #include <boost/optional.hpp>
+#include <boost/shared_ptr.hpp>
 
 namespace lightning {
 namespace paxos {
@@ -13,6 +14,7 @@ namespace paxos {
 //  This class is not (thread|fiber) safe.
 class AcceptorInstance {
 public:
+    typedef boost::shared_ptr<AcceptorInstance> ptr;
     //! Creates an empty instance.
     AcceptorInstance();
 

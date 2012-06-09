@@ -1,6 +1,6 @@
 #pragma once
 
-#include "acceptor_state.h"
+#include "value_cache.h"
 #include <mordor/iomanager.h>
 #include <mordor/socket.h>
 #include <boost/enable_shared_from_this.hpp>
@@ -18,7 +18,7 @@ public:
 
     TcpRecoveryService(Mordor::IOManager* ioManager,
                        Mordor::Socket::ptr listenSocket,
-                       AcceptorState::ptr acceptorState);
+                       ValueCache::ptr valueCache);
 
     void run();
 private:
@@ -38,7 +38,7 @@ private:
 
     Mordor::IOManager* ioManager_;
     Mordor::Socket::ptr listenSocket_;
-    AcceptorState::ptr acceptorState_;
+    ValueCache::ptr valueCache_;
 };
 
 }  // namespace lightning

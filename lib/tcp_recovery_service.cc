@@ -26,10 +26,10 @@ static Logger::ptr g_log = Log::lookup("lightning:tcp_recovery_service");
 
 TcpRecoveryService::TcpRecoveryService(IOManager* ioManager,
                                        Socket::ptr listenSocket,
-                                       AcceptorState::ptr acceptorState)
+                                       ValueCache::ptr valueCache)
     : ioManager_(ioManager),
       listenSocket_(listenSocket),
-      acceptorState_(acceptorState)
+      valueCache_(valueCache)
 {}
 
 void TcpRecoveryService::run() {
@@ -154,29 +154,29 @@ void TcpRecoveryService::handleRequest(Socket::ptr socket,
 
 
         Value value;
-        BallotId ballotId = kInvalidBallotId;
-        if(!acceptorState_->getCommittedInstance(requestEpoch,
-                                                 instanceId,
-                                                 &value,
-                                                 &ballotId))
-        {
-            if(instanceId < acceptorState_->firstNotForgottenInstance()) {
-                MORDOR_LOG_TRACE(g_log) << this << " recover: iid " <<
-                                           instanceId << " forgotten";
+        auto result = valueCache_->query(requestEpoch, instanceId, &value);
+        switch(result) {
+            case ValueCache::TOO_OLD: case ValueCache::WRONG_EPOCH: // XXX
+                MORDOR_LOG_TRACE(g_log) << this << " iid " << instanceId <<
+                    " forgotten";
                 reply->add_forgotten_instances(instanceId);
-            } else {
-                MORDOR_LOG_TRACE(g_log) << this << " recover: iid " <<
-                                           instanceId << " not committed";
+                break;
+            case ValueCache::NOT_YET:
+                MORDOR_LOG_TRACE(g_log) << this << " iid " << instanceId <<
+                    " not committed";
                 reply->add_not_committed_instances(instanceId);
+                break;
+            case ValueCache::OK:
+            {
+                MORDOR_LOG_TRACE(g_log) << this << " iid " << instanceId <<
+                    " -> " << value;
+                InstanceData* instanceData = reply->add_recovered_instances();
+                instanceData->set_instance_id(instanceId);
+                value.serialize(instanceData->mutable_value());
+                break;
             }
-        } else {
-            MORDOR_LOG_TRACE(g_log) << this << " recover : iid " <<
-                                       instanceId << " -> (" << value <<
-                                       ", " << ballotId << ")";
-            InstanceData* instanceData = reply->add_recovered_instances();
-            instanceData->set_instance_id(instanceId);
-            instanceData->set_ballot(ballotId);
-            value.serialize(instanceData->mutable_value());
+            default:
+                MORDOR_ASSERT(1 == 0);
         }
     }
     requestEpoch.serialize(reply->mutable_epoch());

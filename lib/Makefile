@@ -63,6 +63,8 @@ LIB_OBJS += \
     value_buffer.o \
     tcp_value_receiver.o \
     stream_reassembler.o \
+    value_cache.o \
+    commit_tracker.o \
 
 TEST_TARGETS = test_ring_master test_ring_acceptor test_ring_learner submit_random_values submit_snapshot
 TEST_OBJS = $(addsuffix .o, $(TEST_TARGETS))

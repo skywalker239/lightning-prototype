@@ -61,6 +61,8 @@ public:
     //  Returns false if we don't have the corresponding value.
     bool commit(const Guid& valueId);
 
+    bool committed() const { return committed_; }
+
     //! If committed, retrieve value and the last voted ballot id
     //  and return true, otherwise return false.
     bool value(Value* value, BallotId* ballot) const;

@@ -38,6 +38,8 @@ using namespace Mordor;
 using namespace lightning;
 using boost::lexical_cast;
 
+static Logger::ptr g_log = Log::lookup("lightning:main");
+
 class SnapshotLearnerSink : public InstanceSink {
 public:
     SnapshotLearnerSink(uint64_t snapshotId,
@@ -46,7 +48,8 @@ public:
           streamReassembler_(streamReassembler)
     {}
 
-    void push(const Guid&, paxos::InstanceId, paxos::BallotId, paxos::Value v) {
+    void push(const Guid&, paxos::InstanceId iid, paxos::BallotId ballot, paxos::Value v) {
+        MORDOR_LOG_TRACE(g_log) << " (" << iid << ", " << ballot << ", " << v << ")";
         if(v.valueId().empty()) {
             return;
         }
@@ -96,7 +99,6 @@ Socket::ptr bindSocket(Address::ptr bindAddress, IOManager* ioManager) {
     return s;
 }
 
-static Logger::ptr g_log = Log::lookup("lightning:main");
 
 void httpRequest(HTTP::ServerRequest::ptr request) {
     ostringstream ss;
@@ -127,13 +129,27 @@ void dumpStream(IOManager* ioManager,
                 StreamReassembler::ptr streamReassembler)
 {
     StdoutStream outputStream(*ioManager);
+    bool gotData = false;
+    uint64_t startTime = 0;
+    uint64_t written = 0;
     while(true) {
         boost::shared_ptr<string> chunk = streamReassembler->nextChunk();
         if(!chunk) {
             ioManager->stop();
+            cerr << Statistics::dump() << endl;
+            uint64_t endTime = TimerManager::now();
+            cerr << "Received " << written << " bytes" << endl;
+            cerr << "Time: " << endTime - startTime << " us" << endl;
+            cerr << "Speed: " << int(written / ((endTime - startTime) / 1000000.)) << " bps.";
             exit(0); // HACK
         }
+        if(!gotData) {
+            gotData = true;
+            startTime = TimerManager::now();
+        }
         outputStream.write(chunk->c_str(), chunk->length());
+        written += chunk->length();
+        Scheduler::yield();
     }
 }
 

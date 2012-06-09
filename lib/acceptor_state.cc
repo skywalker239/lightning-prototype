@@ -128,10 +128,12 @@ AcceptorState::Status AcceptorState::commit(InstanceId instanceId,
     }
 
 
+    bool wasCommitted = instance->committed();
+
     bool result = instance->commit(valueId);
     MORDOR_LOG_TRACE(g_log) << this << " commit(" << instanceId << ", " <<
                                valueId << ") = " << result;
-    if(result) {
+    if(result && !wasCommitted) {
         addCommittedInstanceId(instanceId);
         Value value;
         BallotId ballot;
@@ -196,12 +198,20 @@ void AcceptorState::setInstance(const Guid& epoch,
     MORDOR_LOG_TRACE(g_log) << this << " setInstance(" << instanceId <<
                                ", " << ballot << ", " << value << ")";
 
-    if(instances_.find(instanceId) == instances_.end()) {
+    bool wasCommitted = false;
+    auto instanceIter = instances_.find(instanceId);
+    if(instanceIter == instances_.end()) {
         ++pendingInstanceCount_;
         g_pendingInstances.increment();
+    } else {
+        wasCommitted = instanceIter->second.committed();
     }
+
     instances_[instanceId] = AcceptorInstance(value, ballot);
     addCommittedInstanceId(instanceId);
+    if(!wasCommitted) {
+        instanceSink_->push(epoch_, instanceId, ballot, value);
+    }
     // XXX we don't expire anything at this point
 }
 

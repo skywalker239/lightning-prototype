@@ -99,7 +99,7 @@ void readData(SubmitBuffer* submitBuffer,
         position += bytes;
     }
     // XXX hack
-    submitBuffer->pushValue(Value(Guid(), shared_ptr<string>(new string)));
+    submitBuffer->pushValue(Value(Guid(), boost::shared_ptr<string>(new string)));
     uint64_t timeElapsed = TimerManager::now() - startT;
     cout << "Read " << position << " bytes in " << timeElapsed << "us, " << int(position / (timeElapsed / 1000000.)) << " bps" << endl;
 }

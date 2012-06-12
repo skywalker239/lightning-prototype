@@ -47,22 +47,24 @@ AcceptorState::Status AcceptorState::nextBallot(const Guid& epoch,
 {
     FiberMutex::ScopedLock lk(mutex_);
     updateEpoch(epoch);
-    switch(tryNextBallotOnCommitted(instanceId,
-                                    ballotId,
-                                    highestPromised,
-                                    highestVoted,
-                                    lastVote))
-    {
-        case ValueCache::OK:
-            return OK;
-            break;
-        case ValueCache::TOO_OLD: case ValueCache::WRONG_EPOCH:
-            MORDOR_LOG_TRACE(g_log) << this << " iid " << instanceId <<
-                " forgotten/epoch wrong";
-            return TOO_OLD;
-            break;
-        default:
-            break;
+    if(valueCache_) { // HACK(skywalker)
+        switch(tryNextBallotOnCommitted(instanceId,
+                                        ballotId,
+                                        highestPromised,
+                                        highestVoted,
+                                        lastVote))
+        {
+            case ValueCache::OK:
+                return OK;
+                break;
+            case ValueCache::TOO_OLD: case ValueCache::WRONG_EPOCH:
+                MORDOR_LOG_TRACE(g_log) << this << " iid " << instanceId <<
+                    " forgotten/epoch wrong";
+                return TOO_OLD;
+                break;
+            default:
+                break;
+        }
     }
     AcceptorInstance* instance = lookupInstance(instanceId);
     if(!instance) {
@@ -103,17 +105,19 @@ AcceptorState::Status AcceptorState::beginBallot(const Guid& epoch,
 {
     FiberMutex::ScopedLock lk(mutex_);
     updateEpoch(epoch);
-    switch(tryBeginBallotOnCommitted(instanceId, ballotId, value)) {
-        case ValueCache::OK:
-            return OK;
-            break;
-        case ValueCache::TOO_OLD: case ValueCache::WRONG_EPOCH:
-            MORDOR_LOG_TRACE(g_log) << this << " iid " << instanceId <<
-                " forgotten/epoch wrong";
-            return TOO_OLD;
-            break;
-        default:
-            break;
+    if(valueCache_) { // HACK(skywalker)
+        switch(tryBeginBallotOnCommitted(instanceId, ballotId, value)) {
+            case ValueCache::OK:
+                return OK;
+                break;
+            case ValueCache::TOO_OLD: case ValueCache::WRONG_EPOCH:
+                MORDOR_LOG_TRACE(g_log) << this << " iid " << instanceId <<
+                    " forgotten/epoch wrong";
+                return TOO_OLD;
+                break;
+            default:
+                break;
+        }
     }
 
     AcceptorInstance* instance = lookupInstance(instanceId);
@@ -153,17 +157,19 @@ AcceptorState::Status AcceptorState::vote(const Guid& epoch,
 {
     FiberMutex::ScopedLock lk(mutex_);
     updateEpoch(epoch);
-    switch(tryVoteOnCommitted(vote, highestPromised)) {
-        case ValueCache::OK:
-            return OK;
-            break;
-        case ValueCache::TOO_OLD: case ValueCache::WRONG_EPOCH:
-            MORDOR_LOG_TRACE(g_log) << this << " iid " << vote.instance() <<
-                " forgotten/epoch wrong";
-            return TOO_OLD;
-            break;
-        default:
-            break;
+    if(valueCache_) { // HACK(skywalker)
+        switch(tryVoteOnCommitted(vote, highestPromised)) {
+            case ValueCache::OK:
+                return OK;
+                break;
+            case ValueCache::TOO_OLD: case ValueCache::WRONG_EPOCH:
+                MORDOR_LOG_TRACE(g_log) << this << " iid " << vote.instance() <<
+                    " forgotten/epoch wrong";
+                return TOO_OLD;
+                break;
+            default:
+                break;
+        }
     }
     AcceptorInstance* instance = lookupInstance(vote.instance());
     if(!instance) {
@@ -195,17 +201,19 @@ AcceptorState::Status AcceptorState::commit(const Guid& epoch,
 {
     FiberMutex::ScopedLock lk(mutex_);
     updateEpoch(epoch);
-    switch(tryCommitOnCommitted(instanceId, valueId)) {
-        case ValueCache::OK:
-            return OK;
-            break;
-        case ValueCache::TOO_OLD: case ValueCache::WRONG_EPOCH:
-            MORDOR_LOG_TRACE(g_log) << this << " iid " << instanceId <<
-                " forgotten/epoch wrong";
-            return TOO_OLD;
-            break;
-        default:
-            break;
+    if(valueCache_) { // HACK(skywalker)
+        switch(tryCommitOnCommitted(instanceId, valueId)) {
+            case ValueCache::OK:
+                return OK;
+                break;
+            case ValueCache::TOO_OLD: case ValueCache::WRONG_EPOCH:
+                MORDOR_LOG_TRACE(g_log) << this << " iid " << instanceId <<
+                    " forgotten/epoch wrong";
+                return TOO_OLD;
+                break;
+            default:
+                break;
+        }
     }
 
     AcceptorInstance* instance = lookupInstance(instanceId);

@@ -14,6 +14,8 @@
 #include "stream_reassembler.h"
 #include "ponger.h"
 #include "udp_sender.h"
+#include "value_cache.h"
+#include "commit_tracker.h"
 #include <iostream>
 #include <fstream>
 #include <streambuf>
@@ -48,7 +50,13 @@ public:
           streamReassembler_(streamReassembler)
     {}
 
-    void push(const Guid&, paxos::InstanceId iid, paxos::BallotId ballot, paxos::Value v) {
+    void updateEpoch(const Guid& newEpoch) {
+        FiberMutex::ScopedLock lk(mutex_);
+        MORDOR_LOG_INFO(g_log) << " new epoch " << newEpoch;
+        MORDOR_ASSERT(epoch_.empty());
+        epoch_ = newEpoch;
+    }
+    void push(paxos::InstanceId iid, paxos::BallotId ballot, paxos::Value v) {
         MORDOR_LOG_TRACE(g_log) << " (" << iid << ", " << ballot << ", " << v << ")";
         if(v.valueId().empty()) {
             return;
@@ -70,6 +78,8 @@ public:
     }
 private:
     const uint64_t snapshotId_;
+    FiberMutex mutex_;
+    Guid epoch_;
     StreamReassembler::ptr streamReassembler_;
 };
     
@@ -185,15 +195,17 @@ void setupEverything(IOManager* ioManager,
                                       reconnectDelayUs,
                                       socketTimeoutUs,
                                       retryDelayUs);
+    //-------------------------------------------------------------------------
+    // commit tracker
+    uint64_t recoveryGracePeriod = config["recovery_grace_period"].get<long long>();
+    boost::shared_ptr<InstanceSink> sink(new SnapshotLearnerSink(snapshotId, streamReassembler));
+    CommitTracker::ptr commitTracker(new CommitTracker(recoveryGracePeriod, sink, recoveryManager, ioManager));
+    recoveryManager->setCommitTracker(commitTracker);
 
     //-------------------------------------------------------------------------
     // acceptor state
-    uint64_t pendingLimit = config["acceptor_max_pending_instances"].get<long long>();
-    uint64_t committedLimit = config["acceptor_instance_window_size"].get<long long>();
-    uint64_t recoveryGracePeriod = config["recovery_grace_period"].get<long long>();
-    boost::shared_ptr<InstanceSink> sink(new SnapshotLearnerSink(snapshotId, streamReassembler));
-    AcceptorState::ptr acceptorState(new AcceptorState(pendingLimit, committedLimit, recoveryGracePeriod, ioManager, recoveryManager, sink));
-    recoveryManager->setAcceptor(acceptorState);
+    uint64_t pendingSpan = config["acceptor_pending_instances_span"].get<long long>();
+    AcceptorState::ptr acceptorState(new AcceptorState(pendingSpan, ioManager, recoveryManager, commitTracker, ValueCache::ptr()));
 
     //-------------------------------------------------------------------------
     // ring voter

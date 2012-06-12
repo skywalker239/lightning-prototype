@@ -57,6 +57,7 @@ void ValueCache::forgetEarliestInstance() {
     auto iter = valueMap_.begin();
     MORDOR_ASSERT(iter->first == firstNotForgottenInstanceId_);
     valueMap_.erase(iter);
+    ++firstNotForgottenInstanceId_;
 }
 
 ValueCache::QueryResult ValueCache::query(const Guid& epoch,

@@ -54,8 +54,7 @@ message ValueData {
 
 message InstanceData {
     required uint64 instance_id = 1;
-    required uint32 ballot = 2;
-    required ValueData value = 3;
+    required ValueData value = 2;
 }
 
 message BatchRecoveryReplyData {

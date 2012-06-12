@@ -15,7 +15,7 @@
 
 namespace lightning {
 
-class AcceptorState;
+class CommitTracker;
 
 class RecoveryManager : public boost::enable_shared_from_this<RecoveryManager>
 {
@@ -49,13 +49,12 @@ public:
                           uint64_t instanceRetryDelayUs);
 
     //! Sets the recovery destination
-    void setAcceptor(boost::shared_ptr<AcceptorState> acceptor);
+    void setCommitTracker(boost::shared_ptr<CommitTracker> commitTracker);
 
     //! Stores the recovered value in the acceptor state.
     void addRecoveredValue(const Guid& epoch,
                            paxos::InstanceId instanceId,
-                           const paxos::Value& value,
-                           paxos::BallotId ballot);
+                           const paxos::Value& value);
 private:
     RecoveryConnection::ptr getBestConnection();
     RecoveryConnection::ptr getRandomConnection();
@@ -77,7 +76,7 @@ private:
 
     Mordor::FiberEvent hasActiveConnection_;
 
-    boost::shared_ptr<AcceptorState> acceptor_;
+    boost::shared_ptr<CommitTracker> commitTracker_;
 
     BlockingQueue<RecoveryRecord::ptr> recoveryQueue_;
     BlockingQueue<RecoveryRecord::ptr> randomDestinationQueue_;

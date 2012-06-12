@@ -218,14 +218,12 @@ void RecoveryConnection::processReply(
     for(int i = 0; i < replyData.recovered_instances_size(); ++i) {
         const InstanceData& instanceData = replyData.recovered_instances(i);
         InstanceId instanceId = instanceData.instance_id();
-        BallotId ballotId = instanceData.ballot();
         Value value = Value::parse(instanceData.value());
         MORDOR_LOG_TRACE(g_log) << this << " recovered (" << epoch << ", " <<
-            instanceId << ", " << ballotId << ", " << value << ")";
+            instanceId << ", " << value << ")";
         recoveryManager_->addRecoveredValue(epoch,
                                             instanceId,
-                                            value,
-                                            ballotId);
+                                            value);
         recoveredInstances_.increment();
     }
     for(int i = 0; i < replyData.not_committed_instances_size(); ++i) {

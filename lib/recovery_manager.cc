@@ -1,6 +1,6 @@
 #include "recovery_manager.h"
 #include "recovery_connection.h"
-#include "acceptor_state.h"
+#include "commit_tracker.h"
 #include <mordor/assert.h>
 #include <mordor/log.h>
 #include <mordor/sleep.h>
@@ -10,7 +10,7 @@
 
 namespace lightning {
 
-using paxos::BallotId;
+using paxos::kInvalidBallotId;
 using paxos::InstanceId;
 using paxos::Value;
 using Mordor::FiberMutex;
@@ -135,10 +135,10 @@ void RecoveryManager::addInstance(const Guid& epoch,
                                   InstanceId instanceId,
                                   bool tryBestConnection)
 {
-    MORDOR_ASSERT(!!acceptor_);
-    if(!acceptor_->needsRecovery(epoch, instanceId)) {
+    MORDOR_ASSERT(commitTracker_);
+    if(!commitTracker_->needsRecovery(epoch, instanceId)) {
         MORDOR_LOG_TRACE(g_log) << this <<
-            " addInstance: acceptor not interested in (" << epoch << ", " <<
+            " addInstance: tracker not interested in (" << epoch << ", " <<
             instanceId << ")";
         return;
     }
@@ -158,18 +158,17 @@ void RecoveryManager::addInstance(const Guid& epoch,
 
 void RecoveryManager::addRecoveredValue(const Guid& epoch,
                                         InstanceId instanceId,
-                                        const Value& value,
-                                        BallotId ballot)
+                                        const Value& value)
 {
-    MORDOR_ASSERT(!!acceptor_);
+    MORDOR_ASSERT(commitTracker_);
     MORDOR_LOG_TRACE(g_log) << this << " addRecoveredValue(" <<
-        epoch << ", " << instanceId << ", " << value << ", " << ballot << ")";
-    acceptor_->setInstance(epoch, instanceId, value, ballot);
+        epoch << ", " << instanceId << ", " << value << ")";
+    commitTracker_->push(epoch, instanceId, kInvalidBallotId, value);
 }
 
-void RecoveryManager::setAcceptor(AcceptorState::ptr acceptor) {
+void RecoveryManager::setCommitTracker(CommitTracker::ptr commitTracker) {
     FiberMutex::ScopedLock lk(mutex_);
-    acceptor_ = acceptor;
+    commitTracker_ = commitTracker;
 }
 
 void RecoveryManager::setupConnections(

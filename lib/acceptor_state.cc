@@ -24,49 +24,46 @@ using std::make_pair;
 using std::map;
 using std::set;
 
-static CountStatistic<uint64_t>& g_pendingInstances =
-    Statistics::registerStatistic("acceptor.pending_instances",
-                                  CountStatistic<uint64_t>());
-static CountStatistic<uint64_t>& g_notCommittedInstances =
-    Statistics::registerStatistic("acceptor.not_committed_instances",
-                                  CountStatistic<uint64_t>());
-static AverageMinMaxStatistic<uint64_t>& g_uncertaintyWindowSize =
-    Statistics::registerStatistic("acceptor.uncertainty_window_size",
-                                  AverageMinMaxStatistic<uint64_t>());
-static MaxStatistic<uint64_t>& g_firstUncommittedInstance =
-    Statistics::registerStatistic("acceptor.first_uncommitted_instance",
-                                  MaxStatistic<uint64_t>());
-static MaxStatistic<uint64_t>& g_lastCommittedInstance =
-    Statistics::registerStatistic("acceptor.last_committed_instance",
-                                  MaxStatistic<uint64_t>());
-
-
 static Logger::ptr g_log = Log::lookup("lightning:acceptor_state");
 
-AcceptorState::AcceptorState(uint32_t pendingInstancesLimit,
-                             uint32_t instanceWindowSize,
-                             uint64_t recoveryGracePeriodUs,
+AcceptorState::AcceptorState(uint32_t pendingInstancesSpan,
                              IOManager* ioManager,
                              RecoveryManager::ptr recoveryManager,
-                             boost::shared_ptr<InstanceSink> instanceSink)
-    : pendingInstancesLimit_(pendingInstancesLimit),
-      instanceWindowSize_(instanceWindowSize),
-      recoveryGracePeriodUs_(recoveryGracePeriodUs),
-      firstNotForgottenInstanceId_(0),
-      pendingInstanceCount_(0),
-      afterLastCommittedInstanceId_(0),
+                             CommitTracker::ptr commitTracker,
+                             ValueCache::ptr    valueCache)
+    : pendingInstancesSpan_(pendingInstancesSpan),
       ioManager_(ioManager),
       recoveryManager_(recoveryManager),
-      instanceSink_(instanceSink)
+      commitTracker_(commitTracker),
+      valueCache_(valueCache)
 {}
 
-AcceptorState::Status AcceptorState::nextBallot(InstanceId instanceId,
+AcceptorState::Status AcceptorState::nextBallot(const Guid& epoch,
+                                                InstanceId instanceId,
                                                 BallotId  ballotId,
                                                 BallotId* highestPromised,
                                                 BallotId* highestVoted,
                                                 Value*    lastVote)
 {
     FiberMutex::ScopedLock lk(mutex_);
+    updateEpoch(epoch);
+    switch(tryNextBallotOnCommitted(instanceId,
+                                    ballotId,
+                                    highestPromised,
+                                    highestVoted,
+                                    lastVote))
+    {
+        case ValueCache::OK:
+            return OK;
+            break;
+        case ValueCache::TOO_OLD: case ValueCache::WRONG_EPOCH:
+            MORDOR_LOG_TRACE(g_log) << this << " iid " << instanceId <<
+                " forgotten/epoch wrong";
+            return REFUSED;
+            break;
+        default:
+            break;
+    }
     AcceptorInstance* instance = lookupInstance(instanceId);
     if(!instance) {
         MORDOR_LOG_TRACE(g_log) << this << " nextBallot(" << instanceId <<
@@ -82,11 +79,43 @@ AcceptorState::Status AcceptorState::nextBallot(InstanceId instanceId,
     return boolToStatus(result);
 }
 
-AcceptorState::Status AcceptorState::beginBallot(InstanceId instanceId,
+ValueCache::QueryResult AcceptorState::tryNextBallotOnCommitted(
+    InstanceId instanceId,
+    BallotId   ballotId,
+    BallotId*  highestPromised,
+    BallotId*  highestVoted,
+    Value*     lastVote)
+{
+    auto result = valueCache_->query(epoch_, instanceId, lastVote);
+    if(result == ValueCache::OK) {
+        MORDOR_LOG_TRACE(g_log) << this << " nextBallot(" << instanceId <<
+            ", " << ballotId << ") hit committed " << *lastVote;
+        *highestPromised = ballotId;
+        *highestVoted = ballotId - 1; // HACK(skywalker)
+    }
+    return result;
+}
+
+AcceptorState::Status AcceptorState::beginBallot(const Guid& epoch,
+                                                 InstanceId instanceId,
                                                  BallotId ballotId,
                                                  const Value& value)
 {
     FiberMutex::ScopedLock lk(mutex_);
+    updateEpoch(epoch_);
+    switch(tryBeginBallotOnCommitted(instanceId, ballotId, value)) {
+        case ValueCache::OK:
+            return OK;
+            break;
+        case ValueCache::TOO_OLD: case ValueCache::WRONG_EPOCH:
+            MORDOR_LOG_TRACE(g_log) << this << " iid " << instanceId <<
+                " forgotten/epoch wrong";
+            return REFUSED;
+            break;
+        default:
+            break;
+    }
+
     AcceptorInstance* instance = lookupInstance(instanceId);
     if(!instance) {
         MORDOR_LOG_TRACE(g_log) << this << " beginBallot(" << instanceId <<
@@ -102,10 +131,40 @@ AcceptorState::Status AcceptorState::beginBallot(InstanceId instanceId,
     return boolToStatus(result);
 }
 
-AcceptorState::Status AcceptorState::vote(const Vote& vote,
+ValueCache::QueryResult AcceptorState::tryBeginBallotOnCommitted(
+    InstanceId instanceId,
+    BallotId   ballotId,
+    const Value& value)
+{
+    Value committedValue;
+    auto result = valueCache_->query(epoch_, instanceId, &committedValue);
+    if(result == ValueCache::OK) {
+        MORDOR_LOG_TRACE(g_log) << this << " beginBallot(" << instanceId <<
+            ", " << ballotId << ", " << value << ") hit committed " <<
+            committedValue;
+        MORDOR_ASSERT(value.valueId() == committedValue.valueId());
+    }
+    return result;
+}
+
+AcceptorState::Status AcceptorState::vote(const Guid& epoch,
+                                          const Vote& vote,
                                           BallotId* highestPromised)
 {
     FiberMutex::ScopedLock lk(mutex_);
+    updateEpoch(epoch);
+    switch(tryVoteOnCommitted(vote, highestPromised)) {
+        case ValueCache::OK:
+            return OK;
+            break;
+        case ValueCache::TOO_OLD: case ValueCache::WRONG_EPOCH:
+            MORDOR_LOG_TRACE(g_log) << this << " iid " << vote.instance() <<
+                " forgotten/epoch wrong";
+            return REFUSED;
+            break;
+        default:
+            break;
+    }
     AcceptorInstance* instance = lookupInstance(vote.instance());
     if(!instance) {
         MORDOR_LOG_TRACE(g_log) << this << " " << vote << " refused";
@@ -116,10 +175,39 @@ AcceptorState::Status AcceptorState::vote(const Vote& vote,
     return boolToStatus(result);
 }
 
-AcceptorState::Status AcceptorState::commit(InstanceId instanceId,
+ValueCache::QueryResult AcceptorState::tryVoteOnCommitted(
+    const Vote& vote,
+    BallotId* highestBallotPromised)
+{
+    Value committedValue;
+    auto result = valueCache_->query(epoch_, vote.instance(), &committedValue);
+    if(result == ValueCache::OK) {
+        MORDOR_LOG_TRACE(g_log) << this << " vote " << vote <<
+            " hit committed value " << committedValue;
+        MORDOR_ASSERT(vote.valueId() == committedValue.valueId());
+    }
+    return result;
+}
+
+AcceptorState::Status AcceptorState::commit(const Guid& epoch,
+                                            InstanceId instanceId,
                                             const Guid& valueId)
 {
     FiberMutex::ScopedLock lk(mutex_);
+    updateEpoch(epoch);
+    switch(tryCommitOnCommitted(instanceId, valueId)) {
+        case ValueCache::OK:
+            return OK;
+            break;
+        case ValueCache::TOO_OLD: case ValueCache::WRONG_EPOCH:
+            MORDOR_LOG_TRACE(g_log) << this << " iid " << instanceId <<
+                " forgotten/epoch wrong";
+            return REFUSED;
+            break;
+        default:
+            break;
+    }
+
     AcceptorInstance* instance = lookupInstance(instanceId);
     if(!instance) {
         MORDOR_LOG_TRACE(g_log) << this << "commit(" << instanceId <<
@@ -127,258 +215,102 @@ AcceptorState::Status AcceptorState::commit(InstanceId instanceId,
         return REFUSED;
     }
 
-
-    bool wasCommitted = instance->committed();
+    MORDOR_ASSERT(!instance->committed());
 
     bool result = instance->commit(valueId);
     MORDOR_LOG_TRACE(g_log) << this << " commit(" << instanceId << ", " <<
                                valueId << ") = " << result;
-    if(result && !wasCommitted) {
-        addCommittedInstanceId(instanceId);
+    if(result) {
         Value value;
         BallotId ballot;
         if(!instance->value(&value, &ballot)) {
             MORDOR_ASSERT(1 == 0);
         }
-        instanceSink_->push(epoch_, instanceId, ballot, value);
+        commitTracker_->push(epoch_, instanceId, ballot, value);
+        pendingInstances_.erase(instanceId);
     } else {
         MORDOR_LOG_TRACE(g_log) << this << " commit(" << instanceId << ")" <<
                                    " failed, scheduling recovery";
         ioManager_->schedule(boost::bind(&AcceptorState::startRecovery,
-                                         shared_from_this(),
+                                         this,
                                          epoch_,
                                          instanceId));
     }
     return boolToStatus(result);
 }
 
-bool AcceptorState::getCommittedInstance(const Guid& epoch,
-                                         InstanceId instanceId,
-                                         Value* value,
-                                         BallotId* ballot) const
+ValueCache::QueryResult AcceptorState::tryCommitOnCommitted(
+    InstanceId instanceId,
+    const Guid& valueId)
 {
-    FiberMutex::ScopedLock lk(mutex_);
-
-    if(epoch != epoch_) {
-        MORDOR_LOG_TRACE(g_log) << this << " getCommittedInstance: " <<
-            "wrong epoch " << epoch << ", current is " << epoch_;
-        return false;
+    Value committedValue;
+    auto result = valueCache_->query(epoch_, instanceId, &committedValue);
+    if(result == ValueCache::OK) {
+        MORDOR_LOG_TRACE(g_log) << this << " commit(" << instanceId <<
+            ", " << valueId << " is a recommit(" <<
+            committedValue.valueId() << ")";
+        MORDOR_ASSERT(valueId == committedValue.valueId());
     }
-
-    auto instanceIter = instances_.find(instanceId);
-    if(instanceIter == instances_.end()) {
-        MORDOR_LOG_TRACE(g_log) << this << " getCommittedInstance: iid " <<
-                                   instanceId << " not found";
-        return false;
-    } else {
-        return instanceIter->second.value(value, ballot);
-    }
-}
-
-void AcceptorState::setInstance(const Guid& epoch,
-                                InstanceId instanceId,
-                                const Value& value,
-                                BallotId ballot)
-{
-    FiberMutex::ScopedLock lk(mutex_);
-
-    if(epoch != epoch_) {
-        MORDOR_LOG_TRACE(g_log) << this << " setInstance( " << instanceId <<
-            "): wrong epoch " << epoch << ", current is " << epoch_;
-        return;
-    }
-
-    if(instanceId < firstNotForgottenInstanceId_) {
-        MORDOR_LOG_TRACE(g_log) << this << " setInstance(" << instanceId <<
-                                   ") too old, [0, " <<
-                                   firstNotForgottenInstanceId_ <<
-                                   ") forgotten";
-        return;
-    }
-    MORDOR_LOG_TRACE(g_log) << this << " setInstance(" << instanceId <<
-                               ", " << ballot << ", " << value << ")";
-
-    bool wasCommitted = false;
-    auto instanceIter = instances_.find(instanceId);
-    if(instanceIter == instances_.end()) {
-        ++pendingInstanceCount_;
-        g_pendingInstances.increment();
-    } else {
-        wasCommitted = instanceIter->second.committed();
-    }
-
-    instances_[instanceId] = AcceptorInstance(value, ballot);
-    addCommittedInstanceId(instanceId);
-    if(!wasCommitted) {
-        instanceSink_->push(epoch_, instanceId, ballot, value);
-    }
-    // XXX we don't expire anything at this point
-}
-
-bool AcceptorState::needsRecovery(
-    const Guid& epoch,
-    InstanceId instanceId) const
-{
-    FiberMutex::ScopedLock lk(mutex_);
-
-    if(epoch != epoch_) {
-        return false;
-    }
-
-    if(instanceId >= afterLastCommittedInstanceId_) {
-        return true;
-    }
-    return notCommittedInstanceIds_.find(instanceId) !=
-           notCommittedInstanceIds_.end();
-}
-
-InstanceId AcceptorState::firstNotForgottenInstance() const {
-    FiberMutex::ScopedLock lk(mutex_);
-
-    return firstNotForgottenInstanceId_;
-}
-
-InstanceId AcceptorState::firstNotCommittedInstance() const {
-    FiberMutex::ScopedLock lk(mutex_);
-
-    return firstNotCommittedInstanceInternal();
-}
-
-InstanceId AcceptorState::firstNotCommittedInstanceInternal() const {
-    return (notCommittedInstanceIds_.empty()) ?
-                afterLastCommittedInstanceId_ :
-                *notCommittedInstanceIds_.begin();
-}
-
-bool AcceptorState::tryForgetInstances(InstanceId upperLimit) {
-    InstanceId firstNotCommittedId = firstNotCommittedInstanceInternal();
-    if(firstNotCommittedId < upperLimit) {
-        MORDOR_LOG_TRACE(g_log) << this << " forget(" << upperLimit <<
-                                   " failed: iid " << firstNotCommittedId <<
-                                   " not committed";
-        return false;
-    }
-
-    while(!instances_.empty() && instances_.begin()->first < upperLimit) {
-        MORDOR_LOG_TRACE(g_log) << this << " forgetting iid=" <<
-                                   instances_.begin()->first;
-        instances_.erase(instances_.begin());
-    }
-    firstNotForgottenInstanceId_ = upperLimit;
-    return true;
+    return result;
 }
 
 AcceptorInstance* AcceptorState::lookupInstance(InstanceId instanceId) {
-    if(instanceId < firstNotForgottenInstanceId_) {
-        MORDOR_LOG_WARNING(g_log) << this << " lookup forgotten iid=" <<
-                                     instanceId;
-        return NULL;
-    }
-
-    auto instanceIter = instances_.find(instanceId);
-    if(instanceIter != instances_.end()) {
+    // A precondition for calling this function is that the value cache
+    // query returned NOT_YET.
+    // Thus we only need to check whether the pending instance span
+    // constraint is violated by inserting a new instance.
+    auto instanceIter = pendingInstances_.find(instanceId);
+    if(instanceIter != pendingInstances_.end()) {
         return &instanceIter->second;
     } else {
-        if(pendingInstanceCount_ >= pendingInstancesLimit_) {
-            MORDOR_LOG_WARNING(g_log) << this << " " <<
-                                         pendingInstanceCount_ <<
-                                         " pending instances > " <<
-                                         pendingInstancesLimit_ <<
-                                         " pending limit";
-
+        if(canInsert(instanceId)) {
+            MORDOR_LOG_TRACE(g_log) << this << " new pending iid=" <<
+                instanceId;
+            auto freshIter = pendingInstances_.insert(make_pair(instanceId,
+                                                      AcceptorInstance()));
+            MORDOR_ASSERT(freshIter.second);
+            return &(freshIter.first->second);
+        } else {
             return NULL;
         }
-        if(instanceId - firstNotForgottenInstanceId_ > instanceWindowSize_) {
-            const InstanceId newWindowStart = instanceId - instanceWindowSize_;
-            if(!tryForgetInstances(newWindowStart)) {
-                MORDOR_LOG_WARNING(g_log) << this << " cannot forget up to " <<
-                                             newWindowStart;
-                return NULL;
-            }
-        }
-
-        MORDOR_LOG_TRACE(g_log) << this << " new pending iid=" <<
-                                       instanceId;
-        auto freshIter = instances_.insert(make_pair(instanceId,
-                                           AcceptorInstance())).first;
-        ++pendingInstanceCount_;
-        g_pendingInstances.increment();
-        return &freshIter->second;
     }
 }
-                                                    
-void AcceptorState::addCommittedInstanceId(InstanceId instanceId) {
-    g_lastCommittedInstance.update(instanceId);
-    bool freshCommit = false;
-    if(instanceId >= afterLastCommittedInstanceId_) {
-        for(InstanceId iid = afterLastCommittedInstanceId_;
-            iid < instanceId;
-            ++iid)
-        {
-            notCommittedInstanceIds_.insert(iid);
-            g_notCommittedInstances.increment();
-            MORDOR_ASSERT(g_notCommittedInstances.count ==
-                          notCommittedInstanceIds_.size());
 
-            auto timer = ioManager_->registerTimer(
-                             recoveryGracePeriodUs_,
-                             boost::bind(
-                                 &AcceptorState::startRecovery,
-                                 shared_from_this(),
-                                 epoch_,
-                                 iid));
-            auto insertResult = recoveryTimers_.insert(
-                                    make_pair(iid, timer));
-            MORDOR_ASSERT(insertResult.second == true);
-        }
-        afterLastCommittedInstanceId_ = instanceId + 1;
-        freshCommit = true;
+bool AcceptorState::canInsert(InstanceId instanceId) const {
+    if(pendingInstances_.empty()) {
+        return true;
     } else {
-        freshCommit = (notCommittedInstanceIds_.erase(instanceId) == 1);
-        if(freshCommit) {
-            g_notCommittedInstances.decrement();
-            MORDOR_ASSERT(g_notCommittedInstances.count ==
-                          notCommittedInstanceIds_.size());
-            uint64_t uncertaintyWindow = 0;
-            if(!notCommittedInstanceIds_.empty()) {
-                uncertaintyWindow = afterLastCommittedInstanceId_ -
-                                    *notCommittedInstanceIds_.begin() - 1;
-            }
-            g_uncertaintyWindowSize.update(uncertaintyWindow);
-
-            auto timerIter = recoveryTimers_.find(instanceId);
-            if(timerIter != recoveryTimers_.end()) {
-                timerIter->second->cancel();
-                recoveryTimers_.erase(timerIter);
-            }
+        auto maxPendingIter = --(pendingInstances_.end());
+        InstanceId maxPendingInstanceId = maxPendingIter->first;
+        InstanceId minPendingInstanceId =
+            commitTracker_->firstNotCommittedInstanceId();
+        if(instanceId >= minPendingInstanceId &&
+           instanceId <= maxPendingInstanceId)
+        {
+            return true;
+        } else if(instanceId < minPendingInstanceId) {
+            MORDOR_LOG_TRACE(g_log) << this << " cannot insert iid " <<
+                instanceId << ", min uncommitted iid is " <<
+                minPendingInstanceId;
+            return false;
+        } else if(instanceId >=
+            minPendingInstanceId + pendingInstancesSpan_)
+        {
+            MORDOR_LOG_TRACE(g_log) << this << " cannot insert iid " <<
+                instanceId << ", pending span is [" <<
+                minPendingInstanceId << ", " << maxPendingInstanceId <<
+                "], limit is " << pendingInstancesSpan_;
+            return false;
+        } else {
+            return true;
         }
-
-    }
-    if(freshCommit) {
-        uint64_t firstUncommittedInstance =
-            (notCommittedInstanceIds_.empty()) ?
-                afterLastCommittedInstanceId_ : *notCommittedInstanceIds_.begin();
-        g_firstUncommittedInstance.update(firstUncommittedInstance);
-        --pendingInstanceCount_;
-        g_pendingInstances.decrement();
     }
 }
 
 void AcceptorState::startRecovery(const Guid epoch, InstanceId instanceId) {
-    FiberMutex::ScopedLock lk(mutex_);
-
-    if(epoch_ != epoch) {
-        MORDOR_LOG_TRACE(g_log) << this << " startRecovery(" << instanceId <<
-                                   "): stale epoch " << epoch <<
-                                   ", current is " << epoch_;
-        return;
-    } else {
-        recoveryTimers_.erase(instanceId);
-        MORDOR_LOG_TRACE(g_log) << this << " submitting (" << epoch << ", " <<
-                                   instanceId << ") to recovery";
-        lk.unlock();
-        recoveryManager_->addInstance(epoch, instanceId);
-    }
+    MORDOR_LOG_TRACE(g_log) << this << " submitting (" << epoch << ", " <<
+        instanceId << ") to recovery";
+    recoveryManager_->addInstance(epoch, instanceId);
 }
 
 AcceptorState::Status AcceptorState::boolToStatus(const bool boolean) const
@@ -387,7 +319,6 @@ AcceptorState::Status AcceptorState::boolToStatus(const bool boolean) const
 }
 
 void AcceptorState::updateEpoch(const Guid& epoch) {
-    FiberMutex::ScopedLock lk(mutex_);
     if(epoch != epoch_) {
         MORDOR_LOG_TRACE(g_log) << this << " epoch change from " << epoch_ <<
                                    " to " << epoch;
@@ -397,13 +328,7 @@ void AcceptorState::updateEpoch(const Guid& epoch) {
 }
 
 void AcceptorState::reset() {
-    instances_.clear();
-    firstNotForgottenInstanceId_ = 0;
-    pendingInstanceCount_ = 0;
-    g_pendingInstances.reset();
-    g_notCommittedInstances.reset();
-    notCommittedInstanceIds_.clear();
-    afterLastCommittedInstanceId_ = 0;
+    pendingInstances_.clear();
 }
 
 }  // namespace lightning

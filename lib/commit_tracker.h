@@ -10,6 +10,9 @@
 namespace lightning {
 
 class CommitTracker {
+public:
+    typedef boost::shared_ptr<CommitTracker> ptr;
+
     CommitTracker(const uint64_t recoveryGracePeriodUs,
                   InstanceSink::ptr sink,
                   RecoveryManager::ptr recoveryManager,
@@ -22,6 +25,8 @@ class CommitTracker {
 
     bool needsRecovery(const Guid& epoch,
                        paxos::InstanceId instance) const;
+
+    paxos::InstanceId firstNotCommittedInstanceId() const;
 private:
     void updateEpoch(const Guid& epoch);
 

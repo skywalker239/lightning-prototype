@@ -29,7 +29,7 @@ CommitTracker::CommitTracker(const uint64_t recoveryGracePeriodUs,
 
 void CommitTracker::updateEpoch(const Guid& newEpoch) {
     if(newEpoch != epoch_) {
-        MORDOR_LOG_TRACE(g_log) << this << " epoch change " << epoch_ <<
+        MORDOR_LOG_DEBUG(g_log) << this << " epoch change " << epoch_ <<
             " -> " << newEpoch;
         sink_->updateEpoch(newEpoch);
         FiberMutex::ScopedLock lk(mutex_);
@@ -63,14 +63,19 @@ void CommitTracker::push(const Guid& epoch,
                                 this,
                                 epoch_,
                                 iid));
+            MORDOR_LOG_TRACE(g_log) << this << " scheduling recovery of (" <<
+                epoch_ << ", " << iid << ") in " << recoveryGracePeriodUs_;
             auto iter = notCommittedRecoveryTimers_.insert(
                             make_pair(iid, timer));
+            MORDOR_ASSERT(iter.second);
         }
         afterLastCommittedInstanceId_ = instanceId + 1;
     } else {
         auto iter = notCommittedRecoveryTimers_.find(instanceId);
         MORDOR_ASSERT(iter != notCommittedRecoveryTimers_.end());
         if(iter->second) {
+            MORDOR_LOG_TRACE(g_log) << this << " canceling recovery of (" <<
+                epoch << ", " << instanceId << ")";
             iter->second->cancel();
         }
         notCommittedRecoveryTimers_.erase(iter);
@@ -105,8 +110,16 @@ void CommitTracker::startRecovery(const Guid epoch,
         MORDOR_LOG_TRACE(g_log) << this << " submitting (" <<
             epoch << ", " << instanceId << ") to recovery";
         iter->second.reset();
+        lk.unlock();
         recoveryManager_->addInstance(epoch, instanceId);
     }
+}
+
+InstanceId CommitTracker::firstNotCommittedInstanceId() const {
+    FiberMutex::ScopedLock lk(mutex_);
+    return (notCommittedRecoveryTimers_.empty()) ?
+               afterLastCommittedInstanceId_ :
+               notCommittedRecoveryTimers_.begin()->first;
 }
 
 }  // namespace lightning

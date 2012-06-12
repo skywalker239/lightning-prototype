@@ -1,6 +1,5 @@
 #pragma once
 
-#include "acceptor_state.h"
 #include "recovery_record.h"
 #include <mordor/fibersynchronization.h>
 #include <mordor/iomanager.h>

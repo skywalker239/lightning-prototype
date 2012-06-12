@@ -32,6 +32,7 @@ public:
     enum Status {
         OK,     // Paxos command succeeded
         NACKED, // Paxos command failed
+        TOO_OLD,// instance was forgotten
         REFUSED // Paxos command refused because of
                 // storage constraints.
     };
@@ -67,6 +68,7 @@ public:
                   InstanceId instanceId,
                   const Guid& valueId);
 
+    InstanceId firstNotCommittedInstanceId(const Guid& epoch);
 private:
     void updateEpoch(const Guid& epoch);
     ValueCache::QueryResult tryNextBallotOnCommitted(InstanceId instanceId,

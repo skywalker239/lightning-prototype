@@ -12,6 +12,8 @@
 #include "ring_change_notifier.h"
 #include "set_ring_handler.h"
 #include "tcp_recovery_service.h"
+#include "commit_tracker.h"
+#include "value_cache.h"
 #include "ponger.h"
 #include "udp_sender.h"
 #include <iostream>
@@ -35,12 +37,6 @@ using namespace std;
 using namespace Mordor;
 using namespace lightning;
 using boost::lexical_cast;
-
-class DummySink : public InstanceSink {
-public:
-    void push(const Guid&, paxos::InstanceId, paxos::BallotId, paxos::Value)
-    {}
-};
 
 void readConfig(const string& filename,
                 Guid* configHash,
@@ -128,20 +124,27 @@ void setupEverything(IOManager* ioManager,
                                       retryDelayUs);
 
     //-------------------------------------------------------------------------
-    // acceptor state
-    uint64_t pendingLimit = config["acceptor_max_pending_instances"].get<long long>();
-    uint64_t committedLimit = config["acceptor_instance_window_size"].get<long long>();
+    // value cache
+    uint64_t valueCacheSize = config["value_cache_size"].get<long long>();
+    ValueCache::ptr valueCache(new ValueCache(valueCacheSize));
+
+    //-------------------------------------------------------------------------
+    // commit tracker
     uint64_t recoveryGracePeriod = config["recovery_grace_period"].get<long long>();
-    boost::shared_ptr<InstanceSink> sink(new DummySink);
-    AcceptorState::ptr acceptorState(new AcceptorState(pendingLimit, committedLimit, recoveryGracePeriod, ioManager, recoveryManager, sink));
-    recoveryManager->setAcceptor(acceptorState);
+    CommitTracker::ptr commitTracker(new CommitTracker(recoveryGracePeriod, valueCache, recoveryManager, ioManager));
+    recoveryManager->setCommitTracker(commitTracker);
+
+    //-------------------------------------------------------------------------
+    // acceptor state
+    uint64_t pendingSpan = config["acceptor_pending_instances_span"].get<long long>();
+    AcceptorState::ptr acceptorState(new AcceptorState(pendingSpan, ioManager, recoveryManager, commitTracker, valueCache)); 
 
     //-------------------------------------------------------------------------
     // recovery service
     Socket::ptr recoverySocket = bindSocket(groupConfig->thisHostConfiguration().unicastAddress, ioManager, SOCK_STREAM);
     recoverySocket->listen();
     TcpRecoveryService::ptr tcpRecoveryService(
-        new TcpRecoveryService(ioManager, recoverySocket, acceptorState));
+        new TcpRecoveryService(ioManager, recoverySocket, valueCache));
     ioManager->schedule(boost::bind(&TcpRecoveryService::run, tcpRecoveryService));
 
     //-------------------------------------------------------------------------

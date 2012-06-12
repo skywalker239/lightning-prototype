@@ -38,48 +38,52 @@ bool Phase1Handler::handleRequest(Address::ptr,
         return false;
     }
 
-    acceptorState_->updateEpoch(requestEpoch);
-
     reply->set_type(RpcMessageData::PAXOS_PHASE1);
     PaxosPhase1ReplyData* replyData = reply->mutable_phase1_reply();
-
-    if(instance < acceptorState_->firstNotForgottenInstance()) {
-        MORDOR_LOG_TRACE(g_log) << this << " iid=" << instance <<
-                                   " forgotten";
-        replyData->set_type(PaxosPhase1ReplyData::FORGOTTEN);
-        return ring->isInRing();
-    }
 
     BallotId highestPromised;
     BallotId highestVoted;
     Value    lastVote;
-    AcceptorState::Status status = acceptorState_->nextBallot(instance,
+    AcceptorState::Status status = acceptorState_->nextBallot(requestEpoch,
+                                                              instance,
                                                               ballot,
                                                               &highestPromised,
                                                               &highestVoted,
                                                               &lastVote);
-    if(status == AcceptorState::REFUSED) {
-        MORDOR_LOG_TRACE(g_log) << this << " phase1 request (" << instance <<
-                                   ", " << ballot << ") refused";
-        return false;
-    } else if(status == AcceptorState::NACKED) {
-        MORDOR_LOG_TRACE(g_log) << this << " phase1 request (" << instance <<
-                                   ", " << ballot << ") has too low ballot, " <<
-                                   " promised ballot=" << highestPromised;
-        replyData->set_type(PaxosPhase1ReplyData::BALLOT_TOO_LOW);
-        replyData->set_last_ballot_id(highestPromised);
-        return ring->isInRing();
-    } else {
-        MORDOR_LOG_TRACE(g_log) << this << " phase1 request (" << instance <<
-                                   ", " << ballot << ") successful, " <<
-                                   "highestVoted=" << highestVoted << ", " <<
-                                   "lastVote=" << lastVote;
-        replyData->set_type(PaxosPhase1ReplyData::OK);
-        if(highestVoted != kInvalidBallotId) {
-            replyData->set_last_ballot_id(highestVoted);
-            lastVote.serialize(replyData->mutable_value());
-        }
-        return ring->isInRing();
+    switch(status) {
+        case AcceptorState::REFUSED:
+            MORDOR_LOG_TRACE(g_log) << this << " phase1 request (" << instance <<
+                                       ", " << ballot << ") refused";
+            return false;
+            break;
+        case AcceptorState::NACKED:
+            MORDOR_LOG_TRACE(g_log) << this << " phase1 request (" << instance <<
+                                       ", " << ballot << ") has too low ballot, " <<
+                                       " promised ballot=" << highestPromised;
+            replyData->set_type(PaxosPhase1ReplyData::BALLOT_TOO_LOW);
+            replyData->set_last_ballot_id(highestPromised);
+            return ring->isInRing();
+            break;
+        case AcceptorState::TOO_OLD:
+            MORDOR_LOG_TRACE(g_log) << this << " iid=" << instance <<
+                                       " forgotten";
+            replyData->set_type(PaxosPhase1ReplyData::FORGOTTEN);
+            return ring->isInRing();
+            break;
+        case AcceptorState::OK:
+            MORDOR_LOG_TRACE(g_log) << this << " phase1 request (" << instance <<
+                                       ", " << ballot << ") successful, " <<
+                                       "highestVoted=" << highestVoted << ", " <<
+                                       "lastVote=" << lastVote;
+            replyData->set_type(PaxosPhase1ReplyData::OK);
+            if(highestVoted != kInvalidBallotId) {
+                replyData->set_last_ballot_id(highestVoted);
+                lastVote.serialize(replyData->mutable_value());
+            }
+            return ring->isInRing();
+            break;
+        default:
+            MORDOR_ASSERT(1==0);
     }
 }
 

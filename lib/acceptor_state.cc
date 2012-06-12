@@ -59,7 +59,7 @@ AcceptorState::Status AcceptorState::nextBallot(const Guid& epoch,
         case ValueCache::TOO_OLD: case ValueCache::WRONG_EPOCH:
             MORDOR_LOG_TRACE(g_log) << this << " iid " << instanceId <<
                 " forgotten/epoch wrong";
-            return REFUSED;
+            return TOO_OLD;
             break;
         default:
             break;
@@ -110,7 +110,7 @@ AcceptorState::Status AcceptorState::beginBallot(const Guid& epoch,
         case ValueCache::TOO_OLD: case ValueCache::WRONG_EPOCH:
             MORDOR_LOG_TRACE(g_log) << this << " iid " << instanceId <<
                 " forgotten/epoch wrong";
-            return REFUSED;
+            return TOO_OLD;
             break;
         default:
             break;
@@ -160,7 +160,7 @@ AcceptorState::Status AcceptorState::vote(const Guid& epoch,
         case ValueCache::TOO_OLD: case ValueCache::WRONG_EPOCH:
             MORDOR_LOG_TRACE(g_log) << this << " iid " << vote.instance() <<
                 " forgotten/epoch wrong";
-            return REFUSED;
+            return TOO_OLD;
             break;
         default:
             break;
@@ -202,7 +202,7 @@ AcceptorState::Status AcceptorState::commit(const Guid& epoch,
         case ValueCache::TOO_OLD: case ValueCache::WRONG_EPOCH:
             MORDOR_LOG_TRACE(g_log) << this << " iid " << instanceId <<
                 " forgotten/epoch wrong";
-            return REFUSED;
+            return TOO_OLD;
             break;
         default:
             break;
@@ -274,6 +274,12 @@ AcceptorInstance* AcceptorState::lookupInstance(InstanceId instanceId) {
             return NULL;
         }
     }
+}
+
+InstanceId AcceptorState::firstNotCommittedInstanceId(const Guid& epoch) {
+    FiberMutex::ScopedLock lk(mutex_);
+    updateEpoch(epoch);
+    return commitTracker_->firstNotCommittedInstanceId();
 }
 
 bool AcceptorState::canInsert(InstanceId instanceId) const {

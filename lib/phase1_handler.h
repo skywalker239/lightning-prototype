@@ -21,7 +21,6 @@ private:
     bool checkRingId(RingConfiguration::const_ptr ring,
                      uint32_t requestRingId);
 
-    Guid currentEpoch_;
     AcceptorState::ptr acceptorState_;
 };
 

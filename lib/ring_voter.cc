@@ -110,10 +110,10 @@ bool RingVoter::processVote(RingConfiguration::const_ptr ringConfiguration,
     }
 
     const Guid epoch = Guid::parse(voteData.epoch());
-    acceptorState_->updateEpoch(epoch);
 
     BallotId highestPromised;
-    AcceptorState::Status status = acceptorState_->vote(vote,
+    AcceptorState::Status status = acceptorState_->vote(epoch,
+                                                        vote,
                                                         &highestPromised);
     if(status == AcceptorState::OK) {
         MORDOR_LOG_TRACE(g_log) << this << " " << vote << " ok";

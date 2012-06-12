@@ -33,7 +33,6 @@ bool BatchPhase1Handler::handleRequest(Address::ptr,
                                requestEpoch << " ringId=" << requestRingId <<
                                " iids=[" << startInstanceId << ", " <<
                                endInstanceId << ") ballot=" << requestBallot;
-    acceptorState_->updateEpoch(requestEpoch);
     RingConfiguration::const_ptr ring = tryAcquireRingConfiguration();
     if(!checkRingId(ring, requestRingId)) {
         MORDOR_LOG_TRACE(g_log) << this << " bad ring id, ignoring request";
@@ -43,7 +42,7 @@ bool BatchPhase1Handler::handleRequest(Address::ptr,
     reply->set_type(RpcMessageData::PAXOS_BATCH_PHASE1);
     PaxosPhase1BatchReplyData* replyData = reply->mutable_phase1_batch_reply();
     InstanceId lowestOpenInstanceId =
-        acceptorState_->firstNotCommittedInstance();
+        acceptorState_->firstNotCommittedInstanceId(requestEpoch);
     if(startInstanceId < lowestOpenInstanceId) {
         MORDOR_LOG_TRACE(g_log) << this << " start iid " << startInstanceId <<
                                    " too low, retry with " <<
@@ -52,7 +51,8 @@ bool BatchPhase1Handler::handleRequest(Address::ptr,
         replyData->set_retry_iid(lowestOpenInstanceId);
         return ring->isInRing();
     } else {
-        markReservedInstances(requestBallot,
+        markReservedInstances(requestEpoch,
+                              requestBallot,
                               startInstanceId,
                               endInstanceId,
                               replyData);
@@ -76,7 +76,8 @@ bool BatchPhase1Handler::checkRingId(
     }
 }
 
-void BatchPhase1Handler::markReservedInstances(BallotId ballot,
+void BatchPhase1Handler::markReservedInstances(const Guid& epoch,
+                                               BallotId ballot,
                                                InstanceId startInstance,
                                                InstanceId endInstance,
                                                PaxosPhase1BatchReplyData*
@@ -91,7 +92,8 @@ void BatchPhase1Handler::markReservedInstances(BallotId ballot,
         BallotId highestVoted;
         Value    lastVote;
         AcceptorState::Status status =
-            acceptorState_->nextBallot(iid,
+            acceptorState_->nextBallot(epoch,
+                                       iid,
                                        ballot,
                                        &highestPromised,
                                        &highestVoted,

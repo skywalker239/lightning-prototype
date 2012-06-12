@@ -48,8 +48,8 @@ configuration = {
     "ring_timeout" : 50000,
     "ring_retry_interval" : 500000,
     "ring_broadcast_interval" : 500000,
-    "acceptor_max_pending_instances" : 200000,
-    "acceptor_instance_window_size" : 1000000,
+    "acceptor_pending_instances_span" : 200000,
+    "value_cache_size" : 1000000,
     "batch_phase1_timeout" : 300000,
     "phase1_batch_size" : 1000,
     "instance_pool_open_limit" : 160000, # 10 sec worth of 1 Gbit

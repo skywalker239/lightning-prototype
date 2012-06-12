@@ -20,12 +20,12 @@ private:
     
     bool checkRingId(const RingConfiguration::const_ptr& ring,
                      uint32_t requestRingId);
-    void markReservedInstances(BallotId ballot,
+    void markReservedInstances(const Guid& epoch,
+                               BallotId ballot,
                                InstanceId startInstance,
                                InstanceId endInstance,
                                PaxosPhase1BatchReplyData* reply);
 
-    Guid currentEpoch_;
     AcceptorState::ptr acceptorState_;
 };
 

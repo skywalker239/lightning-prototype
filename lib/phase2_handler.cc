@@ -52,8 +52,8 @@ bool Phase2Handler::handleRequest(Address::ptr,
     }
 
 
-    acceptorState_->updateEpoch(requestEpoch);
     AcceptorState::Status status = acceptorState_->beginBallot(
+                                       requestEpoch,
                                        instance,
                                        ballot,
                                        value);
@@ -78,7 +78,7 @@ bool Phase2Handler::handleRequest(Address::ptr,
         const InstanceId instance = commit.instance();
         Guid valueId = Guid::parse(commit.value_id());
         AcceptorState::Status status =
-            acceptorState_->commit(instance, valueId);
+            acceptorState_->commit(requestEpoch, instance, valueId);
         MORDOR_LOG_TRACE(g_log) << this << " commit(" << instance << ", " <<
                                    valueId << ") = " << uint32_t(status);
     }

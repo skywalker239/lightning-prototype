@@ -102,7 +102,7 @@ AcceptorState::Status AcceptorState::beginBallot(const Guid& epoch,
                                                  const Value& value)
 {
     FiberMutex::ScopedLock lk(mutex_);
-    updateEpoch(epoch_);
+    updateEpoch(epoch);
     switch(tryBeginBallotOnCommitted(instanceId, ballotId, value)) {
         case ValueCache::OK:
             return OK;
@@ -326,9 +326,10 @@ AcceptorState::Status AcceptorState::boolToStatus(const bool boolean) const
 
 void AcceptorState::updateEpoch(const Guid& epoch) {
     if(epoch != epoch_) {
-        MORDOR_LOG_TRACE(g_log) << this << " epoch change from " << epoch_ <<
-                                   " to " << epoch;
+        MORDOR_LOG_INFO(g_log) << this << " epoch change from " << epoch_ <<
+                                  " to " << epoch;
         reset();
+        commitTracker_->updateEpoch(epoch);
         epoch_ = epoch;
     }
 }

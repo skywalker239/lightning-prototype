@@ -33,8 +33,8 @@ void PingStats::addPing(uint64_t id, uint64_t sendTime) {
     Ping& ping = pingWindow_[id % pingWindow_.size()];
     if(ping.id != Ping::kInvalidPingId) {
         if(ping.recvTime == Ping::kPendingPacketRecvTime) {
-            MORDOR_LOG_WARNING(g_log) << this << " ping id=" << id <<
-                                         " overruns pending id=" << ping.id;
+            MORDOR_LOG_DEBUG(g_log) << this << " ping id=" << id <<
+                                       " overruns pending id=" << ping.id;
             pendingPingsInWindow_.decrement();
         } else if(ping.recvTime == Ping::kLostPacketRecvTime) {
             lostPingsInWindow_.decrement();
@@ -56,8 +56,8 @@ void PingStats::addPing(uint64_t id, uint64_t sendTime) {
 void PingStats::closePing(uint64_t id, uint64_t recvTime) {
     Ping& ping = pingWindow_[id % pingWindow_.size()];
     if(ping.id != id) {
-        MORDOR_LOG_WARNING(g_log) << this << " closePing id=" << id <<
-                                     " overwritten by id=" << ping.id;
+        MORDOR_LOG_DEBUG(g_log) << this << " closePing id=" << id <<
+                                   " overwritten by id=" << ping.id;
         return;
     }
     if(ping.recvTime != Ping::kPendingPacketRecvTime) {
@@ -90,8 +90,8 @@ void PingStats::closePing(uint64_t id, uint64_t recvTime) {
 void PingStats::timeoutPing(uint64_t id) {
     Ping& ping = pingWindow_[id % pingWindow_.size()];
     if(ping.id != id) {
-        MORDOR_LOG_WARNING(g_log) << this << " timeoutPing id=" << id <<
-                                     " overwritten by id=" << ping.id;
+        MORDOR_LOG_DEBUG(g_log) << this << " timeoutPing id=" << id <<
+                                   " overwritten by id=" << ping.id;
         return;
     }
     if(ping.recvTime != Ping::kPendingPacketRecvTime) {

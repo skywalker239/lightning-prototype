@@ -27,12 +27,16 @@ CommitTracker::CommitTracker(const uint64_t recoveryGracePeriodUs,
       afterLastCommittedInstanceId_(0)
 {}
 
-void CommitTracker::updateEpoch(const Guid& newEpoch) {
+void CommitTracker::updateEpoch(const Guid& epoch) {
+    FiberMutex::ScopedLock lk(mutex_);
+    updateEpochInternal(epoch);
+}
+
+void CommitTracker::updateEpochInternal(const Guid& newEpoch) {
     if(newEpoch != epoch_) {
-        MORDOR_LOG_DEBUG(g_log) << this << " epoch change " << epoch_ <<
+        MORDOR_LOG_INFO(g_log) << this << " epoch change " << epoch_ <<
             " -> " << newEpoch;
         sink_->updateEpoch(newEpoch);
-        FiberMutex::ScopedLock lk(mutex_);
         epoch_ = newEpoch;
         notCommittedRecoveryTimers_.clear();
         afterLastCommittedInstanceId_ = 0;
@@ -47,9 +51,14 @@ void CommitTracker::push(const Guid& epoch,
     MORDOR_LOG_TRACE(g_log) << this << " push(" << epoch << ", " <<
         instanceId << ", " <<
         ballotId << ", " << value << ")";
-    updateEpoch(epoch);
-    sink_->push(instanceId, ballotId, value);
     FiberMutex::ScopedLock lk(mutex_);
+    updateEpochInternal(epoch);
+    if(!needsRecoveryInternal(epoch, instanceId)) {
+        MORDOR_LOG_WARNING(g_log) << this << " spurious recommit(" <<
+            epoch << ", " << instanceId << ")";
+        return;
+    }
+    sink_->push(instanceId, ballotId, value);
 
     if(instanceId >= afterLastCommittedInstanceId_) {
         for(InstanceId iid = afterLastCommittedInstanceId_;
@@ -82,10 +91,18 @@ void CommitTracker::push(const Guid& epoch,
     }
 }
 
-bool CommitTracker::needsRecovery(const Guid& epoch,
-                                  paxos::InstanceId instance) const
+bool CommitTracker::needsRecovery(
+    const Guid& epoch,
+    paxos::InstanceId instance) const
 {
     FiberMutex::ScopedLock lk(mutex_);
+    return needsRecoveryInternal(epoch, instance);
+}
+
+bool CommitTracker::needsRecoveryInternal(
+    const Guid& epoch,
+    paxos::InstanceId instance) const
+{
     if(epoch != epoch_) {
         return false;
     }

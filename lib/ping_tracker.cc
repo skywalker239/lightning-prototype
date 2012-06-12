@@ -74,8 +74,8 @@ void PingTracker::registerPong(uint32_t hostId,
                                ", " << recvTime << ")";
     auto i = perHostPingStats_.find(hostId);
     if(i == perHostPingStats_.end()) {
-        MORDOR_LOG_WARNING(g_log) << this << " pong from unknown host " <<
-                                     hostId;
+        MORDOR_LOG_DEBUG(g_log) << this << " pong from unknown host " <<
+                                   hostId;
         return;
     }
     i->second.closePing(id, recvTime);
@@ -95,8 +95,8 @@ void PingTracker::timeoutPing(uint64_t id) {
         i->second.timeoutPing(id);
         if(i->second.maxReceivedPongSendTime() + noHeartbeatTimeoutUs_ < now)
         {
-            MORDOR_LOG_WARNING(g_log) << this << " " << i->first <<
-                                         " is down";
+            MORDOR_LOG_DEBUG(g_log) << this << " " << i->first <<
+                                       " is down";
             hostDownEvent_->set();
         }
     }

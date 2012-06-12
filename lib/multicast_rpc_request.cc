@@ -28,14 +28,14 @@ void MulticastRpcRequest::onReply(const Address::ptr& sourceAddress,
 
     const uint32_t hostId = ring_->replyAddressToId(sourceAddress);
     if(hostId == GroupConfiguration::kInvalidHostId) {
-        MORDOR_LOG_WARNING(g_log) << this << " reply from unknown address " <<
-                                     *sourceAddress << " to " << *this;
+        MORDOR_LOG_DEBUG(g_log) << this << " reply from unknown address " <<
+                                   *sourceAddress << " to " << *this;
         return;
     }
     if((notAckedMask_ & (1 << hostId)) == 0) {
-        MORDOR_LOG_WARNING(g_log) << this << " unexpected reply from " <<
-                                     ring_->group()->host(hostId) <<
-                                     " to " << *this;
+        MORDOR_LOG_DEBUG(g_log) << this << " unexpected reply from " <<
+                                   ring_->group()->host(hostId) <<
+                                   " to " << *this;
         return;
     }
 

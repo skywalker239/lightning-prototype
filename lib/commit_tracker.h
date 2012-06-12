@@ -27,8 +27,14 @@ public:
                        paxos::InstanceId instance) const;
 
     paxos::InstanceId firstNotCommittedInstanceId() const;
-private:
+
     void updateEpoch(const Guid& epoch);
+
+private:
+    bool needsRecoveryInternal(const Guid& epoch,
+                               paxos::InstanceId instance) const;
+
+    void updateEpochInternal(const Guid& epoch);
 
     const uint64_t recoveryGracePeriodUs_;
     InstanceSink::ptr sink_;

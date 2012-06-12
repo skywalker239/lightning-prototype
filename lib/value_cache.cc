@@ -21,13 +21,14 @@ ValueCache::ValueCache(uint64_t cacheSize)
 
 void ValueCache::updateEpoch(const Guid& newEpoch) {
     MORDOR_ASSERT(epoch_ != newEpoch);
-    MORDOR_LOG_TRACE(g_log) << this << " epoch change: " <<
+    MORDOR_LOG_INFO(g_log) << this << " epoch change: " <<
         epoch_ << " -> " << newEpoch;
     ValueMap emptyValueMap;
     {
         FiberMutex::ScopedLock lk(mutex_);
         firstNotForgottenInstanceId_ = 0;
         emptyValueMap.swap(valueMap_);
+        epoch_ = newEpoch;
     }
 }
 

@@ -81,9 +81,9 @@ void RpcRequester::processReplies() {
             }
         }
         if(!request) {
-            MORDOR_LOG_WARNING(g_log) << this << " stale reply for request " <<
-                                         replyGuid << " from " <<
-                                         groupConfiguration_->addressToServiceName(currentSourceAddress);
+            MORDOR_LOG_DEBUG(g_log) << this << " stale reply for request " <<
+                                       replyGuid << " from " <<
+                                       groupConfiguration_->addressToServiceName(currentSourceAddress);
             continue;
         }
         MORDOR_LOG_TRACE(g_log) << this << " got reply for request (" <<

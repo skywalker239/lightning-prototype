@@ -5,6 +5,6 @@ HOSTID=`./hostid.py`
 killall -9 test_ring_acceptor
 sleep 2
 rm log
-./test_ring_acceptor new_config.json `./hostid.py` > log &
+LOG_STDOUT=1 ./test_ring_acceptor new_config.json `./hostid.py` > log &
 echo "Started acceptor for host `./hostid.py`"
 

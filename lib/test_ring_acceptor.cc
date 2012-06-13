@@ -52,8 +52,8 @@ void readConfig(const string& filename,
     *configHash = Guid::fromData(fileData.c_str(), fileData.length());
     *config = JSON::parse(fileData);
 
-    cout << *config << endl;
-    cout << *configHash << endl;
+//    cout << *config << endl;
+//    cout << *configHash << endl;
 }
 
 class DummyRingHolder : public RingHolder {};
@@ -192,13 +192,19 @@ int main(int argc, char** argv) {
     JSON::Value config;
     readConfig(argv[1], &configGuid, &config);
     const uint32_t id = lexical_cast<uint32_t>(argv[2]);
-    IOManager ioManager;
+    try {
+        IOManager ioManager;
 
-    RpcResponder::ptr responder;
-    RingVoter::ptr ringVoter;
-    setupEverything(&ioManager, configGuid, config, id, &responder, &ringVoter);
-    ioManager.schedule(boost::bind(&RpcResponder::run, responder));
-    ioManager.schedule(boost::bind(&RingVoter::run, ringVoter));
-    ioManager.schedule(boost::bind(serveStats, &ioManager));
-    ioManager.dispatch();
+        RpcResponder::ptr responder;
+        RingVoter::ptr ringVoter;
+        setupEverything(&ioManager, configGuid, config, id, &responder, &ringVoter);
+        ioManager.schedule(boost::bind(&RpcResponder::run, responder));
+        ioManager.schedule(boost::bind(&RingVoter::run, ringVoter));
+        ioManager.schedule(boost::bind(serveStats, &ioManager));
+        MORDOR_LOG_INFO(g_log) << this << " Acceptor starting.";
+        ioManager.dispatch();
+    } catch(...) {
+        MORDOR_LOG_ERROR(g_log) << boost::current_exception_diagnostic_information();
+        cerr << boost::current_exception_diagnostic_information();
+    }
 }

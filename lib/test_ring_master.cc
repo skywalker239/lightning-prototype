@@ -192,12 +192,12 @@ void setupEverything(uint32_t hostId,
 
 static Logger::ptr g_log = Log::lookup("lightning:main");
 
-void dumpStats(IOManager* ioManager) {
-    while(true) {
-        cerr << Statistics::dump() << endl;
-        sleep(*ioManager, 1000000);
-    }
-}
+//void dumpStats(IOManager* ioManager) {
+//    while(true) {
+//        cerr << Statistics::dump() << endl;
+//        sleep(*ioManager, 1000000);
+//    }
+//}
 
 void httpRequest(HTTP::ServerRequest::ptr request) {
     ostringstream ss;
@@ -274,7 +274,8 @@ int main(int argc, char** argv) {
         ioManager.schedule(boost::bind(&ProposerState::processClientValues, proposerState));
         ioManager.schedule(boost::bind(&ProposerState::flushCommits, proposerState));
         ioManager.schedule(boost::bind(&TcpValueReceiver::run, tcpValueReceiver));
-        ioManager.schedule(boost::bind(dumpStats, &ioManager));
+//        ioManager.schedule(boost::bind(dumpStats, &ioManager));
+        MORDOR_LOG_INFO(g_log) << " Master starting.";
         ioManager.dispatch();
         return 0;
     } catch(...) {

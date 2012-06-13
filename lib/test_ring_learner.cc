@@ -296,7 +296,7 @@ int main(int argc, char** argv) {
         ioManager.schedule(boost::bind(&RingVoter::run, ringVoter));
         ioManager.schedule(boost::bind(serveStats, &ioManager));
         ioManager.schedule(boost::bind(dumpStream, &ioManager, streamReassembler));
-        MORDOR_LOG_INFO(g_log) << this << " Learner starting.";
+        MORDOR_LOG_INFO(g_log) << " Learner starting.";
         ioManager.dispatch();
     } catch(...) {
         cerr << boost::current_exception_diagnostic_information() << endl;

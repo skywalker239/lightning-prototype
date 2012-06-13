@@ -201,7 +201,7 @@ int main(int argc, char** argv) {
         ioManager.schedule(boost::bind(&RpcResponder::run, responder));
         ioManager.schedule(boost::bind(&RingVoter::run, ringVoter));
         ioManager.schedule(boost::bind(serveStats, &ioManager));
-        MORDOR_LOG_INFO(g_log) << this << " Acceptor starting.";
+        MORDOR_LOG_INFO(g_log) << " Acceptor starting.";
         ioManager.dispatch();
     } catch(...) {
         MORDOR_LOG_ERROR(g_log) << boost::current_exception_diagnostic_information();

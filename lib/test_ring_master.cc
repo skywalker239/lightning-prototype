@@ -53,8 +53,8 @@ void readConfig(const string& filename,
     *configHash = Guid::fromData(fileData.c_str(), fileData.length());
     *config = JSON::parse(fileData);
 
-    cout << *config << endl;
-    cout << *configHash << endl;
+    //cout << *config << endl;
+    //cout << *configHash << endl;
 }
 
 RpcRequester::ptr setupRequester(IOManager* ioManager,

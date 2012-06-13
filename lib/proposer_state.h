@@ -8,6 +8,7 @@
 #include "notifier.h"
 #include "rpc_requester.h"
 #include "proposer_instance.h"
+#include "value_cache.h"
 #include "ring_holder.h"
 #include <mordor/fibersynchronization.h>
 #include <mordor/iomanager.h>
@@ -32,6 +33,7 @@ public:
                   InstancePool::ptr instancePool,
                   RpcRequester::ptr requester,
                   BlockingQueue<paxos::Value>::ptr clientValueQueue,
+                  ValueCache::ptr valueCache,
                   Mordor::IOManager* ioManager,
                   uint64_t phase1TimeoutUs,
                   uint64_t phase1IntervalUs,
@@ -69,6 +71,7 @@ private:
     InstancePool::ptr instancePool_;
     RpcRequester::ptr requester_;
     BlockingQueue<paxos::Value>::ptr clientValueQueue_;
+    ValueCache::ptr valueCache_;
     Mordor::IOManager* ioManager_;
     const uint64_t phase1TimeoutUs_;
     const uint64_t phase1IntervalUs_;

@@ -3,6 +3,7 @@
 #include "proposer_state.h"
 #include "phase1_batcher.h"
 #include "sleep_helper.h"
+#include "tcp_recovery_service.h"
 #include "tcp_value_receiver.h"
 #include "udp_sender.h"
 #include <iostream>
@@ -67,6 +68,14 @@ RpcRequester::ptr setupRequester(IOManager* ioManager,
     UdpSender::ptr sender(new UdpSender("rpc_requester", s));
     ioManager->schedule(boost::bind(&UdpSender::run, sender));
     return RpcRequester::ptr(new RpcRequester(ioManager, guidGenerator, sender, s, groupConfiguration, rpcStats));
+}
+
+Socket::ptr bindSocket(Address::ptr bindAddress, IOManager* ioManager, int protocol = SOCK_DGRAM) {
+    Socket::ptr s = bindAddress->createSocket(*ioManager, protocol);
+    int option = 1;
+    s->setOption(SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
+    s->bind(bindAddress);
+    return s;
 }
 
 class DummyRingHolder : public RingHolder {};
@@ -140,6 +149,9 @@ void setupEverything(uint32_t hostId,
         config["phase2_interval"].get<long long>();
     const uint64_t commitFlushIntervalUs =
         config["commit_flush_interval"].get<long long>();
+    const uint64_t valueCacheSize =
+        config["value_cache_size"].get<long long>();
+    ValueCache::ptr valueCache(new ValueCache(valueCacheSize));
 
     valueQueue->reset(new BlockingQueue<Value>("client_value_queue"));
     *proposerState =
@@ -148,12 +160,19 @@ void setupEverything(uint32_t hostId,
                                              instancePool,
                                              requester,
                                              *valueQueue,
+                                             valueCache,
                                              ioManager,
                                              phase1TimeoutUs,
                                              phase1IntervalUs,
                                              phase2TimeoutUs,
                                              phase2IntervalUs,
                                              commitFlushIntervalUs));
+
+    Socket::ptr recoverySocket = bindSocket(groupConfiguration->thisHostConfiguration().unicastAddress, ioManager, SOCK_STREAM);
+    recoverySocket->listen();
+    TcpRecoveryService::ptr tcpRecoveryService(
+        new TcpRecoveryService(ioManager, recoverySocket, valueCache));
+    ioManager->schedule(boost::bind(&TcpRecoveryService::run, tcpRecoveryService));
 
     const uint16_t masterValuePort = config["master_value_port"].get<long long>();
     const uint64_t valueBufferSize = config["value_buffer_size"].get<long long>();

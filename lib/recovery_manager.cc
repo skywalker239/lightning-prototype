@@ -184,9 +184,7 @@ void RecoveryManager::setupConnections(
     const uint32_t thisHostId = groupConfiguration->thisHostId();
     const string& datacenter = groupConfiguration->datacenter();
     for(size_t i = 0; i < groupConfiguration->size(); ++i) {
-        if(i != thisHostId &&
-           i != groupConfiguration->masterId())
-        {
+        if(i != thisHostId) {
             bool isLocal =
                 groupConfiguration->host(i).datacenter == datacenter;
             uint32_t metric = isLocal ? localMetric : remoteMetric;

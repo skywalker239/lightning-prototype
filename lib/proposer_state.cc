@@ -60,6 +60,7 @@ ProposerState::ProposerState(GroupConfiguration::ptr group,
                              InstancePool::ptr instancePool,
                              RpcRequester::ptr requester,
                              BlockingQueue<Value>::ptr clientValueQueue,
+                             ValueCache::ptr valueCache,
                              IOManager* ioManager,
                              uint64_t phase1TimeoutUs,
                              uint64_t phase1IntervalUs,
@@ -71,6 +72,7 @@ ProposerState::ProposerState(GroupConfiguration::ptr group,
       instancePool_(instancePool),
       requester_(requester),
       clientValueQueue_(clientValueQueue),
+      valueCache_(valueCache),
       ioManager_(ioManager),
       phase1TimeoutUs_(phase1TimeoutUs),
       phase1IntervalUs_(phase1IntervalUs),
@@ -79,6 +81,7 @@ ProposerState::ProposerState(GroupConfiguration::ptr group,
       commitFlushIntervalUs_(commitFlushIntervalUs),
       ballotGenerator_(group_)
 {
+    valueCache_->updateEpoch(epoch);
     MORDOR_ASSERT(group_->thisHostId() == group_->masterId());
 }
 
@@ -316,6 +319,10 @@ void ProposerState::onCommit(ProposerInstance::ptr instance) {
     for(auto i = notifiers_.begin(); i != notifiers_.end(); ++i) {
         (*i)->notify(instance);
     }
+    valueCache_->push(instance->instanceId(),
+                      instance->ballotId(),
+                      instance->value());
+
 }
 
 }  // namespace lightning

@@ -45,10 +45,17 @@ static Logger::ptr g_log = Log::lookup("lightning:main");
 class SnapshotLearnerSink : public InstanceSink {
 public:
     SnapshotLearnerSink(uint64_t snapshotId,
-                        StreamReassembler::ptr streamReassembler)
+                        uint64_t transferTimeoutUs,
+                        StreamReassembler::ptr streamReassembler,
+                        IOManager* ioManager)
         : snapshotId_(snapshotId),
-          streamReassembler_(streamReassembler)
-    {}
+          transferTimeoutUs_(transferTimeoutUs),
+          streamReassembler_(streamReassembler),
+          ioManager_(ioManager)
+    {
+        timeoutTimer_ = ioManager_->registerTimer(transferTimeoutUs_,
+                                                  &SnapshotLearnerSink::onTransferTimeout);
+    }
 
     void updateEpoch(const Guid& newEpoch) {
         FiberMutex::ScopedLock lk(mutex_);
@@ -56,7 +63,18 @@ public:
         MORDOR_ASSERT(epoch_.empty());
         epoch_ = newEpoch;
     }
+
     void push(paxos::InstanceId iid, paxos::BallotId ballot, paxos::Value v) {
+        {
+            FiberMutex::ScopedLock lk(mutex_);
+            if(timeoutTimer_) {
+                timeoutTimer_->cancel();
+            }
+
+            timeoutTimer_ = ioManager_->registerTimer(transferTimeoutUs_,
+                                                      &SnapshotLearnerSink::onTransferTimeout);
+        }
+
         MORDOR_LOG_TRACE(g_log) << " (" << iid << ", " << ballot << ", " << v << ")";
         if(v.valueId().empty()) {
             return;
@@ -76,11 +94,21 @@ public:
             }
         }
     }
+
+    static void onTransferTimeout() {
+        MORDOR_LOG_INFO(g_log) << " snapshot timed out, exiting.";
+        exit(1);
+    }
 private:
     const uint64_t snapshotId_;
-    FiberMutex mutex_;
+    const uint64_t transferTimeoutUs_;
     Guid epoch_;
     StreamReassembler::ptr streamReassembler_;
+    IOManager* ioManager_;
+
+    Timer::ptr timeoutTimer_;
+
+    FiberMutex mutex_;
 };
     
 void readConfig(const string& filename,
@@ -169,6 +197,7 @@ void setupEverything(IOManager* ioManager,
                      const JSON::Value& config,
                      const string& datacenter,
                      uint64_t snapshotId,
+                     uint64_t timeoutUs,
                      StreamReassembler::ptr streamReassembler,
                      RpcResponder::ptr* responder,
                      RingVoter::ptr* ringVoter)
@@ -198,7 +227,7 @@ void setupEverything(IOManager* ioManager,
     //-------------------------------------------------------------------------
     // commit tracker
     uint64_t recoveryGracePeriod = config["recovery_grace_period"].get<long long>();
-    boost::shared_ptr<InstanceSink> sink(new SnapshotLearnerSink(snapshotId, streamReassembler));
+    boost::shared_ptr<InstanceSink> sink(new SnapshotLearnerSink(snapshotId, timeoutUs, streamReassembler, ioManager));
     CommitTracker::ptr commitTracker(new CommitTracker(recoveryGracePeriod, sink, recoveryManager, ioManager));
     recoveryManager->setCommitTracker(commitTracker);
 
@@ -245,25 +274,30 @@ void setupEverything(IOManager* ioManager,
 }
 
 int main(int argc, char** argv) {
-    Config::loadFromEnvironment();
-    if(argc != 4) {
-        cout << "Usage: learner config.json datacenter snapshot_id" << endl;
-        return 1;
-    }
-    Guid configGuid;
-    JSON::Value config;
-    readConfig(argv[1], &configGuid, &config);
-    const string datacenter(argv[2]);
-    const uint64_t snapshotId = boost::lexical_cast<uint64_t>(argv[3]);
-    IOManager ioManager;
+    try {
+        Config::loadFromEnvironment();
+        if(argc != 5) {
+            cout << "Usage: learner config.json datacenter snapshot_id timeout_sec" << endl;
+            return 1;
+        }
+        Guid configGuid;
+        JSON::Value config;
+        readConfig(argv[1], &configGuid, &config);
+        const string datacenter(argv[2]);
+        const uint64_t snapshotId = boost::lexical_cast<uint64_t>(argv[3]);
+        const uint64_t timeoutUs = 1000000 * boost::lexical_cast<uint64_t>(argv[4]);
+        IOManager ioManager;
 
-    StreamReassembler::ptr streamReassembler(new StreamReassembler);
-    RpcResponder::ptr responder;
-    RingVoter::ptr ringVoter;
-    setupEverything(&ioManager, configGuid, config, datacenter, snapshotId, streamReassembler, &responder, &ringVoter);
-    ioManager.schedule(boost::bind(&RpcResponder::run, responder));
-    ioManager.schedule(boost::bind(&RingVoter::run, ringVoter));
-    ioManager.schedule(boost::bind(serveStats, &ioManager));
-    ioManager.schedule(boost::bind(dumpStream, &ioManager, streamReassembler));
-    ioManager.dispatch();
+        StreamReassembler::ptr streamReassembler(new StreamReassembler);
+        RpcResponder::ptr responder;
+        RingVoter::ptr ringVoter;
+        setupEverything(&ioManager, configGuid, config, datacenter, snapshotId, timeoutUs, streamReassembler, &responder, &ringVoter);
+        ioManager.schedule(boost::bind(&RpcResponder::run, responder));
+        ioManager.schedule(boost::bind(&RingVoter::run, ringVoter));
+        ioManager.schedule(boost::bind(serveStats, &ioManager));
+        ioManager.schedule(boost::bind(dumpStream, &ioManager, streamReassembler));
+        ioManager.dispatch();
+    } catch(...) {
+        cerr << boost::current_exception_diagnostic_information() << endl;
+    }
 }

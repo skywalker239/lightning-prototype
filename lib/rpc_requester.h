@@ -10,7 +10,7 @@
 #include <mordor/iomanager.h>
 #include <mordor/socket.h>
 #include <boost/noncopyable.hpp>
-#include <map>
+#include <ext/hash_map>
 #include <utility>
 #include <vector>
 
@@ -98,7 +98,7 @@ private:
     MulticastRpcStats::ptr rpcStats_;
 
     mutable Mordor::FiberMutex mutex_;
-    std::map<Guid, RpcRequest::ptr> pendingRequests_;
+    __gnu_cxx::hash_map<Guid, RpcRequest::ptr, GuidHasher> pendingRequests_;
 };
 
 }  // namespace lightning

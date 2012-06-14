@@ -40,7 +40,16 @@ private:
     static const uint32_t kHashSeed = 239;
 
     friend class GuidGenerator;
+
+    friend class GuidHasher;
 } __attribute__((packed));
+
+class GuidHasher {
+public:
+    size_t operator()(const Guid& guid) const {
+        return (size_t(guid.parts_[1]) << 32) + guid.parts_[2];
+    }
+};
 
 std::ostream& operator<<(std::ostream& os, const Guid& guid);
 

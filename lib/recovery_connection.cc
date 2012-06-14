@@ -99,8 +99,7 @@ void RecoveryConnection::openConnection() {
             return;
         } catch(...) {
             MORDOR_LOG_INFO(g_log) << this << "[" << name_ << "]: " <<
-                                      "Could not connect: " <<
-                                      boost::current_exception_diagnostic_information();
+                                      "Could not connect.";
         }
         sleep(*ioManager_, connectionRetryIntervalUs_);
     }
@@ -138,9 +137,7 @@ void RecoveryConnection::processQueue() {
             readReply(&replyData);
         } catch(...) {
             MORDOR_LOG_INFO(g_log) << this << "[" << name_ << "]: " <<
-                " connection failed: " <<
-                boost::current_exception_diagnostic_information();
-
+                " connection failed.";
             {
                 FiberMutex::ScopedLock lk(mutex_);
                 connected_ = false;

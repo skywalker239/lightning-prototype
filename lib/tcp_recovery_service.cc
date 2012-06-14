@@ -66,10 +66,10 @@ void TcpRecoveryService::handleRecoveryConnection(Socket::ptr socket) {
             BatchRecoveryReplyData reply;
             handleRequest(socket, request, &reply);
             sendReply(socket, reply);
-        } catch(Exception& e) {
-            MORDOR_LOG_ERROR(g_log) << this << " socket exception on [" <<
-                                       *(socket->remoteAddress()) << "]: " <<
-                                       e.what();
+        } catch(Exception&) {
+            MORDOR_LOG_INFO(g_log) << this << " connection from [" <<
+                                      *(socket->remoteAddress()) <<
+                                      "] went down";
             return;
         }
     }

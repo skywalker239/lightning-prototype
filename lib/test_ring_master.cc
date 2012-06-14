@@ -23,6 +23,11 @@
 #include <mordor/iomanager.h>
 #include <mordor/timer.h>
 #include <map>
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include "guid.h"
 #include "host_configuration.h"
 #include "ring_oracle.h"
@@ -244,16 +249,36 @@ void serveStats(IOManager* ioManager) {
 //    }
 //}
 
+int getPidFd(const char* pidFile) {
+    int fd = open(pidFile, O_CREAT | O_EXCL | O_WRONLY, 0644);
+    return fd;
+}
+
+void writePidFile(int fd) {
+    dprintf(fd, "%d", getpid());
+    close(fd);
+}
+
 int main(int argc, char** argv) {
     Config::loadFromEnvironment();
-    if(argc != 3) {
-        cout << "Usage: master config.json host_id" << endl;
+    if(argc != 4) {
+        cout << "Usage: master config.json host_id pid_file" << endl;
         return 0;
+    }
+    int pidFd = getPidFd(argv[3]);
+    if(pidFd < 0) {
+        MORDOR_LOG_INFO(g_log) << " Another instance running, not starting.";
+        return 1;
     }
     const uint32_t hostId = lexical_cast<uint32_t>(argv[2]);
     Guid configHash;
     JSON::Value config;
     readConfig(argv[1], &configHash, &config);
+    if(daemon(0, 0)) {
+        MORDOR_LOG_ERROR(g_log) << " Failed to daemonize";
+        return 1;
+    }
+    writePidFile(pidFd);
 
     try {
         IOManager ioManager;

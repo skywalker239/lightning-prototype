@@ -20,6 +20,10 @@
 #include <fstream>
 #include <streambuf>
 #include <netinet/in.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <boost/bind.hpp>
 #include <boost/lexical_cast.hpp>
 #include <mordor/json.h>
@@ -182,16 +186,38 @@ void setupEverything(IOManager* ioManager,
     (*responder)->addHandler(RpcMessageData::PAXOS_PHASE2, phase2Handler);
 }
 
+int getPidFd(const char* pidFile) {
+    int fd = open(pidFile, O_CREAT | O_EXCL | O_WRONLY, 0644);
+    return fd;
+}
+
+void writePidFile(int fd) {
+    dprintf(fd, "%d", getpid());
+    close(fd);
+}
+
 int main(int argc, char** argv) {
     Config::loadFromEnvironment();
-    if(argc != 3) {
-        cout << "Usage: slave config.json id" << endl;
+    if(argc != 4) {
+        cout << "Usage: slave config.json id pidfile" << endl;
         return 1;
     }
+    int pidFd = getPidFd(argv[3]);
+    if(pidFd < 0) {
+        MORDOR_LOG_INFO(g_log) << " Another instance running, not starting.";
+        return 1;
+    }
+
     Guid configGuid;
     JSON::Value config;
     readConfig(argv[1], &configGuid, &config);
     const uint32_t id = lexical_cast<uint32_t>(argv[2]);
+
+    if(daemon(0, 0)) {
+        MORDOR_LOG_ERROR(g_log) << " Failed to daemonize.";
+        return 1;
+    }
+    writePidFile(pidFd);
     try {
         IOManager ioManager;
 

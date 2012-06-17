@@ -114,6 +114,7 @@ void writeToSocket(Socket::ptr s, const char* data, size_t length) {
 void submitValues(Socket::ptr s, BlockingQueue<Value>::ptr submitQueue, SubmitBuffer* submitBuffer) {
     uint64_t startT = TimerManager::now();
     size_t bytesSent = 0;
+    size_t totalValueLength = 0;
     while(true) {
         Value v = submitQueue->pop();
         MORDOR_LOG_TRACE(g_log) << " submit popped " << v.valueId();
@@ -121,6 +122,7 @@ void submitValues(Socket::ptr s, BlockingQueue<Value>::ptr submitQueue, SubmitBu
             cout << v.valueId() << endl;
             break;
         }
+        totalValueLength += v.size();
 
         ValueData valueData;
         v.serialize(&valueData);
@@ -135,7 +137,7 @@ void submitValues(Socket::ptr s, BlockingQueue<Value>::ptr submitQueue, SubmitBu
         MORDOR_LOG_TRACE(g_log) << " submit sent " << v.valueId() << ", sent=" << bytesSent;
     }
     uint64_t timeElapsed = TimerManager::now() - startT;
-    cout << "done, sent " << bytesSent << " bytes in " << timeElapsed << "us, avg throughput " << int(bytesSent / (timeElapsed / 1000000.)) << " bps" << endl;
+    cout << "done. " << totalValueLength << " value bytes, " << bytesSent << " wire bytes in " << timeElapsed << "us, avg throughput " << int(bytesSent / (timeElapsed / 1000000.)) << " bps" << endl;
 }
 
 int main(int argc, char **argv) {

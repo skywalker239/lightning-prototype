@@ -26,6 +26,10 @@ using std::set;
 
 static Logger::ptr g_log = Log::lookup("lightning:acceptor_state");
 
+CountStatistic<uint64_t>& g_pendingInstances =
+    Statistics::registerStatistic("acceptor_state.pending_instances",
+                                  CountStatistic<uint64_t>());
+
 AcceptorState::AcceptorState(uint32_t pendingInstancesSpan,
                              IOManager* ioManager,
                              RecoveryManager::ptr recoveryManager,
@@ -236,6 +240,7 @@ AcceptorState::Status AcceptorState::commit(const Guid& epoch,
         }
         commitTracker_->push(epoch_, instanceId, ballot, value);
         pendingInstances_.erase(instanceId);
+        g_pendingInstances.decrement();
     } else {
         MORDOR_LOG_TRACE(g_log) << this << " commit(" << instanceId << ")" <<
                                    " failed, scheduling recovery";
@@ -277,6 +282,8 @@ AcceptorInstance* AcceptorState::lookupInstance(InstanceId instanceId) {
             auto freshIter = pendingInstances_.insert(make_pair(instanceId,
                                                       AcceptorInstance()));
             MORDOR_ASSERT(freshIter.second);
+            g_pendingInstances.increment();
+
             return &(freshIter.first->second);
         } else {
             return NULL;
@@ -344,6 +351,7 @@ void AcceptorState::updateEpoch(const Guid& epoch) {
 
 void AcceptorState::reset() {
     pendingInstances_.clear();
+    g_pendingInstances.reset();
 }
 
 }  // namespace lightning

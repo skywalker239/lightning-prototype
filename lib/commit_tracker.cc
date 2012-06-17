@@ -1,13 +1,17 @@
 #include "commit_tracker.h"
 #include <mordor/assert.h>
 #include <mordor/log.h>
+#include <mordor/statistics.h>
 
 namespace lightning {
 
+using Mordor::CountStatistic;
 using Mordor::FiberMutex;
 using Mordor::IOManager;
 using Mordor::Log;
 using Mordor::Logger;
+using Mordor::MaxStatistic;
+using Mordor::Statistics;
 using paxos::InstanceId;
 using paxos::BallotId;
 using paxos::Value;
@@ -15,6 +19,19 @@ using std::make_pair;
 using std::map;
 
 static Logger::ptr g_log = Log::lookup("lightning:commit_tracker");
+
+CountStatistic<uint64_t>& g_instancesScheduledForRecovery =
+    Statistics::registerStatistic("commit_tracker.instances_scheduled_for_recovery",
+                                  CountStatistic<uint64_t>());
+MaxStatistic<uint64_t>& g_minPendingInstance =
+    Statistics::registerStatistic("commit_tracker.min_pending_instance",
+                                  MaxStatistic<uint64_t>());
+MaxStatistic<uint64_t>& g_maxCommittedInstance =
+    Statistics::registerStatistic("commit_tracker.max_committed_instance",
+                                  MaxStatistic<uint64_t>());
+CountStatistic<uint64_t>& g_committedBytes =
+    Statistics::registerStatistic("commit_tracker.committed_bytes",
+                                  CountStatistic<uint64_t>());
 
 CommitTracker::CommitTracker(const uint64_t recoveryGracePeriodUs,
                              InstanceSink::ptr sink,
@@ -40,6 +57,10 @@ void CommitTracker::updateEpochInternal(const Guid& newEpoch) {
         epoch_ = newEpoch;
         notCommittedRecoveryTimers_.clear();
         afterLastCommittedInstanceId_ = 0;
+        g_instancesScheduledForRecovery.reset();
+        g_minPendingInstance.reset();
+        g_maxCommittedInstance.reset();
+        g_committedBytes.reset();
     }
 }
 
@@ -58,6 +79,12 @@ void CommitTracker::push(const Guid& epoch,
             epoch << ", " << instanceId << ")";
         return;
     }
+
+    g_maxCommittedInstance.update(instanceId);
+    g_committedBytes.add(value.size());
+    g_minPendingInstance.update(firstNotCommittedInstanceIdInternal());
+
+
     sink_->push(instanceId, ballotId, value);
 
     if(instanceId >= afterLastCommittedInstanceId_) {
@@ -76,6 +103,7 @@ void CommitTracker::push(const Guid& epoch,
                 epoch_ << ", " << iid << ") in " << recoveryGracePeriodUs_;
             auto iter = notCommittedRecoveryTimers_.insert(
                             make_pair(iid, timer));
+            g_instancesScheduledForRecovery.increment();
             MORDOR_ASSERT(iter.second);
         }
         afterLastCommittedInstanceId_ = instanceId + 1;
@@ -88,6 +116,7 @@ void CommitTracker::push(const Guid& epoch,
             iter->second->cancel();
         }
         notCommittedRecoveryTimers_.erase(iter);
+        g_instancesScheduledForRecovery.decrement();
     }
 }
 
@@ -134,6 +163,10 @@ void CommitTracker::startRecovery(const Guid epoch,
 
 InstanceId CommitTracker::firstNotCommittedInstanceId() const {
     FiberMutex::ScopedLock lk(mutex_);
+    return firstNotCommittedInstanceIdInternal();
+}
+
+InstanceId CommitTracker::firstNotCommittedInstanceIdInternal() const {
     return (notCommittedRecoveryTimers_.empty()) ?
                afterLastCommittedInstanceId_ :
                notCommittedRecoveryTimers_.begin()->first;

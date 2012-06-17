@@ -31,6 +31,8 @@ public:
     void updateEpoch(const Guid& epoch);
 
 private:
+    paxos::InstanceId firstNotCommittedInstanceIdInternal() const;
+
     bool needsRecoveryInternal(const Guid& epoch,
                                paxos::InstanceId instance) const;
 

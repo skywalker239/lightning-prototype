@@ -20,7 +20,7 @@ RingChangeNotifier::RingChangeNotifier(
 void RingChangeNotifier::onRingChange(
     RingConfiguration::const_ptr newRing) const 
 {
-    MORDOR_LOG_INFO(g_log) << this << " ring change " << *newRing;
+    MORDOR_LOG_DEBUG(g_log) << this << " ring change " << *newRing;
     for(size_t i = 0; i < ringHolders_.size(); ++i) {
         ringHolders_[i]->resetRingConfiguration(newRing);
     }

@@ -75,7 +75,7 @@ void CommitTracker::push(const Guid& epoch,
     FiberMutex::ScopedLock lk(mutex_);
     updateEpochInternal(epoch);
     if(!needsRecoveryInternal(epoch, instanceId)) {
-        MORDOR_LOG_WARNING(g_log) << this << " spurious recommit(" <<
+        MORDOR_LOG_DEBUG(g_log) << this << " spurious recommit(" <<
             epoch << ", " << instanceId << ")";
         return;
     }

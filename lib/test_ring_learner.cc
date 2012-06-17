@@ -111,22 +111,15 @@ private:
     FiberMutex mutex_;
 };
     
-void readConfig(const string& filename,
+void readConfig(const char* configString,
                 Guid* configHash,
                 JSON::Value* config)
 {
-    ifstream f(filename.c_str());
-    string fileData;
-    f.seekg(0, ios::end);
-    fileData.reserve(f.tellg());
-    f.seekg(0, ios::beg);
-    fileData.assign(istreambuf_iterator<char>(f), istreambuf_iterator<char>());
-
-    *configHash = Guid::fromData(fileData.c_str(), fileData.length());
-    *config = JSON::parse(fileData);
-
-   // cout << *config << endl;
-   // cout << *configHash << endl;
+    size_t configLength = strlen(configString);
+    *configHash = Guid::fromData(configString, configLength);
+    *config = JSON::parse(configString);
+    MORDOR_LOG_INFO(g_log) << " running with config " << configString;
+    MORDOR_LOG_INFO(g_log) << " config hash is " << *configHash;
 }
 
 class DummyRingHolder : public RingHolder {};
@@ -274,18 +267,19 @@ void setupEverything(IOManager* ioManager,
 }
 
 int main(int argc, char** argv) {
+    google::protobuf::LogSilencer logSilencer;
     try {
         Config::loadFromEnvironment();
         if(argc != 5) {
-            cout << "Usage: learner config.json datacenter snapshot_id timeout_sec" << endl;
+            cout << "Usage: learner datacenter snapshot_id timeout_sec config_json" << endl;
             return 1;
         }
         Guid configGuid;
         JSON::Value config;
-        readConfig(argv[1], &configGuid, &config);
-        const string datacenter(argv[2]);
-        const uint64_t snapshotId = boost::lexical_cast<uint64_t>(argv[3]);
-        const uint64_t timeoutUs = 1000000 * boost::lexical_cast<uint64_t>(argv[4]);
+        readConfig(argv[4], &configGuid, &config);
+        const string datacenter(argv[1]);
+        const uint64_t snapshotId = boost::lexical_cast<uint64_t>(argv[2]);
+        const uint64_t timeoutUs = 1000000 * boost::lexical_cast<uint64_t>(argv[3]);
         IOManager ioManager;
 
         StreamReassembler::ptr streamReassembler(new StreamReassembler);

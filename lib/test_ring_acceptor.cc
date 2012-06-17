@@ -20,6 +20,7 @@
 #include <fstream>
 #include <streambuf>
 #include <netinet/in.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -42,22 +43,18 @@ using namespace Mordor;
 using namespace lightning;
 using boost::lexical_cast;
 
-void readConfig(const string& filename,
+static Logger::ptr g_log = Log::lookup("lightning:main");
+
+void readConfig(const char* configString,
                 Guid* configHash,
                 JSON::Value* config)
 {
-    ifstream f(filename.c_str());
-    string fileData;
-    f.seekg(0, ios::end);
-    fileData.reserve(f.tellg());
-    f.seekg(0, ios::beg);
-    fileData.assign(istreambuf_iterator<char>(f), istreambuf_iterator<char>());
+    size_t configLength = strlen(configString);
+    *configHash = Guid::fromData(configString, configLength);
+    *config = JSON::parse(configString);
 
-    *configHash = Guid::fromData(fileData.c_str(), fileData.length());
-    *config = JSON::parse(fileData);
-
-//    cout << *config << endl;
-//    cout << *configHash << endl;
+    MORDOR_LOG_INFO(g_log) << " running with config " << configString;
+    MORDOR_LOG_INFO(g_log) << " config hash is " << *configHash;
 }
 
 class DummyRingHolder : public RingHolder {};
@@ -69,8 +66,6 @@ Socket::ptr bindSocket(Address::ptr bindAddress, IOManager* ioManager, int proto
     s->bind(bindAddress);
     return s;
 }
-
-static Logger::ptr g_log = Log::lookup("lightning:main");
 
 void httpRequest(HTTP::ServerRequest::ptr request) {
     ostringstream ss;
@@ -199,10 +194,10 @@ void writePidFile(int fd) {
 int main(int argc, char** argv) {
     Config::loadFromEnvironment();
     if(argc != 4) {
-        cout << "Usage: slave config.json id pidfile" << endl;
+        cout << "Usage: slave id pidfile config_json" << endl;
         return 1;
     }
-    int pidFd = getPidFd(argv[3]);
+    int pidFd = getPidFd(argv[2]);
     if(pidFd < 0) {
         MORDOR_LOG_INFO(g_log) << " Another instance running, not starting.";
         return 1;
@@ -210,8 +205,9 @@ int main(int argc, char** argv) {
 
     Guid configGuid;
     JSON::Value config;
-    readConfig(argv[1], &configGuid, &config);
-    const uint32_t id = lexical_cast<uint32_t>(argv[2]);
+    readConfig(argv[3], &configGuid, &config);
+    const uint32_t id = lexical_cast<uint32_t>(argv[1]);
+    MORDOR_LOG_INFO(g_log) << " host_id=" << id; 
 
     if(daemon(0, 0)) {
         MORDOR_LOG_ERROR(g_log) << " Failed to daemonize.";

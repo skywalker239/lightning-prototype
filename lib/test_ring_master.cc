@@ -24,6 +24,7 @@
 #include <mordor/timer.h>
 #include <map>
 #include <stdio.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -43,23 +44,18 @@ using namespace paxos;
 using boost::lexical_cast;
 using boost::shared_ptr;
 
+static Logger::ptr g_log = Log::lookup("lightning:main");
 
-void readConfig(const string& filename,
+void readConfig(const char* configString,
                 Guid* configHash,
                 JSON::Value* config)
 {
-    ifstream f(filename.c_str());
-    string fileData;
-    f.seekg(0, ios::end);
-    fileData.reserve(f.tellg());
-    f.seekg(0, ios::beg);
-    fileData.assign(istreambuf_iterator<char>(f), istreambuf_iterator<char>());
+    size_t configLength = strlen(configString);
+    *configHash = Guid::fromData(configString, configLength);
+    *config = JSON::parse(configString);
 
-    *configHash = Guid::fromData(fileData.c_str(), fileData.length());
-    *config = JSON::parse(fileData);
-
-    //cout << *config << endl;
-    //cout << *configHash << endl;
+    MORDOR_LOG_INFO(g_log) << " running with config " << configString;
+    MORDOR_LOG_INFO(g_log) << " config hash is " << *configHash;
 }
 
 RpcRequester::ptr setupRequester(IOManager* ioManager,
@@ -195,8 +191,6 @@ void setupEverything(uint32_t hostId,
     *ringManager = RingManager::ptr(new RingManager(groupConfiguration, configHash, ioManager, event, requester, pingTracker, oracle, notifier, ringTimeout, ringRetryInterval, ringBroadcastInterval));
 }
 
-static Logger::ptr g_log = Log::lookup("lightning:main");
-
 //void dumpStats(IOManager* ioManager) {
 //    while(true) {
 //        cerr << Statistics::dump() << endl;
@@ -262,18 +256,18 @@ void writePidFile(int fd) {
 int main(int argc, char** argv) {
     Config::loadFromEnvironment();
     if(argc != 4) {
-        cout << "Usage: master config.json host_id pid_file" << endl;
+        cout << "Usage: master host_id pid_file config_json" << endl;
         return 0;
     }
-    int pidFd = getPidFd(argv[3]);
+    int pidFd = getPidFd(argv[2]);
     if(pidFd < 0) {
         MORDOR_LOG_INFO(g_log) << " Another instance running, not starting.";
         return 1;
     }
-    const uint32_t hostId = lexical_cast<uint32_t>(argv[2]);
+    const uint32_t hostId = lexical_cast<uint32_t>(argv[1]);
     Guid configHash;
     JSON::Value config;
-    readConfig(argv[1], &configHash, &config);
+    readConfig(argv[3], &configHash, &config);
     if(daemon(0, 0)) {
         MORDOR_LOG_ERROR(g_log) << " Failed to daemonize";
         return 1;

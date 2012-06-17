@@ -1,4 +1,4 @@
-CXX = clang++ # g++ --std=gnu++0x
+CXX = g++ --std=gnu++0x # clang++ # g++ --std=gnu++0x
 OPT ?= 3
 
 CXXFLAGS= \

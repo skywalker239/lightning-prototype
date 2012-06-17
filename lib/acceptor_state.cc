@@ -18,6 +18,7 @@ using Mordor::Statistics;
 using Mordor::Timer;
 using paxos::AcceptorInstance;
 using paxos::InstanceId;
+using paxos::kInvalidBallotId;
 using paxos::BallotId;
 using paxos::Value;
 using std::make_pair;
@@ -194,6 +195,7 @@ ValueCache::QueryResult AcceptorState::tryVoteOnCommitted(
     if(result == ValueCache::OK) {
         MORDOR_LOG_TRACE(g_log) << this << " vote " << vote <<
             " hit committed value " << committedValue;
+        *highestBallotPromised = kInvalidBallotId;
         MORDOR_ASSERT(vote.valueId() == committedValue.valueId());
     }
     return result;

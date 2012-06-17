@@ -1,4 +1,5 @@
 #include "proposer_state.h"
+#include "guid.h"
 #include "phase1_request.h"
 #include "phase2_request.h"
 #include "sleep_helper.h"
@@ -129,9 +130,10 @@ void ProposerState::flushCommits() {
     SleepHelper sleeper(ioManager_,
                         commitFlushIntervalUs_,
                         SleepHelper::kEpollSleepPrecision);
+    GuidGenerator g;
     while(true) {
         sleeper.wait();
-        Value value(Guid(), shared_ptr<string>(new string));
+        Value value(g.generate(), shared_ptr<string>(new string));
         clientValueQueue_->push(value);
     }
 }

@@ -90,13 +90,17 @@ void setupEverything(uint32_t hostId,
                      Phase1Batcher::ptr* phase1Batcher,
                      ProposerState::ptr* proposerState,
                      BlockingQueue<Value>::ptr* valueQueue,
-                     TcpValueReceiver::ptr* tcpValueReceiver)
+                     TcpValueReceiver::ptr* tcpValueReceiver,
+                     uint16_t* monPort)
 {
     Address::ptr groupMcastAddress =
         Address::lookup(config["mcast_group"].get<string>(), AF_INET).front();;
     GroupConfiguration::ptr groupConfiguration = GroupConfiguration::parseAcceptorConfig(config["hosts"],
                                                                                          hostId,
                                                                                          groupMcastAddress);
+
+    *monPort = uint16_t(config["monitoring_port"].get<long long>());
+
     const uint64_t pingWindow = config["ping_window"].get<long long>();
     const uint64_t pingTimeout = config["ping_timeout"].get<long long>();
     const uint64_t pingInterval = config["ping_interval"].get<long long>();
@@ -208,9 +212,9 @@ void httpRequest(HTTP::ServerRequest::ptr request) {
     HTTP::respondStream(request, responseStream);
 }
 
-void serveStats(IOManager* ioManager) {
+void serveStats(IOManager* ioManager, uint16_t port) {
     Socket s(*ioManager, AF_INET, SOCK_STREAM);
-    IPv4Address address(INADDR_ANY, 8080);
+    IPv4Address address(INADDR_ANY, port);
 
     s.bind(address);
     s.listen();
@@ -282,9 +286,10 @@ int main(int argc, char** argv) {
         ProposerState::ptr proposerState;
         BlockingQueue<Value>::ptr clientValueQueue;
         TcpValueReceiver::ptr tcpValueReceiver;
-        setupEverything(hostId, configHash, config, &ioManager, &pinger, &ringManager, &phase1Batcher, &proposerState, &clientValueQueue, &tcpValueReceiver);
+        uint16_t monPort;
+        setupEverything(hostId, configHash, config, &ioManager, &pinger, &ringManager, &phase1Batcher, &proposerState, &clientValueQueue, &tcpValueReceiver, &monPort);
         GuidGenerator::ptr guidGenerator(new GuidGenerator);
-        ioManager.schedule(boost::bind(&serveStats, &ioManager));
+        ioManager.schedule(boost::bind(&serveStats, &ioManager, monPort));
         ioManager.schedule(boost::bind(&Pinger::run, pinger));
         ioManager.schedule(boost::bind(&RingManager::run, ringManager));
         ioManager.schedule(boost::bind(&RingManager::broadcastRing, ringManager));

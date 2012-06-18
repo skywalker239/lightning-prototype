@@ -77,9 +77,9 @@ void httpRequest(HTTP::ServerRequest::ptr request) {
     HTTP::respondStream(request, responseStream);
 }
 
-void serveStats(IOManager* ioManager) {
+void serveStats(IOManager* ioManager, uint16_t port) {
     Socket s(*ioManager, AF_INET, SOCK_STREAM);
-    IPv4Address address(INADDR_ANY, 8080);
+    IPv4Address address(INADDR_ANY, port);
 
     s.bind(address);
     s.listen();
@@ -97,10 +97,13 @@ void setupEverything(IOManager* ioManager,
                      const JSON::Value& config,
                      uint32_t ourId,
                      RpcResponder::ptr* responder,
-                     RingVoter::ptr* ringVoter)
+                     RingVoter::ptr* ringVoter,
+                     uint16_t* monPort)
 {
     Address::ptr multicastGroup = Address::lookup(config["mcast_group"].get<string>(), AF_INET).front();
     GroupConfiguration::ptr groupConfig = GroupConfiguration::parseAcceptorConfig(config["hosts"], ourId, multicastGroup);
+
+    *monPort = uint16_t(config["monitoring_port"].get<long long>());
 
     //-------------------------------------------------------------------------
     // recovery manager
@@ -219,10 +222,11 @@ int main(int argc, char** argv) {
 
         RpcResponder::ptr responder;
         RingVoter::ptr ringVoter;
-        setupEverything(&ioManager, configGuid, config, id, &responder, &ringVoter);
+        uint16_t monPort;
+        setupEverything(&ioManager, configGuid, config, id, &responder, &ringVoter, &monPort);
         ioManager.schedule(boost::bind(&RpcResponder::run, responder));
         ioManager.schedule(boost::bind(&RingVoter::run, ringVoter));
-        ioManager.schedule(boost::bind(serveStats, &ioManager));
+        ioManager.schedule(boost::bind(serveStats, &ioManager, monPort));
         MORDOR_LOG_INFO(g_log) << " Acceptor starting.";
         ioManager.dispatch();
     } catch(...) {

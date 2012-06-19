@@ -19,13 +19,15 @@ Value::Value(const Guid& valueId,
     : valueId_(valueId),
       data_(data)
 {
-    MORDOR_ASSERT(!!data && data->length() <= kMaxValueSize);
+    MORDOR_ASSERT(!!data);
+    MORDOR_ASSERT(data->length() <= kMaxValueSize);
 }
 
 void Value::set(const Guid& valueId,
                 shared_ptr<string> data)
 {
-    MORDOR_ASSERT(!!data && data->length() <= kMaxValueSize);
+    MORDOR_ASSERT(!!data);
+    MORDOR_ASSERT(data->length() <= kMaxValueSize);
     valueId_ = valueId;
     data_ = data;
 }

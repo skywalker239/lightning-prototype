@@ -72,6 +72,9 @@ Value createValue(const Guid& valueId, uint64_t snapshotId, uint64_t position, c
         streamData.set_data(data, dataLength);
     }
     streamData.SerializeToString(valueData.get());
+    if(valueData->length() > Value::kMaxValueSize) {
+        MORDOR_LOG_ERROR(g_log) << " bad value " << valueId << " with " << valueData->length() << " bytes";
+    }
     return Value(valueId, valueData);
 }
 
@@ -80,7 +83,7 @@ void readData(SubmitBuffer* submitBuffer,
               IOManager* ioManager)
 {
     GuidGenerator g;
-    const size_t kChunkSize = Value::kMaxValueSize - 2 * sizeof(uint64_t) - 1;
+    const size_t kChunkSize = Value::kMaxValueSize - 2 * sizeof(uint64_t) - 2;
     StdinStream inputStream(*ioManager);
 
     char buffer[kChunkSize];

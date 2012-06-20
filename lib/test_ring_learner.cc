@@ -172,7 +172,7 @@ void dumpStream(IOManager* ioManager,
             MORDOR_LOG_INFO(g_log) << " Received " << written << " data bytes";
             cerr << "Received " << written << " bytes" << endl;
             cerr << "Time: " << endTime - startTime << " us" << endl;
-            cerr << "Speed: " << int(written / ((endTime - startTime) / 1000000.)) << " bps.";
+            cerr << "Speed: " << int(written / ((endTime - startTime) / 1000000.)) << " bps." << endl;
             exit(0); // HACK
         }
         if(!gotData) {

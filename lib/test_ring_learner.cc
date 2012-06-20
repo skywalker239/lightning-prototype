@@ -169,6 +169,7 @@ void dumpStream(IOManager* ioManager,
             ioManager->stop();
             cerr << Statistics::dump() << endl;
             uint64_t endTime = TimerManager::now();
+            MORDOR_LOG_INFO(g_log) << " Received " << written << " data bytes";
             cerr << "Received " << written << " bytes" << endl;
             cerr << "Time: " << endTime - startTime << " us" << endl;
             cerr << "Speed: " << int(written / ((endTime - startTime) / 1000000.)) << " bps.";
@@ -178,7 +179,9 @@ void dumpStream(IOManager* ioManager,
             gotData = true;
             startTime = TimerManager::now();
         }
-        outputStream.write(chunk->c_str(), chunk->length());
+        size_t writtenNow =
+            outputStream.write(chunk->c_str(), chunk->length());
+        MORDOR_ASSERT(writtenNow == chunk->length());
         written += chunk->length();
         Scheduler::yield();
     }

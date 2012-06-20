@@ -179,9 +179,14 @@ void dumpStream(IOManager* ioManager,
             gotData = true;
             startTime = TimerManager::now();
         }
-        size_t writtenNow =
-            outputStream.write(chunk->c_str(), chunk->length());
-        MORDOR_ASSERT(writtenNow == chunk->length());
+        size_t writtenNow = 0;
+        while(writtenNow < chunk->length()) {
+            size_t bytes =
+                outputStream.write(chunk->c_str() + writtenNow,
+                                   chunk->length() - writtenNow);
+            MORDOR_ASSERT(bytes > 0);
+            writtenNow += bytes;
+        }
         written += chunk->length();
         Scheduler::yield();
     }

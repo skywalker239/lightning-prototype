@@ -42,8 +42,8 @@ void TcpRecoveryService::run() {
                                        boost::current_exception_diagnostic_information();
         }
 
-        MORDOR_LOG_DEBUG(g_log) << this << " new recovery connection from " <<
-                                   *(connectionSocket->remoteAddress());
+        MORDOR_LOG_INFO(g_log) << this << " new recovery connection from " <<
+                                  *(connectionSocket->remoteAddress());
         ioManager_->schedule(
             boost::bind(
                 &TcpRecoveryService::handleRecoveryConnection,

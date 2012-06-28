@@ -131,6 +131,7 @@ void setupEverything(uint32_t hostId,
     BallotGenerator ballotGenerator(groupConfiguration);
 
     const Guid epoch = guidGenerator->generate();
+    MORDOR_LOG_INFO(g_log) << " Master epoch = " << epoch;
 
     boost::shared_ptr<FiberEvent> batchPhase1SyncEvent(new FiberEvent(false));
     batchPhase1SyncEvent->set();

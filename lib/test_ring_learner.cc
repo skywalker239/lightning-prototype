@@ -60,7 +60,11 @@ public:
     void updateEpoch(const Guid& newEpoch) {
         FiberMutex::ScopedLock lk(mutex_);
         MORDOR_LOG_INFO(g_log) << " new epoch " << newEpoch;
-        MORDOR_ASSERT(epoch_.empty());
+        if(!epoch_.empty()) {
+            MORDOR_LOG_ERROR(g_log) << " non-empty previous epoch, killing lingering learner";
+            cerr << Statistics::dump() << endl;
+            exit(1);
+        }
         epoch_ = newEpoch;
     }
 
@@ -97,6 +101,7 @@ public:
 
     static void onTransferTimeout() {
         MORDOR_LOG_INFO(g_log) << " snapshot timed out, exiting.";
+        cerr << Statistics::dump() << endl;
         exit(1);
     }
 private:

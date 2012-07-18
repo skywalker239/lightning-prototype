@@ -1,6 +1,6 @@
 #pragma once
 
-#include "host_configuration.h"
+#include "group_configuration.h"
 #include "guid.h"
 #include "ring_change_notifier.h"
 #include "rpc_handler.h"

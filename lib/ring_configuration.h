@@ -1,6 +1,6 @@
 #pragma once
 
-#include "host_configuration.h"
+#include "group_configuration.h"
 #include <mordor/socket.h>
 #include <boost/shared_ptr.hpp>
 #include <iostream>

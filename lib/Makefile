@@ -21,6 +21,8 @@ LIB_OBJS += \
     host_group_var.o \
     ring_var.o \
     string_var.o \
+    address_var.o \
+    group_configuration.o \
     acceptor_state.o \
     ballot_generator.o \
     blocking_abcast.o \

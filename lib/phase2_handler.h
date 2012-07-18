@@ -1,6 +1,6 @@
 #pragma once
 
-#include "host_configuration.h"
+#include "group_configuration.h"
 #include "rpc_handler.h"
 #include "ring_voter.h"
 #include "acceptor_state.h"

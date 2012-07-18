@@ -3,7 +3,7 @@
 #include "ballot_generator.h"
 #include "blocking_queue.h"
 #include "guid.h"
-#include "host_configuration.h"
+#include "group_configuration.h"
 #include "instance_pool.h"
 #include "notifier.h"
 #include "rpc_requester.h"

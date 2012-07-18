@@ -2,7 +2,7 @@
 
 #include "acceptor_state.h"
 #include "guid.h"
-#include "host_configuration.h"
+#include "group_configuration.h"
 #include "paxos_defs.h"
 #include "ring_holder.h"
 #include "proto/rpc_messages.pb.h"

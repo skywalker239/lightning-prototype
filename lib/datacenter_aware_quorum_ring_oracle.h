@@ -1,6 +1,6 @@
 #pragma once
 
-#include "host_configuration.h"
+#include "group_configuration.h"
 #include "ring_oracle.h"
 #include <mordor/socket.h>
 #include <string>

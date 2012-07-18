@@ -2,7 +2,7 @@
 
 #include "blocking_queue.h"
 #include "guid.h"
-#include "host_configuration.h"
+#include "group_configuration.h"
 #include "paxos_defs.h"
 #include "recovery_connection.h"
 #include "recovery_record.h"

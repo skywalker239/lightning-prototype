@@ -1,6 +1,6 @@
 #pragma once
 
-#include "host_configuration.h"
+#include "group_configuration.h"
 #include "paxos_defs.h"
 
 namespace lightning {

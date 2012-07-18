@@ -1,6 +1,6 @@
 #pragma once
 
-#include "host_configuration.h"
+#include "group_configuration.h"
 #include "ping_stats.h"
 #include <mordor/fibersynchronization.h>
 #include <mordor/iomanager.h>

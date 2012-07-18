@@ -1,7 +1,7 @@
 #pragma once
 
 #include "guid.h"
-#include "host_configuration.h"
+#include "group_configuration.h"
 #include "rpc_request.h"
 #include "multicast_rpc_stats.h"
 #include "udp_sender.h"

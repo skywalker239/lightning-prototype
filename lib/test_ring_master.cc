@@ -30,7 +30,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include "guid.h"
-#include "host_configuration.h"
+#include "group_configuration.h"
 #include "ring_oracle.h"
 #include "datacenter_aware_quorum_ring_oracle.h"
 #include "ring_manager.h"

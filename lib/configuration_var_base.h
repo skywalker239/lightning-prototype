@@ -12,6 +12,8 @@ public:
     ConfigurationVarBase(const std::string& key,
                          ConfigurationStore::ptr store);
 
+    virtual ~ConfigurationVarBase() {}
+
     //! Returns true if the value for the key has changed
     //  since the last update.
     bool update();

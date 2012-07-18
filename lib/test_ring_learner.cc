@@ -3,7 +3,7 @@
 #include "phase1_handler.h"
 #include "phase2_handler.h"
 #include "guid.h"
-#include "host_configuration.h"
+#include "group_configuration.h"
 #include "instance_sink.h"
 #include "recovery_manager.h"
 #include "rpc_responder.h"

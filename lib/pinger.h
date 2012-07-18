@@ -1,6 +1,6 @@
 #pragma once
 
-#include "host_configuration.h"
+#include "group_configuration.h"
 #include "ping_tracker.h"
 #include "ring_configuration.h"
 #include "rpc_requester.h"

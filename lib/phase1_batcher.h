@@ -3,7 +3,7 @@
 #include "ballot_generator.h"
 #include "batch_phase1_request.h"
 #include "guid.h"
-#include "host_configuration.h"
+#include "group_configuration.h"
 #include "instance_pool.h"
 #include "paxos_defs.h"
 #include "ring_holder.h"

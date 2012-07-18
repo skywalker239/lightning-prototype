@@ -1,6 +1,6 @@
 #pragma once
 
-#include "host_configuration.h"
+#include "group_configuration.h"
 #include "rpc_request.h"
 #include <mordor/fibersynchronization.h>
 #include <mordor/socket.h>

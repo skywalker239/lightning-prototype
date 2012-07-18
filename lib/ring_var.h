@@ -1,6 +1,7 @@
 #pragma once
 
 #include "configuration_var_base.h"
+#include <mordor/iomanager.h>
 #include <vector>
 
 namespace lightning {
@@ -9,9 +10,12 @@ namespace lightning {
 class RingVar : public ConfigurationVarBase {
 public:
     RingVar(const std::string& key,
-            ConfigurationStore::ptr store);
+            ConfigurationStore::ptr store,
+            Mordor::IOManager* ioManager);
 
     bool valid() const;
+
+    void waitForValidRing(uint64_t pollIntervalUs);
 
     uint32_t ringId() const;
 
@@ -30,6 +34,8 @@ private:
 
     uint32_t ringId_;
     std::vector<uint32_t> ringHostIds_;
+
+    Mordor::IOManager* ioManager_;
 };
 
 }  // namespace lightning

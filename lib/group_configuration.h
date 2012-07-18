@@ -44,7 +44,7 @@ public:
     //! For debug logging.
     std::string addressToServiceName(const Mordor::Address::ptr& address) const;
 
-    uint32_t masterId(); 
+    uint32_t masterId();
 
     uint32_t thisHostId() const;
 

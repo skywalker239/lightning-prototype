@@ -1,10 +1,12 @@
 #include "ring_var.h"
+#include <mordor/sleep.h>
 #include <mordor/log.h>
 #include <stdexcept>
 #include <sstream>
 
 namespace lightning {
 
+using Mordor::IOManager;
 using Mordor::Log;
 using Mordor::Logger;
 using std::istringstream;
@@ -16,13 +18,24 @@ using std::vector;
 static Logger::ptr g_log = Log::lookup("lightning:ring_var");
 
 RingVar::RingVar(const string& key,
-                 ConfigurationStore::ptr store)
+                 ConfigurationStore::ptr store,
+                 IOManager* ioManager)
     : ConfigurationVarBase(key, store),
-      ringId_(kInvalidRingId)
+      ringId_(kInvalidRingId),
+      ioManager_(ioManager)
 {}
 
 bool RingVar::valid() const {
     return ringId_ != kInvalidRingId;
+}
+
+void RingVar::waitForValidRing(uint64_t pollIntervalUs) {
+    while(!valid()) {
+        MORDOR_LOG_TRACE(g_log) << this << " Ring is invalid, waiting for " <<
+            pollIntervalUs << " us.";
+        sleep(*ioManager_, pollIntervalUs);
+        update();
+    }
 }
 
 uint32_t RingVar::ringId() const {

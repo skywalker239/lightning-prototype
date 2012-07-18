@@ -36,7 +36,7 @@ RingManager::RingManager(GroupConfiguration::ptr groupConfiguration,
                          RpcRequester::ptr requester,
                          PingTracker::ptr acceptorPingTracker,
                          RingOracle::ptr ringOracle,
-                         RingChangeNotifier::ptr ringChangeNotifier,
+                         const RingVar& ringVar,
                          uint64_t setRingTimeoutUs,
                          uint64_t lookupRingRetryUs,
                          uint64_t ringBroadcastIntervalUs)
@@ -50,7 +50,7 @@ RingManager::RingManager(GroupConfiguration::ptr groupConfiguration,
       requester_(requester),
       acceptorPingTracker_(acceptorPingTracker),
       ringOracle_(ringOracle),
-      ringChangeNotifier_(ringChangeNotifier),
+      ringVar_(ringVar),
       currentRing_(),
       nextRing_(),
       currentState_(LOOKING),
@@ -152,7 +152,8 @@ bool RingManager::trySetRing() {
     } else {
         currentRing_ = nextRing_;
         nextRing_.reset();
-        ringChangeNotifier_->onRingChange(currentRing_);
+        ringVar_.reset(currentRing_->ringId(),
+                       currentRing_->ringHostIds());
         MORDOR_LOG_TRACE(g_log) << this << " set ring " << *currentRing_ <<
                                    " successful";
         return true;
@@ -204,7 +205,7 @@ void RingManager::waitForRingToBreak() {
                 {
                     MORDOR_LOG_WARNING(g_log) << this << " ring member host=" <<
                                                  hostId << " is down";
-                    ringChangeNotifier_->onRingDown();
+                    ringVar_.clear();
                     return;
                 }
             } else {

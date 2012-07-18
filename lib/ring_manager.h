@@ -4,6 +4,7 @@
 #include "rpc_requester.h"
 #include "ring_change_notifier.h"
 #include "ring_oracle.h"
+#include "ring_var.h"
 #include <mordor/fibersynchronization.h>
 #include <mordor/iomanager.h>
 #include <mordor/socket.h>
@@ -28,7 +29,7 @@ public:
                 RpcRequester::ptr requester,
                 PingTracker::ptr acceptorPingTracker,
                 RingOracle::ptr ringOracle,
-                RingChangeNotifier::ptr ringChangeNotifier,
+                const RingVar& ringVar,
                 uint64_t setRingTimeoutUs,
                 uint64_t lookupRingRetryUs,
                 uint64_t ringBroadcastIntervalUs);
@@ -63,7 +64,7 @@ private:
     RpcRequester::ptr requester_;
     PingTracker::ptr acceptorPingTracker_;
     RingOracle::ptr ringOracle_;
-    RingChangeNotifier::ptr ringChangeNotifier_;
+    RingVar ringVar_;
 
     RingConfiguration::ptr currentRing_;
     RingConfiguration::ptr nextRing_;

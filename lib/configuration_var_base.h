@@ -29,6 +29,10 @@ protected:
     //  into whatever the subclass wants.
     virtual void updateImpl() {}
 
+    //! Unconditionally resets the variable in the store to
+    //  the current local value.
+    void resetString();
+
 private:
     const std::string key_;
     ConfigurationStore::Version localVersion_;

@@ -12,6 +12,8 @@ public:
            ConfigurationStore::ptr store);
 
     int64_t get() const;
+
+    void reset(int64_t newValue);
 protected:
     void updateImpl();
 private:

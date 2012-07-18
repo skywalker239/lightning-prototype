@@ -16,6 +16,13 @@ public:
     uint32_t ringId() const;
 
     const std::vector<uint32_t>& ringHostIds() const;
+
+    //! Reset to a new ring configuration.
+    void reset(uint32_t ringId,
+               const std::vector<uint32_t>& ringHostIds);
+
+    //! Reset to an invalid state.
+    void clear();
 private:
     static const uint32_t kInvalidRingId = 0xFFFFFFFF;
 

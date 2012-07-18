@@ -21,6 +21,12 @@ int64_t IntVar::get() const {
     return intValue_;
 }
 
+void IntVar::reset(int64_t newValue) {
+    value_ = lexical_cast<string>(newValue);
+    resetString();
+    updateImpl();
+}
+
 void IntVar::updateImpl() {
     try {
         intValue_ = lexical_cast<int64_t>(value_);

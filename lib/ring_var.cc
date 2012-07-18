@@ -9,6 +9,7 @@ using Mordor::Log;
 using Mordor::Logger;
 using std::istringstream;
 using std::logic_error;
+using std::ostringstream;
 using std::string;
 using std::vector;
 
@@ -30,6 +31,28 @@ uint32_t RingVar::ringId() const {
 
 const vector<uint32_t>& RingVar::ringHostIds() const {
     return ringHostIds_;
+}
+
+void RingVar::reset(uint32_t ringId,
+                    const std::vector<uint32_t>& ringHostIds)
+{
+    ostringstream out;
+    out << ringId << " " << ringHostIds.size() << " ";
+    for(size_t i = 0; i < ringHostIds.size(); ++i) {
+        out << ringHostIds[i];
+        if(i + 1 < ringHostIds.size()) {
+            out << " ";
+        }
+    }
+    value_ = out.str();
+    resetString();
+    updateImpl();
+}
+
+void RingVar::clear() {
+    value_ = "";
+    resetString();
+    updateImpl();
 }
 
 void RingVar::updateImpl() {

@@ -15,6 +15,12 @@ PROTO_GENHDRS = $(PROTO_SRCS:.proto=.pb.h)
 LIB_TARGETS = libightning.a
 LIB_OBJS = $(PROTO_GENSRCS:.cc=.o)
 LIB_OBJS += \
+    file_configuration_store.o \
+    configuration_var_base.o \
+    int_var.o \
+    host_group_var.o \
+    ring_var.o \
+    string_var.o \
     acceptor_state.o \
     ballot_generator.o \
     blocking_abcast.o \

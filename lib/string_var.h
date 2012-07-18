@@ -10,6 +10,8 @@ public:
               ConfigurationStore::ptr store);
 
     const std::string& get() const;
+
+    void reset(const std::string& newValue);
 };
 
 }  // namespace lightning

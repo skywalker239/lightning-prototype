@@ -27,6 +27,14 @@ const string& ConfigurationVarBase::getString() const {
     return value_;
 }
 
+void ConfigurationVarBase::resetString() {
+    (void) store_->set(key_,
+                       value_,
+                       ConfigurationStore::kAnyVersion,
+                       &localVersion_);
+}
+
+
 ConfigurationStore::Version ConfigurationVarBase::localVersion() const {
     return localVersion_;
 }

@@ -13,4 +13,10 @@ const string& StringVar::get() const {
     return value_;
 }
 
+void StringVar::reset(const string& newValue) {
+    value_ = newValue;
+    resetString();
+    updateImpl();
+}
+
 }  // namespace lightning

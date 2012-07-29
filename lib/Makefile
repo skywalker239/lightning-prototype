@@ -26,7 +26,6 @@ LIB_OBJS += \
     acceptor_state.o \
     ballot_generator.o \
     blocking_abcast.o \
-    host_configuration.o \
     ring_configuration.o \
     MurmurHash3.o \
     guid.o \

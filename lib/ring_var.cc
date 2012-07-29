@@ -59,13 +59,11 @@ void RingVar::reset(uint32_t ringId,
     }
     value_ = out.str();
     resetString();
-    updateImpl();
 }
 
 void RingVar::clear() {
     value_ = "";
     resetString();
-    updateImpl();
 }
 
 void RingVar::updateImpl() {

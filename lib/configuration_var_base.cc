@@ -32,6 +32,7 @@ void ConfigurationVarBase::resetString() {
                        value_,
                        ConfigurationStore::kAnyVersion,
                        &localVersion_);
+    updateImpl();
 }
 
 
